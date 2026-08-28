@@ -9,7 +9,10 @@
  *               what webextext requires for MV3.
  */
 import { test, expect, chromium, firefox } from "@playwright/test";
-import { withExtension } from "playwright-webextext";
+// CommonJS module using Object.defineProperty(exports, ...) - node's ESM
+// lexer cannot see the named exports, so import the default and destructure.
+import webextext from "playwright-webextext";
+const { withExtension } = webextext;
 import { readFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join, dirname } from "node:path";

@@ -2,6 +2,7 @@
   "name": "audiobookshelf-helper",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Firefox/Chrome extension + native host to sync Audiobookshelf books to a USB player",
   "scripts": {
     "build": "python3 extension/build.py",
