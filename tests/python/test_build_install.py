@@ -33,6 +33,18 @@ class TestManifests(unittest.TestCase):
         self.assertEqual(m["background"]["type"], "module")
         self.assertNotIn("scripts", m["background"])
 
+    def test_firefox_declares_no_data_collection(self):
+        """AMO is making this key mandatory; the add-on genuinely collects
+        nothing, so saying so avoids a consent prompt on the listing."""
+        g = BUILD.manifest_for("firefox")["browser_specific_settings"]["gecko"]
+        self.assertEqual(g["data_collection_permissions"], {"required": ["none"]})
+
+    def test_firefox_min_version_supports_optional_host_permissions(self):
+        """optional_host_permissions landed in 128; an earlier floor lets the
+        add-on install into a Firefox where its permission model cannot work."""
+        g = BUILD.manifest_for("firefox")["browser_specific_settings"]["gecko"]
+        self.assertGreaterEqual(int(g["strict_min_version"].split(".")[0]), 128)
+
     def test_chrome_omits_gecko_settings(self):
         self.assertNotIn("browser_specific_settings", BUILD.manifest_for("chrome"))
 

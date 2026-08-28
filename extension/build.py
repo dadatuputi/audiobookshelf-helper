@@ -34,9 +34,10 @@ GECKO_ID = IDENTITY["geckoId"]
 CHROME_KEY = IDENTITY.get("chromeKey") or ""
 CHROME_ID = (IDENT.chrome_ids(IDENTITY) or [""])[0]
 
-# optional_host_permissions landed in Firefox 116; the extension asks for the
+# optional_host_permissions landed in Firefox 128 (web-ext lint is the source
+# of truth here - 116 was wrong and it caught it); the extension asks for the
 # user's Audiobookshelf origin at runtime rather than holding <all_urls>.
-FIREFOX_MIN = "116.0"
+FIREFOX_MIN = "128.0"
 
 SHARED_FILES = [
     "background.js", "browser-polyfill.js", "lib.js", "content.js", "content.css",
@@ -54,7 +55,15 @@ def manifest_for(target: str, version: str = None) -> dict:
         m["background"] = {"scripts": ["browser-polyfill.js", "config.js",
                                        "lib.js", "background.js"]}
         m["browser_specific_settings"] = {
-            "gecko": {"id": GECKO_ID, "strict_min_version": FIREFOX_MIN}
+            "gecko": {
+                "id": GECKO_ID,
+                "strict_min_version": FIREFOX_MIN,
+                # The add-on sends nothing anywhere: the library is read from
+                # the user's own server and the files go to their own device.
+                # AMO will require this key; declaring "none" is both accurate
+                # and the thing that keeps the listing out of a consent prompt.
+                "data_collection_permissions": {"required": ["none"]},
+            }
         }
     elif target == "chrome":
         # MV3 service workers are modules; importScripts is unavailable, so the
