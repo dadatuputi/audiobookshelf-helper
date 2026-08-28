@@ -142,7 +142,8 @@ jobs:
           # Emit the tail as one annotation so failures are diagnosable from
           # the public check-runs API.
           if [ $code -ne 0 ]; then
-            msg=$(tail -c 3500 pw.log | sed 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            # The message is at the TOP; the tail is just stack frames.
+            msg=$(head -c 3000 pw.log | sed 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')
             echo "::error title=playwright-${{ matrix.browser }}::${msg}"
           fi
           exit $code
