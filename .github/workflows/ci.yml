@@ -132,7 +132,20 @@ jobs:
       - name: Install browser
         run: npx playwright install --with-deps ${{ matrix.browser }} chromium
       - name: Run Playwright
-        run: npx playwright test --project=${{ matrix.browser }} --reporter=list,github
+        run: |
+          set +e
+          npx playwright test --project=${{ matrix.browser }} --reporter=list > pw.log 2>&1
+          code=$?
+          echo "----- playwright output -----"
+          cat pw.log
+          # Job logs need auth to read; workflow-command annotations do not.
+          # Emit the tail as one annotation so failures are diagnosable from
+          # the public check-runs API.
+          if [ $code -ne 0 ]; then
+            msg=$(tail -c 3500 pw.log | sed 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=playwright-${{ matrix.browser }}::${msg}"
+          fi
+          exit $code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
