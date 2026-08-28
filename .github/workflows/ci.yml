@@ -130,9 +130,9 @@ jobs:
       - name: Build bundles
         run: python extension/build.py
       - name: Install browser
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+        run: npx playwright install --with-deps ${{ matrix.browser }} chromium
       - name: Run Playwright
-        run: npx playwright test --project=${{ matrix.browser }}
+        run: npx playwright test --project=${{ matrix.browser }} --reporter=list
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

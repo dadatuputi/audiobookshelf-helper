@@ -41,10 +41,14 @@ async function assertButtonInToolbar(page) {
 }
 
 test.describe("real extension load", () => {
-  test("chromium loads the built extension and injects the button", async () => {
+  test("chromium loads the built extension and injects the button", async ({ browserName }) => {
+    test.skip(browserName !== "chromium", "chromium project only - CI installs one browser per leg");
     const ctx = await chromium.launchPersistentContext(
       mkdtempSync(join(tmpdir(), "absh-cr-")),
       {
+        // MV3 extensions do not load in the old headless mode; the
+        // "chromium" channel selects the new one, which supports them.
+        channel: "chromium",
         headless: true,
         args: [
           `--disable-extensions-except=${distChrome}`,
@@ -62,7 +66,8 @@ test.describe("real extension load", () => {
     }
   });
 
-  test("firefox loads the built add-on and injects the button", async () => {
+  test("firefox loads the built add-on and injects the button", async ({ browserName }) => {
+    test.skip(browserName !== "firefox", "firefox project only - CI installs one browser per leg");
     // webextext requires a persistent context for MV3 add-ons.
     const ff = withExtension(firefox, distFirefox);
     const ctx = await ff.launchPersistentContext(
