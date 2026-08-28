@@ -1,0 +1,7 @@
+{
+  "_comment": "Single source of truth for the extension's identity. build.py, native/install.py, the tests and the release workflow all read this file. chromeKey is a PUBLIC key: it only pins the Chrome extension id so that an unpacked load does not get a fresh id every time (which the native host's allowed_origins has to name). No private key is needed, or kept, here.",
+  "geckoId": "audiobookshelf-helper@dadatuputi.github.io",
+  "hostName": "io.github.abshelper",
+  "chromeKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoz7nBZpR/7sUvbZ+SgICMcszdD+BPJ6bs7H3cJd/ucF33kS+ob5Xg5tNOMKAYmtFmUlkdNC/PDwqtqZIvP1B//fgsuZVukI+ygMi1AZIDa4E49bgLsD9szM8Y+4oMwD5BOKO61ukL+uedxwt7mPs5I97GCA2VM8DSFXY7P/IXpzFwOCrnvpYVM70VOHzlZIJX3SwwIAnCRQWW9uIT7Qr98JufVvLZ2A/hTc8QWiBcRJY6v6GyTm2gftav8a2phMdNx4nuo5s0fDkVSO+ftYgKG0+/DMJRgz8w3R99mQvzRMLZj7bPEQzL4Nc4ZmRuICY+onnwMdNl7XCg7wk+fZY6wIDAQAB",
+  "chromeIds": []
+}

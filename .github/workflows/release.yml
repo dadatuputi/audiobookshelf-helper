@@ -1,0 +1,210 @@
+name: Release
+
+# Tag -> artefacts -> GitHub Release -> stores.
+#
+#   git tag v1.0.0-alpha.1 && git push --tags    prerelease: signed XPI + zips
+#   git tag v1.0.0         && git push --tags    stable: also goes to the stores
+#
+# Prereleases are deliberately never submitted to a public store. They still
+# get a *signed* Firefox add-on through AMO's unlisted channel, which needs no
+# review and installs permanently - which is what an alpha is actually for.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v1.0.0-alpha.1)"
+        required: true
+      dry_run:
+        description: "Build and package, but do not publish anywhere"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  # Nothing ships without the full suite passing on the exact commit.
+  verify:
+    name: verify
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: package
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      semver: ${{ steps.v.outputs.semver }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+      firefox_version: ${{ steps.v.outputs.firefox }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Resolve version from the tag
+        id: v
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          python3 tools/release_version.py "$TAG"   # fails loudly on a bad tag
+          {
+            echo "tag=$TAG"
+            echo "semver=$(python3 tools/release_version.py "$TAG" --field semver)"
+            echo "firefox=$(python3 tools/release_version.py "$TAG" --field firefox)"
+            echo "chrome=$(python3 tools/release_version.py "$TAG" --field chrome)"
+            echo "prerelease=$(python3 tools/release_version.py "$TAG" --field prerelease)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate icons
+        # Rebuilt rather than trusted, so a stale committed PNG cannot ship.
+        run: python3 extension/icons/make_icons.py
+
+      - name: Build artefacts
+        run: python3 tools/package.py --tag "${{ steps.v.outputs.tag }}"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: release-artifacts
+          path: release/
+          retention-days: 30
+
+  github-release:
+    name: github release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-artifacts
+          path: release
+
+      - name: Publish the release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          PRERELEASE: ${{ needs.package.outputs.prerelease }}
+        run: |
+          NOTES=$(mktemp)
+          {
+            echo "## Install"
+            echo
+            echo "**Firefox** — download the signed \`.xpi\` below if present, or"
+            echo "load \`...-firefox-*.zip\` unpacked via \`about:debugging\`."
+            echo
+            echo "**Chrome** — unzip \`...-chrome-*.zip\` and load it unpacked"
+            echo "at \`chrome://extensions\` with Developer mode on."
+            echo
+            echo "**Native helper (required)** — unzip \`...-native-*.zip\` and run"
+            echo '```'
+            echo "python3 install.py"
+            echo '```'
+            echo "then restart the browser. The helper is what writes to the device;"
+            echo "the extension on its own cannot."
+            echo
+            if [ "$PRERELEASE" = "true" ]; then
+              echo "> This is a prerelease. It is not published to any store."
+            fi
+          } > "$NOTES"
+          FLAGS=""
+          if [ "$PRERELEASE" = "true" ]; then FLAGS="--prerelease"; fi
+          gh release create "$TAG" release/*.zip \
+            --title "$TAG" --notes-file "$NOTES" $FLAGS
+
+  amo:
+    name: firefox add-ons
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: npm ci --no-audit --no-fund
+
+      - name: Rebuild the Firefox bundle at the release version
+        run: |
+          python3 extension/icons/make_icons.py
+          python3 extension/build.py --target firefox \
+            --version "${{ needs.package.outputs.firefox_version }}"
+
+      - name: Sign / submit
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          PRERELEASE: ${{ needs.package.outputs.prerelease }}
+        run: |
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "::notice title=AMO::skipped - AMO_JWT_ISSUER/AMO_JWT_SECRET not set"
+            exit 0
+          fi
+          # A prerelease goes to the unlisted channel: signed and permanently
+          # installable, but not published on addons.mozilla.org.
+          CHANNEL=listed
+          if [ "$PRERELEASE" = "true" ]; then CHANNEL=unlisted; fi
+          echo "submitting to AMO ($CHANNEL)"
+          npx web-ext sign \
+            --source-dir extension/dist/firefox \
+            --artifacts-dir release-xpi \
+            --channel "$CHANNEL" \
+            --api-key "$AMO_JWT_ISSUER" \
+            --api-secret "$AMO_JWT_SECRET"
+
+      - name: Attach the signed XPI to the release
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          shopt -s nullglob
+          XPI=(release-xpi/*.xpi)
+          if [ ${#XPI[@]} -eq 0 ]; then
+            echo "::notice title=AMO::no signed xpi produced (listed submissions are signed after review)"
+            exit 0
+          fi
+          gh release upload "$TAG" "${XPI[@]}" --clobber
+
+  chrome-web-store:
+    name: chrome web store
+    needs: package
+    # Stable tags only. An alpha must never land in a public store queue.
+    if: ${{ needs.package.outputs.prerelease == 'false' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-artifacts
+          path: release
+
+      - name: Upload and publish
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
+        run: |
+          ZIP=$(ls release/*-chrome-*.zip)
+          DRY=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then DRY="--dry-run"; fi
+          set +e
+          python3 tools/publish_cws.py --zip "$ZIP" $DRY
+          code=$?
+          set -e
+          if [ $code -eq 2 ]; then
+            echo "::notice title=Chrome Web Store::skipped - credentials not configured"
+            exit 0
+          fi
+          exit $code

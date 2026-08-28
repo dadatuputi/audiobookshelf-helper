@@ -8,45 +8,62 @@ input[type=text],input[type=password],select{width:100%;box-sizing:border-box;ba
 .hint{color:#9ca3af;font-size:12px;margin-top:.2rem}
 .chk{display:flex;gap:.5rem;align-items:center;margin:.6rem 0}
 button{margin-top:1.2rem;padding:8px 16px;background:#2563eb;color:#fff;border:0;border-radius:4px;font:inherit;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+button.secondary{background:none;border:1px solid #374151;color:#e5e7eb}
 #msg{margin-left:.8rem;color:#86efac}
 code{background:#111827;padding:1px 4px;border-radius:3px}
+.note{font-size:12px;margin-top:.5rem;color:#9ca3af}
+.note.ok{color:#86efac} .note.warn{color:#fcd34d} .note.err{color:#fca5a5}
+.grant{border:1px solid #374151;border-radius:6px;padding:.8rem 1rem;margin-top:.8rem;background:#171717}
 </style></head><body>
 <h1>Audiobookshelf Helper</h1>
 
 <h2>Server</h2>
-<label>Audiobookshelf URL</label>
+<label for="absUrl">Audiobookshelf URL</label>
 <input type="text" id="absUrl" placeholder="http://media.local:13378">
-<label>API key</label>
+<label for="apiKey">API key</label>
 <input type="password" id="apiKey" placeholder="from Settings → API Keys">
 <div class="hint">Used as a Bearer header, and as <code>?token=</code> on download URLs.</div>
 
+<div class="grant">
+  <strong>Access to your server</strong>
+  <div class="hint">This add-on ships with no site access at all. It needs permission for
+    your own Audiobookshelf origin — and nothing else — to read your library and
+    to put the sync button on its pages.</div>
+  <button id="grant" class="secondary">Grant access</button>
+  <div id="permState" class="note"></div>
+</div>
+
 <h2>Device</h2>
-<label>Player mount path</label>
+<label for="devicePath">Player mount path</label>
 <input type="text" id="devicePath" placeholder="/Volumes/CLIP">
 <div class="hint">Absolute path to the mounted player. The native helper writes here.</div>
-<label>Folder on the device</label>
+<label for="subdir">Folder on the device</label>
 <input type="text" id="subdir" value="AUDIOBOOKS">
 <div class="hint">SanDisk players treat <code>AUDIOBOOKS</code> specially (resume + bookmarks).</div>
 
 <h2>Naming</h2>
-<label>Folder template</label>
+<label for="folderTemplate">Folder template</label>
 <input type="text" id="folderTemplate" value="{author} - {title}">
-<div class="hint">Placeholders: <code>{author}</code> <code>{title}</code> <code>{series}</code></div>
+<div class="hint">Placeholders: <code>{author}</code> <code>{title}</code> <code>{series}</code>.
+  This also decides how a book is recognised on the device, so changing it makes
+  already-synced books look absent.</div>
 <div class="chk"><input type="checkbox" id="renameM4b" checked><label for="renameM4b" style="margin:0">
   Rename <code>.m4b</code> → <code>.m4a</code> (required — the Clip ignores .m4b; same container, no re-encode)</label></div>
 
 <h2>Source</h2>
-<label>How to fetch files</label>
+<label for="sourceMode">How to fetch files</label>
 <select id="sourceMode">
   <option value="auto">Auto — use the local share if mounted, else download over HTTP</option>
   <option value="local">Local share only</option>
   <option value="http">HTTP download only</option>
 </select>
-<label>Local library root (optional)</label>
+<label for="localRoot">Local library root (optional)</label>
 <input type="text" id="localRoot" placeholder="/Volumes/media/audio/audiobooks">
 <div class="hint">Copying from a mounted SMB share is much faster than downloading.</div>
 
 <button id="save">Save</button><span id="msg"></span>
 <script src="browser-polyfill.js"></script>
+<script src="lib.js"></script>
 <script src="options.js"></script>
 </body></html>

@@ -10,7 +10,9 @@ let ABSH;
 beforeAll(() => {
   // lib.js is a classic script; run it in a sandbox and grab the export.
   const code = readFileSync(resolve(here, "../../extension/src/lib.js"), "utf8");
-  const sandbox = { module: { exports: {} }, globalThis: {} };
+  // A bare vm context has the JS builtins but no web APIs; originPattern
+  // parses with URL, so hand it in.
+  const sandbox = { module: { exports: {} }, globalThis: {}, URL };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(code, sandbox);
@@ -159,5 +161,101 @@ describe("DEFAULTS", () => {
   });
   it("targets AUDIOBOOKS, which SanDisk players treat specially", () => {
     expect(ABSH.DEFAULTS.subdir).toBe("AUDIOBOOKS");
+  });
+});
+
+describe("originPattern", () => {
+  it("narrows to the configured origin, not every site", () => {
+    expect(ABSH.originPattern("http://media.local:13378")).toBe("http://media.local:13378/*");
+  });
+  it("keeps https and the port", () => {
+    expect(ABSH.originPattern("https://abs.example.com:8443/")).toBe("https://abs.example.com:8443/*");
+  });
+  it("drops any path", () => {
+    expect(ABSH.originPattern("http://x:1/library/main")).toBe("http://x:1/*");
+  });
+  it("rejects a non-http scheme", () => {
+    expect(() => ABSH.originPattern("file:///etc")).toThrow(/http/);
+  });
+  it("rejects junk", () => {
+    expect(() => ABSH.originPattern("not a url")).toThrow();
+  });
+});
+
+describe("libraryPattern", () => {
+  it("scopes the content script to that server's library pages", () => {
+    expect(ABSH.libraryPattern("http://media.local:13378/")).toBe("http://media.local:13378/library/*");
+  });
+});
+
+describe("buildListPayload", () => {
+  const cfg = { devicePath: "/Volumes/CLIP", subdir: "AUDIOBOOKS", renameM4b: true,
+                folderTemplate: "{author} - {title}" };
+  it("asks for a list with the device options the host needs to match names", () => {
+    const p = ABSH.buildListPayload(cfg, [{ id: "i1", title: "T", author: "A", series: "S" }]);
+    expect(p.cmd).toBe("list");
+    expect(p.folderTemplate).toBe("{author} - {title}");
+    expect(p.devicePath).toBe("/Volumes/CLIP");
+    expect(p.items[0]).toEqual({ id: "i1", title: "T", author: "A", series: "S" });
+  });
+  it("does not leak the download url or api key to a read-only command", () => {
+    const p = ABSH.buildListPayload(cfg, [{ id: "i1", title: "T", author: "A", series: "S" }]);
+    expect(JSON.stringify(p)).not.toContain("token=");
+  });
+  it("tolerates an empty library", () => {
+    expect(ABSH.buildListPayload(cfg, []).items).toEqual([]);
+  });
+  it("still refuses without a device path", () => {
+    expect(() => ABSH.buildListPayload({ ...cfg, devicePath: "" }, [])).toThrow(/device path/);
+  });
+});
+
+describe("buildRemovePayload", () => {
+  const cfg = { devicePath: "/Volumes/CLIP", subdir: "AUDIOBOOKS" };
+  it("carries the names to delete", () => {
+    const p = ABSH.buildRemovePayload(cfg, ["A - B.m4a"]);
+    expect(p.cmd).toBe("remove");
+    expect(p.names).toEqual(["A - B.m4a"]);
+  });
+  it("copies the array so later mutation cannot change the request", () => {
+    const names = ["x"];
+    const p = ABSH.buildRemovePayload(cfg, names);
+    names.push("y");
+    expect(p.names).toEqual(["x"]);
+  });
+  it("refuses an empty removal", () => {
+    expect(() => ABSH.buildRemovePayload(cfg, [])).toThrow(/nothing to remove/);
+  });
+});
+
+describe("annotateOnDevice", () => {
+  const books = [{ id: "a", title: "A" }, { id: "b", title: "B" }];
+  it("marks the books the host found", () => {
+    const out = ABSH.annotateOnDevice(books, {
+      onDevice: [{ id: "a", name: "X.m4a", kind: "file", bytes: 10, files: 1 }]
+    });
+    expect(out[0].onDevice).toMatchObject({ name: "X.m4a", bytes: 10 });
+    expect(out[1].onDevice).toBeNull();
+  });
+  it("leaves every book unmarked when the device is empty", () => {
+    expect(ABSH.annotateOnDevice(books, { onDevice: [] }).every(b => b.onDevice === null)).toBe(true);
+  });
+  it("survives a missing reply", () => {
+    expect(ABSH.annotateOnDevice(books, null).every(b => b.onDevice === null)).toBe(true);
+  });
+  it("does not mutate the input", () => {
+    const copy = JSON.parse(JSON.stringify(books));
+    ABSH.annotateOnDevice(books, { onDevice: [{ id: "a", name: "X" }] });
+    expect(books).toEqual(copy);
+  });
+});
+
+describe("formatBytes", () => {
+  it("keeps small numbers whole", () => expect(ABSH.formatBytes(512)).toBe("512B"));
+  it("uses one decimal below ten units", () => expect(ABSH.formatBytes(1536)).toBe("1.5KB"));
+  it("rounds larger values", () => expect(ABSH.formatBytes(120 * 1048576)).toBe("120MB"));
+  it("handles zero and junk", () => {
+    expect(ABSH.formatBytes(0)).toBe("0B");
+    expect(ABSH.formatBytes(undefined)).toBe("0B");
   });
 });

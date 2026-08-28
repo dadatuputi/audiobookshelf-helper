@@ -1,24 +1,22 @@
-/* End-to-end check of the content script against a stand-in Audiobookshelf page.
+/* The content script's DOM contract, and what the built bundles must contain.
  *
- * Both browsers load the *real* built extension:
- *   chromium  - launchPersistentContext with --load-extension (core Playwright)
- *   firefox   - playwright-webextext, which installs a temporary add-on over
- *               the remote debugging protocol. Core Playwright cannot do this
- *               (launchPersistentContext ignores extensions on Firefox), but
- *               the add-on has a browser_specific_settings.gecko.id, which is
- *               what webextext requires for MV3.
+ * The content script is no longer declared in the manifest - it is registered
+ * at runtime for the one origin the user grants. extension.spec.js drives that
+ * whole path in a real Chromium, including the injection itself; these tests
+ * pin the DOM assumptions the script makes, in both browsers.
+ *
+ * There used to be a Firefox test here that installed the built add-on through
+ * playwright-webextext. It cannot run against this manifest:
+ * playwright-webextext@0.0.5 crashes on any MV3 add-on with no content_scripts,
+ * because overridePermissions() short-circuits into
+ * `manifest.optional_permissions.length` when that key is absent
+ * (dist/firefox_browser.js, and it means optional_host_permissions anyway).
+ * Firefox manifest validation is covered by web-ext lint, which is Mozilla's
+ * own addons-linter and the same check AMO runs on submission.
  */
-import { test, expect, chromium, firefox } from "@playwright/test";
-// CommonJS module using Object.defineProperty(exports, ...) - node's ESM
-// lexer cannot see the named exports, so import the default and destructure.
-// playwright-webextext@0.0.5 is compiled with TypeScript's importHelpers but
-// declares no dependencies, so its dist requires 'tslib' without pulling it
-// in. We add tslib to devDependencies to compensate.
-import webextext from "playwright-webextext";
-const { withExtension } = webextext;
-import { readFileSync, mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { resolve, join, dirname } from "node:path";
+import { test, expect } from "@playwright/test";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -38,58 +36,6 @@ const PAGE = `<!doctype html><html><body>
 const stubRoute = (target) =>
   target.route("**/library/**", (r) =>
     r.fulfill({ status: 200, contentType: "text/html", body: PAGE }));
-
-async function assertButtonInToolbar(page) {
-  const btn = page.locator("#absh-sync-btn");
-  await expect(btn).toBeVisible({ timeout: 20_000 });
-  await expect(btn).toContainText("Sync to device");
-  expect(await btn.evaluate((el) => el.closest("#toolbar") !== null)).toBe(true);
-}
-
-test.describe("real extension load", () => {
-  test("chromium loads the built extension and injects the button", async ({ browserName }) => {
-    test.skip(browserName !== "chromium", "chromium project only - CI installs one browser per leg");
-    const ctx = await chromium.launchPersistentContext(
-      mkdtempSync(join(tmpdir(), "absh-cr-")),
-      {
-        // MV3 extensions do not load in the old headless mode; the
-        // "chromium" channel selects the new one, which supports them.
-        channel: "chromium",
-        headless: true,
-        args: [
-          `--disable-extensions-except=${distChrome}`,
-          `--load-extension=${distChrome}`
-        ]
-      }
-    );
-    try {
-      const page = await ctx.newPage();
-      await stubRoute(page);
-      await page.goto("https://abs.test/library/main");
-      await assertButtonInToolbar(page);
-    } finally {
-      await ctx.close();
-    }
-  });
-
-  test("firefox loads the built add-on and injects the button", async ({ browserName }) => {
-    test.skip(browserName !== "firefox", "firefox project only - CI installs one browser per leg");
-    // webextext requires a persistent context for MV3 add-ons.
-    const ff = withExtension(firefox, distFirefox);
-    const ctx = await ff.launchPersistentContext(
-      mkdtempSync(join(tmpdir(), "absh-ff-")),
-      { headless: true }
-    );
-    try {
-      const page = await ctx.newPage();
-      await stubRoute(page);
-      await page.goto("https://abs.test/library/main");
-      await assertButtonInToolbar(page);
-    } finally {
-      await ctx.close();
-    }
-  });
-});
 
 /* These run under both projects and do not need the extension installed -
  * they pin the DOM contract the content script relies on. */
@@ -126,8 +72,32 @@ test.describe("built artefacts", () => {
     expect(cr.manifest_version).toBe(3);
     expect(ff.background.scripts).toContain("background.js");
     expect(cr.background.service_worker).toBe("background.js");
-    // webextext needs this to install an MV3 add-on temporarily
+    // AMO requires an explicit id for a signed add-on
     expect(ff.browser_specific_settings.gecko.id).toBeTruthy();
     expect(cr.browser_specific_settings).toBeUndefined();
+  });
+
+  test("neither manifest asks for host access up front", () => {
+    // The single biggest store-review risk was <all_urls> plus a content
+    // script matching every site. Both are now requested at runtime instead.
+    for (const m of [
+      JSON.parse(readFileSync(resolve(distFirefox, "manifest.json"), "utf8")),
+      JSON.parse(readFileSync(resolve(distChrome, "manifest.json"), "utf8"))
+    ]) {
+      expect(m.host_permissions).toBeUndefined();
+      expect(m.content_scripts).toBeUndefined();
+      expect(m.optional_host_permissions).toEqual(["*://*/*"]);
+      expect(m.permissions).toContain("scripting");
+    }
+  });
+
+  test("both bundles ship the icons the stores require", () => {
+    for (const dir of [distFirefox, distChrome]) {
+      const m = JSON.parse(readFileSync(resolve(dir, "manifest.json"), "utf8"));
+      for (const size of ["16", "48", "128"]) {
+        expect(m.icons[size]).toBeTruthy();
+        expect(existsSync(resolve(dir, m.icons[size]))).toBe(true);
+      }
+    }
   });
 });

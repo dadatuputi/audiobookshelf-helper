@@ -1,15 +1,22 @@
 import { defineConfig } from "@playwright/test";
 
-/* Chromium can load an unpacked extension via --load-extension, so the content
- * script is exercised for real. Firefox cannot do that through Playwright, so
- * the Firefox project verifies the same DOM contract by injecting the built
- * content script into the page instead. */
+/* Chromium can load an unpacked extension via --load-extension, so the popup,
+ * options page, background handlers and native host are all exercised for real
+ * (extension.spec.js). Firefox cannot register a native host under Playwright,
+ * so its project verifies that the built add-on installs and that the DOM
+ * contract the content script relies on still holds.
+ *
+ * ABSH_CHROMIUM_PATH / ABSH_FIREFOX_PATH point at a prebuilt browser when the
+ * environment ships one instead of the revision Playwright downloads. */
+const launchOptions = (envVar) =>
+  process.env[envVar] ? { launchOptions: { executablePath: process.env[envVar] } } : {};
+
 export default defineConfig({
   testDir: "tests/e2e",
   timeout: 60_000,
   reporter: [["list"]],
   projects: [
-    { name: "chromium", use: { browserName: "chromium" } },
-    { name: "firefox",  use: { browserName: "firefox"  } }
+    { name: "chromium", use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") } },
+    { name: "firefox", use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") } }
   ]
 });

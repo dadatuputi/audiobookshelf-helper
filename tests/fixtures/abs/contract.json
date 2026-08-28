@@ -1,0 +1,46 @@
+{
+  "_comment": "Exactly what this extension needs from the Audiobookshelf API. If upstream changes any of it, the extension breaks in a way that looks like an empty book list rather than an error - so it is pinned here, asserted by tests/js/contract.test.js, and quoted into the issue that tools/check_upstream.py opens.",
+  "upstream": "advplyr/audiobookshelf",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/libraries",
+      "used_for": "populating the library dropdown",
+      "fields": [
+        "libraries[] (or a bare array)",
+        "libraries[].id",
+        "libraries[].name",
+        "libraries[].mediaType == \"book\""
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/libraries/{id}/items?limit=0",
+      "used_for": "the book picker",
+      "fields": [
+        "results[]",
+        "results[].id",
+        "results[].relPath",
+        "results[].size",
+        "results[].media.numTracks",
+        "results[].media.audioFiles[]",
+        "results[].media.metadata.title",
+        "results[].media.metadata.authorName",
+        "results[].media.metadata.authors[].name",
+        "results[].media.metadata.series[].name"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/items/{id}/download?token={apiKey}",
+      "used_for": "fetching a book when no local share is mounted",
+      "fields": [
+        "accepts the JWT as a ?token= query parameter, not only as a Bearer header",
+        "returns a single audio file, or a zip for a multi-file book",
+        "Content-Disposition filename",
+        "Content-Type contains \"zip\" for the multi-file case"
+      ],
+      "note": "The token-in-URL form is load-bearing: downloads.download cannot set headers, and the native helper is handed a URL. Auth.js uses ExtractJwt.fromExtractors([fromAuthHeaderAsBearerToken(), fromUrlQueryParameter('token')])."
+    }
+  ]
+}

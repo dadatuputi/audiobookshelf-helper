@@ -1,0 +1,63 @@
+{
+  "results": [
+    {
+      "id": "li_8gch9ve09orgn4fdz8",
+      "ino": "649641337522215266",
+      "libraryId": "lib_c1u6t4p45c35rf0nzd",
+      "folderId": "fol_bev1zuxhb0j0s1wehr",
+      "path": "/audiobooks/Brian Jacques/Redwall",
+      "relPath": "Brian Jacques/Redwall",
+      "isFile": false,
+      "mtimeMs": 1650621074299,
+      "size": 268435456,
+      "media": {
+        "id": "med_8gch9ve09orgn4fdz8",
+        "metadata": {
+          "title": "Redwall",
+          "titleIgnorePrefix": "Redwall",
+          "subtitle": null,
+          "authorName": "Brian Jacques",
+          "narratorName": "Full Cast",
+          "seriesName": "Redwall #1",
+          "genres": ["Fantasy"],
+          "publishedYear": "1986",
+          "description": "A tale of Redwall Abbey.",
+          "isbn": null,
+          "asin": "B002V0QUOC",
+          "language": null,
+          "explicit": false
+        },
+        "coverPath": "/metadata/items/li_8gch9ve09orgn4fdz8/cover.jpg",
+        "tags": [],
+        "numTracks": 1,
+        "numAudioFiles": 1,
+        "numChapters": 24,
+        "duration": 28800.5,
+        "size": 268435456
+      },
+      "numFiles": 2
+    },
+    {
+      "id": "li_2ab39ve09orgn4fdz9",
+      "libraryId": "lib_c1u6t4p45c35rf0nzd",
+      "path": "/audiobooks/Louis Sachar/Holes",
+      "relPath": "Louis Sachar/Holes",
+      "isFile": false,
+      "size": 134217728,
+      "media": {
+        "metadata": {
+          "title": "Holes",
+          "authorName": "Louis Sachar",
+          "seriesName": null
+        },
+        "numTracks": 12,
+        "size": 134217728
+      },
+      "numFiles": 13
+    }
+  ],
+  "total": 2,
+  "limit": 0,
+  "page": 0,
+  "sortDesc": false
+}

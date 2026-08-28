@@ -1,0 +1,26 @@
+{
+  "libraries": [
+    {
+      "id": "lib_c1u6t4p45c35rf0nzd",
+      "name": "Audiobooks",
+      "folders": [{ "id": "fol_bev1zuxhb0j0s1wehr", "fullPath": "/audiobooks" }],
+      "displayOrder": 1,
+      "icon": "audiobookshelf",
+      "mediaType": "book",
+      "provider": "audible",
+      "createdAt": 1650621073750,
+      "lastUpdate": 1650621073750
+    },
+    {
+      "id": "lib_pod2j4p45c35rf0abc",
+      "name": "Podcasts",
+      "folders": [],
+      "displayOrder": 2,
+      "icon": "podcast",
+      "mediaType": "podcast",
+      "provider": "itunes",
+      "createdAt": 1650621073750,
+      "lastUpdate": 1650621073750
+    }
+  ]
+}

@@ -33,6 +33,18 @@ class TestManifests(unittest.TestCase):
         self.assertEqual(m["background"]["type"], "module")
         self.assertNotIn("scripts", m["background"])
 
+    def test_firefox_declares_no_data_collection(self):
+        """AMO is making this key mandatory; the add-on genuinely collects
+        nothing, so saying so avoids a consent prompt on the listing."""
+        g = BUILD.manifest_for("firefox")["browser_specific_settings"]["gecko"]
+        self.assertEqual(g["data_collection_permissions"], {"required": ["none"]})
+
+    def test_firefox_min_version_supports_optional_host_permissions(self):
+        """optional_host_permissions landed in 128; an earlier floor lets the
+        add-on install into a Firefox where its permission model cannot work."""
+        g = BUILD.manifest_for("firefox")["browser_specific_settings"]["gecko"]
+        self.assertGreaterEqual(int(g["strict_min_version"].split(".")[0]), 128)
+
     def test_chrome_omits_gecko_settings(self):
         self.assertNotIn("browser_specific_settings", BUILD.manifest_for("chrome"))
 
@@ -45,7 +57,35 @@ class TestManifests(unittest.TestCase):
             m = BUILD.manifest_for(t)
             self.assertIn("nativeMessaging", m["permissions"])
             self.assertIn("storage", m["permissions"])
-            self.assertTrue(m["content_scripts"][0]["js"])
+            # scripting replaces the declared content_scripts block: the
+            # toolbar button is registered at runtime for the user's own
+            # server rather than matching every site in the manifest.
+            self.assertIn("scripting", m["permissions"])
+            self.assertNotIn("content_scripts", m)
+
+    def test_no_host_permissions_are_requested_up_front(self):
+        for t in ("firefox", "chrome"):
+            m = BUILD.manifest_for(t)
+            self.assertNotIn("host_permissions", m)
+            self.assertEqual(m["optional_host_permissions"], ["*://*/*"])
+
+    def test_icons_are_declared_and_present(self):
+        for t in ("firefox", "chrome"):
+            out = BUILD.build(t)
+            m = json.loads((out / "manifest.json").read_text())
+            for size in ("16", "48", "128"):
+                self.assertTrue((out / m["icons"][size]).exists(), f"{t}: icon {size}")
+
+    def test_version_can_be_stamped_from_a_tag(self):
+        self.assertEqual(BUILD.manifest_for("firefox", "2.3.4")["version"], "2.3.4")
+        self.assertEqual(BUILD.manifest_for("chrome", "2.3.4")["version"], "2.3.4")
+
+    def test_chrome_pins_its_id_with_a_key(self):
+        """Without a pinned key an unpacked load gets a fresh id every time,
+        which the native host's allowed_origins cannot name in advance."""
+        m = BUILD.manifest_for("chrome")
+        self.assertTrue(m.get("key"))
+        self.assertRegex(BUILD.CHROME_ID, r"^[a-p]{32}$")
 
     def test_unknown_target_rejected(self):
         with self.assertRaises(SystemExit):
@@ -87,6 +127,12 @@ class TestInstallerPaths(unittest.TestCase):
         dirs = INSTALL.manifest_dirs("Windows", "firefox")
         self.assertEqual(len(dirs), 1)
 
+    def test_windows_paths_differ_per_browser(self):
+        """Sharing one path meant installing both browsers clobbered Firefox."""
+        f = INSTALL.manifest_dirs("Windows", "firefox")
+        c = INSTALL.manifest_dirs("Windows", "chrome")
+        self.assertFalse(set(f) & set(c))
+
     def test_unsupported_os_raises(self):
         with self.assertRaises(SystemExit):
             INSTALL.manifest_dirs("Plan9", "firefox")
@@ -121,6 +167,54 @@ class TestInstallerManifest(unittest.TestCase):
                             INSTALL.registry_key("chrome"))
         self.assertIn("Mozilla", INSTALL.registry_key("firefox"))
         self.assertIn("Chrome", INSTALL.registry_key("chrome"))
+
+
+class TestWindowsLauncher(unittest.TestCase):
+    """Windows browsers cannot exec a .py directly; the manifest needs a .bat."""
+
+    def test_manifest_points_at_a_bat_on_windows(self):
+        d = Path("C:/x") if os.name == "nt" else Path("/x")
+        self.assertEqual(INSTALL.host_command_path("Windows", d).name,
+                         INSTALL.LAUNCHER_NAME)
+
+    def test_manifest_points_at_the_py_elsewhere(self):
+        for system in ("Darwin", "Linux"):
+            self.assertEqual(INSTALL.host_command_path(system, Path("/x")).suffix, ".py")
+
+    def test_launcher_invokes_the_interpreter_with_the_host(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            body = INSTALL.write_windows_launcher(tmp / "l.bat").read_text()
+            self.assertIn(sys.executable, body)
+            self.assertIn("absh_host.py", body)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_windows_install_writes_manifest_and_launcher(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            with mock.patch.object(INSTALL, "manifest_dirs", return_value=[tmp]):
+                INSTALL.install("firefox", [], dry=False, remove=False, system="Windows")
+            self.assertTrue((tmp / f"{INSTALL.HOST_NAME}.json").exists())
+            self.assertTrue((tmp / INSTALL.LAUNCHER_NAME).exists())
+            m = json.loads((tmp / f"{INSTALL.HOST_NAME}.json").read_text())
+            self.assertTrue(m["path"].endswith(INSTALL.LAUNCHER_NAME))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+class TestIdentity(unittest.TestCase):
+    """build.py and install.py must never disagree about who the add-on is."""
+
+    def test_gecko_id_is_shared(self):
+        self.assertEqual(BUILD.GECKO_ID, INSTALL.GECKO_ID)
+
+    def test_gecko_id_looks_like_an_amo_id(self):
+        self.assertRegex(BUILD.GECKO_ID, r"^[^@\s]+@[^@\s]+$")
+
+    def test_firefox_manifest_id_matches_allowed_extensions(self):
+        built = BUILD.manifest_for("firefox")["browser_specific_settings"]["gecko"]["id"]
+        self.assertEqual(INSTALL.build_manifest("firefox", [])["allowed_extensions"], [built])
 
 
 class TestInstallDryRun(unittest.TestCase):

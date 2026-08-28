@@ -5,17 +5,19 @@
   "type": "module",
   "description": "Firefox/Chrome extension + native host to sync Audiobookshelf books to a USB player",
   "scripts": {
+    "icons": "python3 extension/icons/make_icons.py",
     "build": "python3 extension/build.py",
+    "package": "python3 tools/package.py",
+    "test": "npm run test:py && npm run test:unit && npm run test:e2e",
+    "test:py": "python3 -m unittest discover -s tests/python -p 'test_*.py' -v",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "lint:ext": "web-ext lint --source-dir extension/dist/firefox --self-hosted",
-    "test:py": "python3 -m unittest discover -s tests/python -p 'test_*.py' -v"
+    "lint:chrome": "addons-linter extension/dist/chrome"
   },
   "devDependencies": {
     "@playwright/test": "^1.47.0",
     "addons-linter": "^7.0.0",
-    "playwright-webextext": "^0.0.5",
-    "tslib": "^2.8.1",
     "vitest": "^2.1.0",
     "web-ext": "^8.3.0"
   }
