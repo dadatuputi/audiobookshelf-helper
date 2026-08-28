@@ -104,6 +104,23 @@ class TestReleaseInfo(PackageBase):
         self.assertEqual(info["semver"], "1.0.0-alpha.1")
 
 
+class TestLocalDefault(unittest.TestCase):
+    """A local build should not require inventing a version number."""
+
+    def test_no_tag_produces_a_placeholder_build(self):
+        out = Path(tempfile.mkdtemp())
+        try:
+            import subprocess, sys
+            subprocess.run([sys.executable, str(ROOT / "tools" / "package.py"),
+                            "--out", str(out)], check=True, capture_output=True)
+            info = json.loads((out / "release-info.json").read_text())
+            self.assertEqual(info["semver"], "0.0.0")
+            self.assertFalse(info["prerelease"])
+            self.assertEqual(len(list(out.glob("*.zip"))), 4)
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+
+
 class TestStableTag(unittest.TestCase):
     def test_a_stable_tag_is_not_marked_prerelease(self):
         out = Path(tempfile.mkdtemp())

@@ -48,11 +48,10 @@ download without setting headers.
 ## Install
 
 Grab the [latest release](https://github.com/dadatuputi/audiobookshelf-helper/releases),
-or build from source:
+or build it yourself — see [Building locally](#building-locally). Either way you
+also need the native helper:
 
 ```bash
-python3 extension/icons/make_icons.py   # only if you changed the icons
-python3 extension/build.py              # -> extension/dist/{firefox,chrome}
 python3 native/install.py               # register the native helper
 ```
 
@@ -70,6 +69,69 @@ Then load the extension:
 
 On Windows the helper manifest points at a generated `.bat`, because Windows
 browsers cannot execute a `.py` directly.
+
+## Building locally
+
+Nothing here needs a bundler, and the extension itself builds with **Python
+alone** — no `npm install` required. Node is only for the tests and linters.
+
+### The unpacked extension, for development
+
+```bash
+python3 extension/build.py            # -> extension/dist/{firefox,chrome}
+python3 extension/build.py --target chrome   # just one
+```
+
+Load `extension/dist/firefox` or `extension/dist/chrome` as an unpacked/temporary
+extension (see [Install](#install)). Re-run after any change to `extension/src/`
+and press reload in the browser — there is no watch mode, because the build is a
+file copy plus a generated manifest and takes about a tenth of a second.
+
+### The release artefacts, byte-for-byte
+
+`tools/package.py` is the same script the release workflow runs, so you can
+produce locally exactly what a tag would publish:
+
+```bash
+python3 tools/package.py                       # stamped v0.0.0, into release/
+python3 tools/package.py --tag v1.0.0-alpha.1  # exactly what that tag ships
+python3 tools/package.py --tag v1.0.0 --out /tmp/rc
+```
+
+That writes four archives plus a `release-info.json`:
+
+| Archive | What it is |
+|---|---|
+| `...-firefox-<ver>.zip` | Firefox bundle, `manifest.json` at the **root** — what AMO accepts |
+| `...-chrome-<ver>.zip` | Chrome bundle, same shape — what the Web Store accepts |
+| `...-native-<ver>.zip` | `absh_host.py`, `install.py`, `identity.json`; unzip and run `python3 install.py` |
+| `...-source-<ver>.zip` | Source for AMO's source-code review |
+
+The version stamped into each manifest is derived from the tag, so a local
+`--tag v1.0.0-alpha.1` build carries `1.0.0a1` for Firefox and `1.0.0.1` for
+Chrome, just as the published one does. See [Releasing](#releasing).
+
+### If you changed the icons
+
+```bash
+python3 extension/icons/make_icons.py    # regenerates the PNG set
+```
+
+The PNGs are committed, but CI regenerates them before packaging so a stale
+one cannot ship.
+
+### npm scripts, if you prefer them
+
+```bash
+npm install                    # only needed for tests and linters
+npm run build                  # python3 extension/build.py
+npm run package                # python3 tools/package.py  (add -- --tag vX.Y.Z)
+npm run icons
+npm test                       # python + unit + e2e
+npm run test:py                # no node needed
+npm run lint:ext               # web-ext lint, the check AMO runs
+npm run lint:chrome
+```
 
 ## Configure
 

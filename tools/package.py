@@ -2,7 +2,8 @@
 """
 Build the release artefacts.
 
-    python3 tools/package.py --tag v1.0.0-alpha.1
+    python3 tools/package.py                      # local build, stamped v0.0.0
+    python3 tools/package.py --tag v1.0.0-alpha.1  # exactly what that tag ships
 
 Produces, under release/:
 
@@ -75,7 +76,8 @@ def build(target: str, version: str):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tag", required=True)
+    ap.add_argument("--tag", default="v0.0.0",
+                    help="version to stamp (default v0.0.0, a placeholder for local builds)")
     ap.add_argument("--out", default=str(OUT))
     a = ap.parse_args()
 
