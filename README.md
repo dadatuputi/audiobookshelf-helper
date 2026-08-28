@@ -127,6 +127,10 @@ CI runs on every push:
 | `e2e` | Playwright, chromium + firefox |
 | `package` | zips both bundles as artefacts |
 
+All 18 jobs green. Note `playwright-webextext` is compiled with TypeScript's
+`importHelpers` but ships no `dependencies`, so its `dist` requires `tslib`
+without installing it — `tslib` is in our devDependencies to compensate.
+
 Both browsers load the **real built extension**. Chromium uses core
 Playwright's `--load-extension`. Firefox goes through
 [`playwright-webextext`](https://github.com/ueokande/playwright-webextext),
