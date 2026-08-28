@@ -11,6 +11,9 @@
 import { test, expect, chromium, firefox } from "@playwright/test";
 // CommonJS module using Object.defineProperty(exports, ...) - node's ESM
 // lexer cannot see the named exports, so import the default and destructure.
+// playwright-webextext@0.0.5 is compiled with TypeScript's importHelpers but
+// declares no dependencies, so its dist requires 'tslib' without pulling it
+// in. We add tslib to devDependencies to compensate.
 import webextext from "playwright-webextext";
 const { withExtension } = webextext;
 import { readFileSync, mkdtempSync } from "node:fs";
