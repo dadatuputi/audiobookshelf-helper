@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v5
         with:
           name: release-artifacts
           path: release
@@ -111,7 +111,7 @@ jobs:
             fi
           } > "$NOTES"
           FLAGS=""
-          [ "$PRERELEASE" = "true" ] && FLAGS="--prerelease"
+          if [ "$PRERELEASE" = "true" ]; then FLAGS="--prerelease"; fi
           gh release create "$TAG" release/*.zip \
             --title "$TAG" --notes-file "$NOTES" $FLAGS
 
@@ -150,7 +150,7 @@ jobs:
           # A prerelease goes to the unlisted channel: signed and permanently
           # installable, but not published on addons.mozilla.org.
           CHANNEL=listed
-          [ "$PRERELEASE" = "true" ] && CHANNEL=unlisted
+          if [ "$PRERELEASE" = "true" ]; then CHANNEL=unlisted; fi
           echo "submitting to AMO ($CHANNEL)"
           npx web-ext sign \
             --source-dir extension/dist/firefox \
@@ -184,7 +184,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v5
         with:
           name: release-artifacts
           path: release
@@ -198,7 +198,7 @@ jobs:
         run: |
           ZIP=$(ls release/*-chrome-*.zip)
           DRY=""
-          [ "${{ github.event.inputs.dry_run }}" = "true" ] && DRY="--dry-run"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then DRY="--dry-run"; fi
           set +e
           python3 tools/publish_cws.py --zip "$ZIP" $DRY
           code=$?

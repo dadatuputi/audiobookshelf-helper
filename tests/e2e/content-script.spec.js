@@ -1,26 +1,22 @@
-/* The content script's DOM contract, plus proof that the built Firefox add-on
- * actually installs into a real Firefox.
+/* The content script's DOM contract, and what the built bundles must contain.
  *
  * The content script is no longer declared in the manifest - it is registered
- * at runtime for the one origin the user grants, so "load the add-on and see
- * the button" is only true after a grant. Chromium covers that whole path in
- * extension.spec.js, where the grant can be seeded. Here Firefox proves the
- * built add-on is installable (playwright-webextext installs a temporary
- * add-on over the remote debugging protocol; core Playwright ignores
- * extensions in launchPersistentContext on Firefox), and both browsers pin the
- * DOM assumptions the script makes.
+ * at runtime for the one origin the user grants. extension.spec.js drives that
+ * whole path in a real Chromium, including the injection itself; these tests
+ * pin the DOM assumptions the script makes, in both browsers.
+ *
+ * There used to be a Firefox test here that installed the built add-on through
+ * playwright-webextext. It cannot run against this manifest:
+ * playwright-webextext@0.0.5 crashes on any MV3 add-on with no content_scripts,
+ * because overridePermissions() short-circuits into
+ * `manifest.optional_permissions.length` when that key is absent
+ * (dist/firefox_browser.js, and it means optional_host_permissions anyway).
+ * Firefox manifest validation is covered by web-ext lint, which is Mozilla's
+ * own addons-linter and the same check AMO runs on submission.
  */
-import { test, expect, firefox } from "@playwright/test";
-// CommonJS module using Object.defineProperty(exports, ...) - node's ESM
-// lexer cannot see the named exports, so import the default and destructure.
-// playwright-webextext@0.0.5 is compiled with TypeScript's importHelpers but
-// declares no dependencies, so its dist requires 'tslib' without pulling it
-// in. We add tslib to devDependencies to compensate.
-import webextext from "playwright-webextext";
-const { withExtension } = webextext;
-import { readFileSync, mkdtempSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { resolve, join, dirname } from "node:path";
+import { test, expect } from "@playwright/test";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -40,37 +36,6 @@ const PAGE = `<!doctype html><html><body>
 const stubRoute = (target) =>
   target.route("**/library/**", (r) =>
     r.fulfill({ status: 200, contentType: "text/html", body: PAGE }));
-
-async function assertButtonInToolbar(page) {
-  const btn = page.locator("#absh-sync-btn");
-  await expect(btn).toBeVisible({ timeout: 20_000 });
-  await expect(btn).toContainText("Sync to device");
-  expect(await btn.evaluate((el) => el.closest("#toolbar") !== null)).toBe(true);
-}
-
-test.describe("real add-on load", () => {
-  test("firefox installs the built add-on, and injects nothing without a grant",
-       async ({ browserName }) => {
-    test.skip(browserName !== "firefox", "firefox project only - CI installs one browser per leg");
-    // webextext requires a persistent context for MV3 add-ons, and throws if
-    // Firefox refuses the manifest - so getting this far is the load assertion.
-    const ff = withExtension(firefox, distFirefox);
-    const ctx = await ff.launchPersistentContext(
-      mkdtempSync(join(tmpdir(), "absh-ff-")),
-      { headless: true }
-    );
-    try {
-      const page = await ctx.newPage();
-      await stubRoute(page);
-      await page.goto("https://abs.test/library/main");
-      await expect(page.locator("#toolbar")).toBeVisible();
-      // No host permission has been granted, so no script may run here.
-      await expect(page.locator("#absh-sync-btn")).toHaveCount(0);
-    } finally {
-      await ctx.close();
-    }
-  });
-});
 
 /* These run under both projects and do not need the extension installed -
  * they pin the DOM contract the content script relies on. */
@@ -107,7 +72,7 @@ test.describe("built artefacts", () => {
     expect(cr.manifest_version).toBe(3);
     expect(ff.background.scripts).toContain("background.js");
     expect(cr.background.service_worker).toBe("background.js");
-    // webextext needs this to install an MV3 add-on temporarily
+    // AMO requires an explicit id for a signed add-on
     expect(ff.browser_specific_settings.gecko.id).toBeTruthy();
     expect(cr.browser_specific_settings).toBeUndefined();
   });

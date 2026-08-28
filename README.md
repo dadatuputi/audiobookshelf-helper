@@ -222,7 +222,7 @@ browser at a fixed path rather than the revision Playwright downloads.
 | `native-smoke` | real stdio round-trip of sync → list → remove, per OS |
 | `extension-lint` | `web-ext lint` (zero errors, warnings and notices) + `addons-linter` |
 | `extension-unit` | vitest on node 20 / 22 |
-| `e2e` | Playwright, chromium + firefox |
+| `e2e` | Playwright, chromium (full loop) + firefox (DOM contract) |
 | `package` | the real release packaging, so a tag can't fail on it |
 
 ## Notes
@@ -233,10 +233,14 @@ browser at a fixed path rather than the revision Playwright downloads.
 - A single long `.m4a` gives no chapter navigation on the Clip. Keep a book as
   multiple files if you want skippable chapters.
 - Older Clip+/Clip Zip: set **Settings → USB Mode → MSC** or it won't mount.
-- `tslib` is in devDependencies although nothing here imports it.
-  `playwright-webextext@0.0.5` is compiled with TypeScript's `importHelpers`
-  yet declares no dependencies, so its `dist` does `require("tslib")` with
-  nothing to resolve. Remove it and the Firefox e2e job fails at import.
+- `playwright-webextext` (and the `tslib` it needed but did not declare) are
+  gone. It installed the built add-on into a real Firefox, but it cannot handle
+  this manifest: `playwright-webextext@0.0.5` crashes on any MV3 add-on with no
+  `content_scripts`, because `overridePermissions()` short-circuits into
+  `manifest.optional_permissions.length` when that key is absent — and it means
+  `optional_host_permissions` anyway. Worth reporting upstream. Firefox manifest
+  validation is covered by `web-ext lint`, which is Mozilla's own addons-linter
+  and the same check AMO runs on submission.
 - `lib.js` is a classic script with a CommonJS tail: it has to load three ways
   without a bundler — Firefox's MV3 `background.scripts`, Chrome's module
   service worker, and node for tests.
