@@ -1,0 +1,68 @@
+name: Upstream watch
+
+# Audiobookshelf has no reason to care that this extension exists, so the only
+# warning of a breaking change is noticing that they shipped one. This opens an
+# issue when they cut a release, listing what we depend on so the changelog can
+# be read against it.
+#
+# The contract itself is asserted by tests/js/contract.test.js on every push -
+# this job is the heads-up, that test is the tripwire.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"      # Mondays, early
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  check:
+    name: check for new Audiobookshelf releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Look for new releases
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/check_upstream.py --update
+
+      - name: Open or update the tracking issue
+        if: steps.check.outputs.has_news == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.check.outputs.latest }}
+        run: |
+          TITLE="Audiobookshelf $LATEST released - check the API contract"
+          # Reuse an open issue rather than stacking one per release.
+          EXISTING=$(gh issue list --state open --label upstream \
+                       --json number,title --limit 20 \
+                       --jq '.[] | select(.title | startswith("Audiobookshelf ")) | .number' \
+                     | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file upstream-report.md
+            gh issue edit "$EXISTING" --title "$TITLE"
+            echo "commented on #$EXISTING"
+          else
+            gh label create upstream --color 0E8A16 \
+              --description "Changes upstream in Audiobookshelf" 2>/dev/null || true
+            gh issue create --title "$TITLE" --label upstream \
+              --body-file upstream-report.md
+          fi
+
+      - name: Record what was seen
+        if: steps.check.outputs.has_news == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/abs-watch.json
+          git diff --staged --quiet || {
+            git commit -m "upstream: seen Audiobookshelf ${{ steps.check.outputs.latest }}"
+            git push
+          }

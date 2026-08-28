@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "id": "li_8gch9ve09orgn4fdz8",
+      "libraryId": "lib_c1u6t4p45c35rf0nzd",
+      "relPath": "Brian Jacques/Redwall",
+      "size": 268435456,
+      "media": {
+        "metadata": {
+          "title": "Redwall",
+          "authors": [
+            { "id": "aut_z3leimgybl7uf3y4ab", "name": "Brian Jacques" },
+            { "id": "aut_z3leimgybl7uf3y4cd", "name": "Someone Else" }
+          ],
+          "narrators": ["Full Cast"],
+          "series": [
+            { "id": "ser_o78uaoeaqubhpso1rz", "name": "Redwall", "sequence": "1" }
+          ],
+          "genres": ["Fantasy"]
+        },
+        "audioFiles": [
+          { "index": 1, "ino": "649641337522215266", "metadata": { "filename": "Redwall.m4b" } }
+        ],
+        "chapters": []
+      }
+    }
+  ],
+  "total": 1
+}

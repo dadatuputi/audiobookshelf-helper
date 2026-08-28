@@ -21,13 +21,12 @@ risk the MV3 service worker being torn down while it waits. The extension talks
 to this host over a long-lived port (runtime.connectNative) rather than
 sendNativeMessage, which only ever reads one reply.
 """
-import json, os, re, shutil, struct, sys, unicodedata, tempfile
+import json, re, shutil, struct, sys, unicodedata, tempfile
 import urllib.parse, urllib.request
 from pathlib import Path
 
 VERSION = "1.0.0"
 AUD = {".m4b", ".m4a", ".mp3", ".flac", ".wav", ".ogg", ".opus"}
-DISC = re.compile(r"^(cd|dis[ck])\s*\d{1,3}$", re.I)
 
 # The host will fetch a book over HTTP, but only over HTTP. Without this, a
 # caller could hand it file:// or ftp:// and use the host as a file-read oracle.
@@ -158,6 +157,9 @@ def local_files(local_root, rel_path):
     if not d.is_dir():
         return []
     fs = [p for p in d.rglob("*") if p.is_file() and p.suffix.lower() in AUD]
+    # Sorting by parent directory first is what flattens "CD 1"/"CD 2" folders
+    # into the right order - the numbering applied downstream then follows the
+    # disc order rather than interleaving the discs.
     return sorted(fs, key=lambda p: (str(p.parent).lower(), p.name.lower()))
 
 
