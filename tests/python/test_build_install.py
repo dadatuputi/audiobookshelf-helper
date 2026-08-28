@@ -114,6 +114,26 @@ class TestBuildOutput(unittest.TestCase):
             json.loads((BUILD.build(t) / "manifest.json").read_text())
 
 
+class TestPathReporting(unittest.TestCase):
+    """The build used to print a path relative to extension/, so running it
+    from the repo root reported "dist/firefox" for extension/dist/firefox -
+    and the obvious next command, `cd dist`, failed."""
+
+    def test_path_is_relative_to_where_you_ran_it(self):
+        cwd = Path.cwd()
+        shown = BUILD.show(cwd / "extension" / "dist" / "firefox")
+        self.assertEqual(Path(shown), Path("extension/dist/firefox"))
+        self.assertFalse(Path(shown).is_absolute())
+
+    def test_path_outside_the_cwd_is_printed_absolute(self):
+        shown = BUILD.show(Path("/somewhere/else/dist/firefox"))
+        self.assertTrue(Path(shown).is_absolute())
+
+    def test_the_shown_path_actually_resolves_to_the_build(self):
+        out = BUILD.build("firefox")
+        self.assertTrue((Path(BUILD.show(out)) / "manifest.json").exists())
+
+
 class TestInstallerPaths(unittest.TestCase):
     def test_each_os_browser_combination_resolves(self):
         for system in ("Darwin", "Linux"):

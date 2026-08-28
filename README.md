@@ -72,20 +72,34 @@ browsers cannot execute a `.py` directly.
 
 ## Building locally
 
-Nothing here needs a bundler, and the extension itself builds with **Python
-alone** — no `npm install` required. Node is only for the tests and linters.
-
-### The unpacked extension, for development
+**From a fresh clone, in the repo root, this is the whole thing:**
 
 ```bash
-python3 extension/build.py            # -> extension/dist/{firefox,chrome}
-python3 extension/build.py --target chrome   # just one
+git clone git@github.com:dadatuputi/audiobookshelf-helper.git
+cd audiobookshelf-helper
+
+python3 extension/build.py     # -> extension/dist/firefox, extension/dist/chrome
+python3 native/install.py      # register the native helper, then restart the browser
 ```
 
-Load `extension/dist/firefox` or `extension/dist/chrome` as an unpacked/temporary
-extension (see [Install](#install)). Re-run after any change to `extension/src/`
-and press reload in the browser — there is no watch mode, because the build is a
-file copy plus a generated manifest and takes about a tenth of a second.
+That's it. No `npm install`, no bundler — the extension builds with **Python
+alone**. Node is only for the tests and linters.
+
+> **Where did it go?** `extension/dist/`, not `dist/`. It is gitignored, so it
+> will not appear in `ls` at the repo root — look in `extension/`. The build
+> prints the full path and the load instructions when it finishes.
+
+Then load it (the build prints these too):
+
+- **Firefox** — `about:debugging#/runtime/this-firefox` → Load Temporary Add-on
+  → pick `extension/dist/firefox/manifest.json`
+- **Chrome** — `chrome://extensions` → Developer mode → Load unpacked → pick the
+  `extension/dist/chrome` **folder**
+
+`--target firefox` or `--target chrome` builds just one. Re-run after any change
+under `extension/src/` and press reload in the browser; there is no watch mode
+because the build is a file copy plus a generated manifest and takes about a
+tenth of a second.
 
 ### The release artefacts, byte-for-byte
 
@@ -97,6 +111,8 @@ python3 tools/package.py                       # stamped v0.0.0, into release/
 python3 tools/package.py --tag v1.0.0-alpha.1  # exactly what that tag ships
 python3 tools/package.py --tag v1.0.0 --out /tmp/rc
 ```
+
+Output lands in `release/` (also gitignored).
 
 That writes four archives plus a `release-info.json`:
 
