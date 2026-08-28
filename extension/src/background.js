@@ -33,7 +33,11 @@ function port() {
     if (!p) return;
     if (msg.event === "done") {
       PENDING.delete(msg.rid);
-      p.resolve(msg);
+      // The host reports a refused command (device not mounted, bad name) as
+      // ok:false rather than by failing. Turning that into a rejection here is
+      // what stops the popup treating "device not mounted" as an empty shelf.
+      if (msg.ok === false) p.reject(new Error(msg.error || "native helper refused the request"));
+      else p.resolve(msg);
     } else if (p.onProgress) {
       p.onProgress(msg);
     }

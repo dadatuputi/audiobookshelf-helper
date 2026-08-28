@@ -184,18 +184,23 @@ function renderDevice() {
 }
 
 async function refreshDevice() {
+  let problem = "";
   try {
     DEVICE = await send({ type: "listDevice", items: BOOKS });
     BOOKS = ABSH.annotateOnDevice(BOOKS, DEVICE);
-    renderDevice();
-    renderLibrary();
   } catch (e) {
     // A missing device is normal (nothing plugged in), not an error worth
-    // shouting about - but the shelf should say why it is empty.
+    // shouting about in the status line - but the shelf must say why it is
+    // empty rather than implying the player is empty.
     DEVICE = { onDevice: [], orphans: [], free: "" };
-    renderDevice();
-    $("#device-summary").textContent = String(e.message || e);
+    BOOKS = ABSH.annotateOnDevice(BOOKS, null);
+    problem = String(e.message || e);
   }
+  // Always render both panes: an unreachable device must not take the library
+  // list down with it.
+  renderDevice();
+  renderLibrary();
+  if (problem) $("#device-summary").textContent = problem;
 }
 
 /* ------------------------------------------------------------- lifecycle */

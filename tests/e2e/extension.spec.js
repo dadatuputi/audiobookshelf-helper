@@ -299,6 +299,50 @@ test.describe("full loop in a real browser", () => {
   });
 });
 
+/* A device that is not plugged in must say so. The host reports a refused
+ * command as ok:false rather than by failing, so it is easy to render that as
+ * "nothing on the device" - which is a lie, and the exact kind that sends
+ * someone hunting through their player's folders. */
+test.describe("when the device is not mounted", () => {
+  test.skip(({ browserName }) => browserName !== "chromium",
+            "chromium project only - needs --load-extension and a native host");
+
+  let ctx, srv, absUrl, lib;
+
+  test.beforeAll(async () => {
+    ({ srv } = await startAbs());
+    absUrl = `http://127.0.0.1:${srv.address().port}`;
+    ({ lib } = makeLibrary());
+    ctx = await launch(makeProfile(`${absUrl}/*`));
+    await (await configure(ctx, {
+      absUrl, lib, dev: join(tmpdir(), "absh-not-a-real-device-xyz")
+    })).close();
+  });
+
+  test.afterAll(async () => { await ctx?.close(); srv?.close(); });
+
+  test("the shelf explains why it is empty", async () => {
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
+    await page.click("#tab-device");
+    await expect(page.locator("#device-summary")).toContainText("not mounted");
+    await page.close();
+  });
+
+  test("a sync reports the failure rather than claiming success", async () => {
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
+    await page.locator("#list li", { hasText: "Redwall" })
+      .locator("input[type=checkbox]").check();
+    await page.click("#sync");
+    await expect(page.locator("#status")).toContainText("not mounted", { timeout: 20_000 });
+    await expect(page.locator("#status")).toHaveClass(/err/);
+    await page.close();
+  });
+});
+
 /* First run, before the user has granted anything: the add-on has to explain
  * itself rather than fail with a bare network error. */
 test.describe("before access is granted", () => {
