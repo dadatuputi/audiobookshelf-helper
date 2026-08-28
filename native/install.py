@@ -14,16 +14,26 @@ six combinations.
 import argparse, json, os, platform, sys
 from pathlib import Path
 
-HOST_NAME = "io.github.abshelper"
-GECKO_ID = "abs-helper@local"
-HOST_PY = Path(__file__).resolve().parent / "absh_host.py"
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "extension"))
+import identity as IDENT  # noqa: E402  (path set immediately above)
 
-# Chrome identifies callers by extension id; unpacked builds get a new id each
-# load, so this is filled in by the user after loading (see --chrome-id).
-DEFAULT_CHROME_IDS: list[str] = []
+IDENTITY = IDENT.load()
+HOST_NAME = IDENTITY["hostName"]
+GECKO_ID = IDENTITY["geckoId"]
+HOST_PY = HERE / "absh_host.py"
+
+# Chrome identifies callers by extension id. The manifest pins a public key, so
+# the id is knowable in advance rather than changing on every unpacked load -
+# which is what used to make --chrome-id mandatory.
+DEFAULT_CHROME_IDS = IDENT.chrome_ids(IDENTITY)
+
+# Windows cannot exec a .py from CreateProcess the way the browsers do on
+# macOS and Linux, so the manifest points at a .bat that calls the interpreter.
+LAUNCHER_NAME = "absh_host.bat"
 
 
-def manifest_dirs(system: str, browser: str) -> list[Path]:
+def manifest_dirs(system: str, browser: str):
     home = Path.home()
     if system == "Darwin":
         base = home / "Library" / "Application Support"
@@ -44,17 +54,28 @@ def manifest_dirs(system: str, browser: str) -> list[Path]:
             ],
         }[browser]
     if system == "Windows":
-        # Path is recorded in the registry; the file itself can live anywhere.
+        # The path is recorded in the registry, so the file itself can live
+        # anywhere - but it must live somewhere *per browser*. Firefox's
+        # manifest carries allowed_extensions and Chrome's carries
+        # allowed_origins; sharing one path meant installing both browsers
+        # wrote Chrome's manifest over Firefox's and broke Firefox silently.
         base = Path(os.environ.get("APPDATA", home)) / "abs-helper"
-        return [base]
+        return [base / browser]
     raise SystemExit(f"unsupported OS: {system}")
 
 
-def build_manifest(browser: str, chrome_ids: list[str]) -> dict:
+def host_command_path(system: str, manifest_dir: Path) -> Path:
+    """What the manifest's "path" should point at on this OS."""
+    if system == "Windows":
+        return manifest_dir / LAUNCHER_NAME
+    return HOST_PY
+
+
+def build_manifest(browser: str, chrome_ids, path: Path = None) -> dict:
     m = {
         "name": HOST_NAME,
         "description": "Audiobookshelf Helper native host",
-        "path": str(HOST_PY),
+        "path": str(path or HOST_PY),
         "type": "stdio",
     }
     if browser == "firefox":
@@ -62,6 +83,15 @@ def build_manifest(browser: str, chrome_ids: list[str]) -> dict:
     else:
         m["allowed_origins"] = [f"chrome-extension://{i}/" for i in chrome_ids]
     return m
+
+
+def write_windows_launcher(target: Path):
+    """A .bat that hands stdio straight through to the interpreter."""
+    target.write_text(
+        "@echo off\r\n"
+        f'"{sys.executable}" "{HOST_PY}" %*\r\n'
+    )
+    return target
 
 
 def registry_key(browser: str) -> str:
@@ -84,28 +114,40 @@ def write_windows_registry(browser: str, manifest_path: Path, remove: bool):
     print(f"  registry HKCU\\{key} -> {manifest_path}")
 
 
-def install(browser: str, chrome_ids: list[str], dry: bool, remove: bool) -> int:
-    system = platform.system()
+def install(browser: str, chrome_ids, dry: bool, remove: bool, system: str = None) -> int:
+    system = system or platform.system()
     dirs = manifest_dirs(system, browser)
-    manifest = build_manifest(browser, chrome_ids)
     wrote = 0
     for d in dirs:
         target = d / f"{HOST_NAME}.json"
+        launcher = host_command_path(system, d)
+        manifest = build_manifest(browser, chrome_ids, launcher)
         if remove:
             if dry:
                 print(f"  would remove {target}")
-            elif target.exists():
-                target.unlink()
-                print(f"  removed {target}")
+            else:
+                if target.exists():
+                    target.unlink()
+                    print(f"  removed {target}")
+                if system == "Windows" and launcher.exists():
+                    launcher.unlink()
+                    print(f"  removed {launcher}")
         else:
             if dry:
                 print(f"  would write {target}")
+                if system == "Windows":
+                    print(f"  would write {launcher}")
             else:
                 d.mkdir(parents=True, exist_ok=True)
                 target.write_text(json.dumps(manifest, indent=2) + "\n")
                 print(f"  wrote {target}")
+                if system == "Windows":
+                    write_windows_launcher(launcher)
+                    print(f"  wrote {launcher}")
             wrote += 1
-        if system == "Windows" and not dry:
+        # Guarded on the *running* OS, not the target: tests exercise the
+        # Windows file layout on Linux, where winreg does not exist.
+        if system == "Windows" and not dry and platform.system() == "Windows":
             write_windows_registry(browser, target, remove)
     return wrote
 
@@ -131,8 +173,8 @@ def main():
           f"on {platform.system()}")
     for b in browsers:
         if b == "chrome" and not ids and not a.uninstall:
-            print("  chrome: skipped - pass --chrome-id <id> "
-                  "(unpacked extensions get a fresh id on each load)")
+            print("  chrome: skipped - no id. Set chromeKey in "
+                  "extension/identity.json, or pass --chrome-id <id>.")
             continue
         print(f"  [{b}]")
         install(b, ids, a.dry_run, a.uninstall)
