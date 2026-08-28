@@ -12,8 +12,9 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.47.0",
+    "addons-linter": "^7.0.0",
+    "playwright-webextext": "^0.0.5",
     "vitest": "^2.1.0",
-    "web-ext": "^8.3.0",
-    "addons-linter": "^7.0.0"
+    "web-ext": "^8.3.0"
   }
 }

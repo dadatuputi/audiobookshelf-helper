@@ -127,10 +127,13 @@ CI runs on every push:
 | `e2e` | Playwright, chromium + firefox |
 | `package` | zips both bundles as artefacts |
 
-Chromium loads the real unpacked extension via `--load-extension`. Playwright
-cannot install a temporary add-on in Firefox, so that project asserts the same
-DOM contract by evaluating the built content script in the page — both check
-the identical outcome.
+Both browsers load the **real built extension**. Chromium uses core
+Playwright's `--load-extension`. Firefox goes through
+[`playwright-webextext`](https://github.com/ueokande/playwright-webextext),
+which installs a temporary add-on over the remote debugging protocol — core
+Playwright ignores extensions in `launchPersistentContext` on Firefox. For an
+MV3 add-on webextext needs `browser_specific_settings.gecko.id`, which
+`build.py` already emits for the Firefox target.
 
 ## Notes
 
