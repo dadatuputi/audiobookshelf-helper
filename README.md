@@ -9,6 +9,9 @@ Firefox and Chrome. Native host runs on macOS, Linux and Windows.
 
 ---
 
+See [HANDOVER.md](HANDOVER.md) for current status, what is and is not
+tested, and what to pick up next.
+
 ## Why there is a native helper
 
 A browser extension **cannot** write to a USB device. Two hard limits:
