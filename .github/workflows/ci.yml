@@ -61,44 +61,51 @@ jobs:
           book.mkdir(parents=True); dev.mkdir()
           (book / "Title.m4b").write_bytes(b"x" * 2048)
 
-          opts = {"devicePath": str(dev), "subdir": "AUDIOBOOKS",
-                  "renameM4b": True, "folderTemplate": "{author} - {title}",
-                  "sourceMode": "local", "localRoot": str(lib)}
-          item = {"id": "i1", "title": "Title", "author": "Author",
-                  "relPath": "Author/Title"}
-
-          msgs = [
-              {"cmd": "sync", **opts, "items": [item]},
-              {"cmd": "list", **opts, "items": [item]},
-              {"cmd": "remove", **opts, "names": ["Author - Title.m4a"]},
-              {"cmd": "list", **opts, "items": [item]},
-          ]
-          payload = b"".join(
-              struct.pack("<I", len(b)) + b
-              for b in (json.dumps(m).encode() for m in msgs))
-          p = subprocess.run([sys.executable, "native/absh_host.py"],
-                             input=payload, capture_output=True, timeout=120)
-          out, replies, i = p.stdout, [], 0
-          while i < len(out):
-              n = struct.unpack("<I", out[i:i + 4])[0]; i += 4
-              replies.append(json.loads(out[i:i + n])); i += n
-          for r in replies:
-              print("host replied:", r)
-          assert len(replies) == 4, replies
-          synced, listed, removed, after = replies
-
-          assert synced.get("ok") and synced["copied"] == 1, synced
+          opts = {"devicePath": str(dev), "subdir": "AUDIOBOOKS", "renameM4b": True,
+                  "folderTemplate": "{author} - {title}", "sourceMode": "local",
+                  "localRoot": str(lib)}
+          item = {"id": "i1", "title": "Title", "author": "Author", "relPath": "Author/Title"}
           expected = dev / "AUDIOBOOKS" / "Author - Title.m4a"
-          assert expected.exists(), sorted(q.name for q in (dev / "AUDIOBOOKS").iterdir())
 
+          def call(msgs):
+              """One host process per batch: assertions between batches must see the
+              filesystem as it was at that point, not after every message has run."""
+              payload = b"".join(struct.pack("<I", len(b)) + b
+                                 for b in (json.dumps(m).encode() for m in msgs))
+              p = subprocess.run([sys.executable, "native/absh_host.py"],
+                                 input=payload, capture_output=True, timeout=120)
+              assert p.returncode == 0, p.stderr.decode()
+              out, replies, i = p.stdout, [], 0
+              while i < len(out):
+                  n = struct.unpack("<I", out[i:i + 4])[0]; i += 4
+                  replies.append(json.loads(out[i:i + n])); i += n
+              for r in replies:
+                  print("  host replied:", r)
+              assert len(replies) == len(msgs), replies
+              return replies
+
+          print("sync + list")
+          synced, listed = call([{"cmd": "sync", **opts, "items": [item]},
+                                 {"cmd": "list", **opts, "items": [item]}])
+          assert synced.get("ok") and synced["copied"] == 1, synced
+          assert expected.exists(), sorted(q.name for q in (dev / "AUDIOBOOKS").iterdir())
           assert [e["id"] for e in listed["onDevice"]] == ["i1"], listed
           assert listed["onDevice"][0]["bytes"] == 2048, listed
 
+          print("remove + list")
+          removed, after = call([{"cmd": "remove", **opts, "names": ["Author - Title.m4a"]},
+                                 {"cmd": "list", **opts, "items": [item]}])
           assert removed["removed"] == ["Author - Title.m4a"], removed
           assert not expected.exists(), "remove did not delete the file"
           assert (book / "Title.m4b").exists(), "remove touched the library"
           assert after["onDevice"] == [], after
-          print("OK - sync, list, remove all round-tripped")
+
+          print("refusing a traversal")
+          bad = call([{"cmd": "remove", **opts, "names": ["../../escape"]}])[0]
+          assert bad["removed"] == [], bad
+          assert bad["errors"], bad
+
+          print("OK - sync, list, remove and refusal all round-tripped")
 
   extension-lint:
     name: extension lint + validate
