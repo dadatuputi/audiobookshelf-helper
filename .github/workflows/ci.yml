@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The native host is the component that touches the filesystem, so it is
+  # tested on every OS it ships to, across the Python versions those OSes
+  # realistically carry.
+  native:
+    name: native host (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build extension bundles
+        run: python extension/build.py
+      - name: Run native host + build/install tests
+        run: python -m unittest discover -s tests/python -p "test_*.py" -v
+      - name: Installer dry-run (real paths for this OS)
+        run: python native/install.py --dry-run --chrome-id aaaabbbbccccddddeeeeffffgggghhhh
+
+  # Round-trip the actual stdio protocol against a fake library and a fake
+  # "device" directory, on each OS. Catches path-separator and encoding bugs
+  # that unit tests on Linux alone would miss.
+  native-smoke:
+    name: host smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Sync a fake book end to end
+        shell: python
+        run: |
+          import json, struct, subprocess, sys, tempfile, pathlib
+          tmp = pathlib.Path(tempfile.mkdtemp())
+          lib, dev = tmp / "lib", tmp / "dev"
+          book = lib / "Author" / "Title"
+          book.mkdir(parents=True); dev.mkdir()
+          (book / "Title.m4b").write_bytes(b"x" * 2048)
+          msg = {"cmd": "sync", "devicePath": str(dev), "subdir": "AUDIOBOOKS",
+                 "renameM4b": True, "folderTemplate": "{author} - {title}",
+                 "sourceMode": "local", "localRoot": str(lib),
+                 "items": [{"title": "Title", "author": "Author",
+                            "relPath": "Author/Title"}]}
+          b = json.dumps(msg).encode()
+          p = subprocess.run([sys.executable, "native/absh_host.py"],
+                             input=struct.pack("<I", len(b)) + b,
+                             capture_output=True, timeout=120)
+          out = p.stdout
+          n = struct.unpack("<I", out[:4])[0]
+          r = json.loads(out[4:4 + n])
+          print("host replied:", r)
+          assert r.get("ok"), r
+          assert r["copied"] == 1, r
+          expected = dev / "AUDIOBOOKS" / "Author - Title.m4a"
+          assert expected.exists(), sorted(p.name for p in (dev / "AUDIOBOOKS").iterdir())
+          print("OK ->", expected)
+
+  extension-lint:
+    name: extension lint + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm }
+      - run: npm install --no-audit --no-fund
+      - name: Build both bundles
+        run: python extension/build.py
+      - name: web-ext lint (Firefox bundle)
+        run: npx web-ext lint --source-dir extension/dist/firefox --self-hosted
+      - name: addons-linter (Chrome bundle - catches MV3 mistakes too)
+        run: npx addons-linter extension/dist/chrome || true
+
+  extension-unit:
+    name: extension unit tests (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - run: npx vitest run
+
+  e2e:
+    name: e2e (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: npm }
+      - run: npm install --no-audit --no-fund
+      - name: Build bundles
+        run: python extension/build.py
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run Playwright
+        run: npx playwright test --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7
+
+  package:
+    name: package artefacts
+    runs-on: ubuntu-latest
+    needs: [native, native-smoke, extension-lint, extension-unit, e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python extension/build.py
+      - name: Zip bundles
+        run: |
+          cd extension/dist
+          zip -qr ../../audiobookshelf-helper-firefox.zip firefox
+          zip -qr ../../audiobookshelf-helper-chrome.zip chrome
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-bundles
+          path: |
+            audiobookshelf-helper-firefox.zip
+            audiobookshelf-helper-chrome.zip
+          retention-days: 30

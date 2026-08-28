@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Audiobookshelf Helper",
+  "version": "1.0.0",
+  "description": "Pick books in Audiobookshelf and sync them to a USB player, renaming .m4b to .m4a on the way.",
+  "permissions": ["storage", "nativeMessaging"],
+  "host_permissions": ["*://*/*"],
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "action": { "default_title": "Audiobookshelf Helper", "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": ["*://*/library/*"],
+      "js": ["browser-polyfill.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Audiobookshelf Helper — Options</title>
+<style>
+body{font:14px/1.5 system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;background:#1f1f1f;color:#e5e7eb}
+h1{font-size:1.2rem} h2{font-size:.95rem;margin-top:1.6rem;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em}
+label{display:block;margin:.7rem 0 .2rem}
+input[type=text],input[type=password],select{width:100%;box-sizing:border-box;background:#111827;color:#e5e7eb;
+ border:1px solid #374151;border-radius:4px;padding:6px 8px;font:inherit}
+.hint{color:#9ca3af;font-size:12px;margin-top:.2rem}
+.chk{display:flex;gap:.5rem;align-items:center;margin:.6rem 0}
+button{margin-top:1.2rem;padding:8px 16px;background:#2563eb;color:#fff;border:0;border-radius:4px;font:inherit;cursor:pointer}
+#msg{margin-left:.8rem;color:#86efac}
+code{background:#111827;padding:1px 4px;border-radius:3px}
+</style></head><body>
+<h1>Audiobookshelf Helper</h1>
+
+<h2>Server</h2>
+<label>Audiobookshelf URL</label>
+<input type="text" id="absUrl" placeholder="http://media.local:13378">
+<label>API key</label>
+<input type="password" id="apiKey" placeholder="from Settings → API Keys">
+<div class="hint">Used as a Bearer header, and as <code>?token=</code> on download URLs.</div>
+
+<h2>Device</h2>
+<label>Player mount path</label>
+<input type="text" id="devicePath" placeholder="/Volumes/CLIP">
+<div class="hint">Absolute path to the mounted player. The native helper writes here.</div>
+<label>Folder on the device</label>
+<input type="text" id="subdir" value="AUDIOBOOKS">
+<div class="hint">SanDisk players treat <code>AUDIOBOOKS</code> specially (resume + bookmarks).</div>
+
+<h2>Naming</h2>
+<label>Folder template</label>
+<input type="text" id="folderTemplate" value="{author} - {title}">
+<div class="hint">Placeholders: <code>{author}</code> <code>{title}</code> <code>{series}</code></div>
+<div class="chk"><input type="checkbox" id="renameM4b" checked><label for="renameM4b" style="margin:0">
+  Rename <code>.m4b</code> → <code>.m4a</code> (required — the Clip ignores .m4b; same container, no re-encode)</label></div>
+
+<h2>Source</h2>
+<label>How to fetch files</label>
+<select id="sourceMode">
+  <option value="auto">Auto — use the local share if mounted, else download over HTTP</option>
+  <option value="local">Local share only</option>
+  <option value="http">HTTP download only</option>
+</select>
+<label>Local library root (optional)</label>
+<input type="text" id="localRoot" placeholder="/Volumes/media/audio/audiobooks">
+<div class="hint">Copying from a mounted SMB share is much faster than downloading.</div>
+
+<button id="save">Save</button><span id="msg"></span>
+<script src="browser-polyfill.js"></script>
+<script src="options.js"></script>
+</body></html>

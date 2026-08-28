@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="popup.css"></head>
+<body>
+<header>
+  <strong>Audiobookshelf Helper</strong>
+  <a id="opts" href="#" title="Options">⚙</a>
+</header>
+<div id="status" class="status"></div>
+<div class="row">
+  <select id="library"></select>
+  <input id="filter" type="search" placeholder="filter…">
+</div>
+<div class="row small">
+  <label><input type="checkbox" id="all"> select all shown</label>
+  <span id="count"></span>
+</div>
+<ul id="list"></ul>
+<footer>
+  <button id="sync" disabled>Sync selected</button>
+</footer>
+<script src="browser-polyfill.js"></script>
+<script src="lib.js"></script>
+<script src="popup.js"></script>
+</body></html>

@@ -1,0 +1,17 @@
+body{width:420px;margin:0;font:13px/1.4 system-ui,sans-serif;background:#1f1f1f;color:#e5e7eb}
+header{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #374151}
+header a{color:#9ca3af;text-decoration:none;font-size:15px}
+.row{display:flex;gap:6px;padding:8px 10px;align-items:center}
+.row.small{padding-top:0;font-size:12px;color:#9ca3af;justify-content:space-between}
+select,input[type=search]{flex:1;min-width:0;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:4px;padding:4px 6px;font:inherit}
+ul{list-style:none;margin:0;padding:0;max-height:330px;overflow:auto;border-top:1px solid #374151}
+li{display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid #2a2a2a;align-items:flex-start}
+li:hover{background:#262626}
+li .meta{flex:1;min-width:0}
+li .t{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+li .a{display:block;color:#9ca3af;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+footer{padding:8px 10px;border-top:1px solid #374151}
+button{width:100%;padding:7px;background:#2563eb;color:#fff;border:0;border-radius:4px;font:inherit;cursor:pointer}
+button:disabled{background:#374151;color:#9ca3af;cursor:default}
+.status{padding:6px 10px;font-size:12px;white-space:pre-wrap}
+.status.err{color:#fca5a5}.status.ok{color:#86efac}

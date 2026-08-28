@@ -1,0 +1,19 @@
+{
+  "name": "audiobookshelf-helper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firefox/Chrome extension + native host to sync Audiobookshelf books to a USB player",
+  "scripts": {
+    "build": "python3 extension/build.py",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "lint:ext": "web-ext lint --source-dir extension/dist/firefox --self-hosted",
+    "test:py": "python3 -m unittest discover -s tests/python -p 'test_*.py' -v"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "vitest": "^2.1.0",
+    "web-ext": "^8.3.0",
+    "addons-linter": "^7.0.0"
+  }
+}
