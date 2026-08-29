@@ -60,7 +60,7 @@ class TestBundles(PackageBase):
 
     def test_versions_are_stamped_per_browser(self):
         with zipfile.ZipFile(self.find("firefox")) as z:
-            self.assertEqual(json.loads(z.read("manifest.json"))["version"], "1.0.0a1")
+            self.assertEqual(json.loads(z.read("manifest.json"))["version"], "1.0.0.1")
         with zipfile.ZipFile(self.find("chrome")) as z:
             self.assertEqual(json.loads(z.read("manifest.json"))["version"], "1.0.0.1")
 

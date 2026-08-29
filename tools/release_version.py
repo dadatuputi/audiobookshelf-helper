@@ -7,9 +7,16 @@ accepts semver prereleases as written:
 
   Chrome   1 to 4 dot-separated integers, 0-65535. "1.0.0-alpha.1" is rejected
            outright, so the prerelease is folded into a fourth component.
-  Firefox  each dotted part may be <number><string><number>, and a part
-           carrying a string sorts *below* the same part without one. So
-           1.0.0a1 < 1.0.0, which is the ordering a prerelease should have.
+  Firefox  the same shape: 1 to 4 integers of at most 9 digits, no leading
+           zeros. Letters used to be allowed - 1.0.0a1 even sorted *below*
+           1.0.0, which is exactly the ordering a prerelease wants - but
+           Mozilla removed them, and web-ext lint now rejects the old form
+           as VERSION_FORMAT_INVALID. So both stores get the same numbers.
+
+That costs the prerelease ordering: 1.0.0.1 sorts *above* 1.0.0 for both.
+It does not matter here because a prerelease never reaches either store's
+listed channel - Firefox prereleases are signed unlisted and carry no
+update_url, so nothing auto-updates across the two.
 
     python3 tools/release_version.py v1.0.0-alpha.1
     python3 tools/release_version.py v1.0.0-alpha.1 --field chrome
@@ -25,7 +32,9 @@ TAG = re.compile(r"""
 # Keeps prereleases ordered among themselves inside Chrome's fourth component,
 # and leaves room for a generous number of each.
 OFFSET = {"alpha": 0, "beta": 100, "rc": 200}
-SUFFIX = {"alpha": "a", "beta": "b", "rc": "rc"}
+
+# What both stores will accept: 1-4 integers, <=9 digits, no leading zeros.
+VALID = re.compile(r"^(0|[1-9]\d{0,8})(\.(0|[1-9]\d{0,8})){0,3}$")
 
 
 def parse_tag(tag: str) -> dict:
@@ -50,11 +59,9 @@ def parse_tag(tag: str) -> dict:
         "base": base,
         "prerelease": True,
         "kind": kind,
-        # 1.0.0a1 sorts below 1.0.0 for Firefox, which is what we want.
-        "firefox": f"{base}{SUFFIX[kind]}{num}",
-        # Chrome has no prerelease concept; the fourth part just keeps builds
-        # distinct. Prereleases are never uploaded to the Web Store, so the
-        # fact that 1.0.0.1 sorts *above* 1.0.0 never affects a real update.
+        # Both stores take the same numeric form; see the note above on why
+        # the fourth component sorting above the base is harmless here.
+        "firefox": f"{base}.{ordinal}",
         "chrome": f"{base}.{ordinal}",
     }
 

@@ -1,5 +1,5 @@
 """Tests for the per-browser build and the native-host installer."""
-import importlib.util, json, os, platform, shutil, sys, tempfile, unittest
+import importlib.util, json, os, platform, shutil, struct, subprocess, sys, tempfile, unittest
 from pathlib import Path
 from unittest import mock
 
@@ -201,9 +201,13 @@ class TestWindowsLauncher(unittest.TestCase):
         self.assertEqual(INSTALL.host_command_path("Windows", d).name,
                          INSTALL.LAUNCHER_NAME)
 
-    def test_manifest_points_at_the_py_elsewhere(self):
+    def test_manifest_points_at_a_launcher_on_mac_and_linux_too(self):
+        """It used to point straight at the .py and rely on its shebang, which
+        is how a working install still reported "native helper not reachable":
+        the browser's PATH is not the shell's, and env python3 found nothing."""
         for system in ("Darwin", "Linux"):
-            self.assertEqual(INSTALL.host_command_path(system, Path("/x")).suffix, ".py")
+            self.assertEqual(INSTALL.host_command_path(system, Path("/x")).name,
+                             INSTALL.POSIX_LAUNCHER_NAME)
 
     def test_launcher_invokes_the_interpreter_with_the_host(self):
         tmp = Path(tempfile.mkdtemp())
@@ -269,3 +273,49 @@ class TestInstallDryRun(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+class TestLauncherIsInterpreterPinned(unittest.TestCase):
+    """The browser starts a native host with its own environment, not your
+    shell's. Pointing the manifest at absh_host.py and trusting its
+    "env python3" shebang broke a real install: a conda user's python3 was on
+    their PATH and not on Firefox's, so the port opened and disconnected and
+    the only symptom was "native helper not reachable"."""
+
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
+
+    def _install(self, system):
+        env = dict(os.environ, HOME=str(self.home))
+        subprocess.run([sys.executable, str(ROOT / "native" / "install.py"),
+                        "--browser", "firefox"],
+                       env=env, check=True, capture_output=True)
+        d = self.home / ".mozilla" / "native-messaging-hosts"
+        return json.loads((d / "io.github.abshelper.json").read_text()), d
+
+    @unittest.skipIf(sys.platform.startswith("win"), "POSIX launcher")
+    def test_the_manifest_points_at_a_launcher_not_the_py(self):
+        manifest, _ = self._install(sys.platform)
+        self.assertTrue(manifest["path"].endswith(".sh"),
+                        f"manifest points at {manifest['path']!r}")
+
+    @unittest.skipIf(sys.platform.startswith("win"), "POSIX launcher")
+    def test_the_launcher_names_an_absolute_interpreter(self):
+        manifest, _ = self._install(sys.platform)
+        body = Path(manifest["path"]).read_text()
+        self.assertIn(sys.executable, body)
+        self.assertNotIn("env python", body, "must not depend on PATH")
+        self.assertTrue(os.access(manifest["path"], os.X_OK), "must be executable")
+
+    @unittest.skipIf(sys.platform.startswith("win"), "POSIX launcher")
+    def test_it_answers_a_ping_with_no_python_on_PATH(self):
+        """The actual regression: a stripped PATH is what the browser gives."""
+        manifest, _ = self._install(sys.platform)
+        body = json.dumps({"cmd": "ping"}).encode()
+        p = subprocess.run([manifest["path"]],
+                           input=struct.pack("<I", len(body)) + body,
+                           capture_output=True, timeout=60,
+                           env={"PATH": "/nonexistent", "HOME": str(self.home)})
+        self.assertEqual(p.returncode, 0, p.stderr.decode()[:400])
+        n = struct.unpack("<I", p.stdout[:4])[0]
+        self.assertTrue(json.loads(p.stdout[4:4 + n])["ok"])
