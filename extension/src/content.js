@@ -302,6 +302,8 @@
     bar.appendChild(b);
   }
 
+  let renderObserver = null;
+
   function render() {
     toolbarButton();
     for (const card of document.querySelectorAll('[id^="book-card-"], [id^="item-card-"]')) {
@@ -310,11 +312,20 @@
       } catch { /* one bad card must not stop the rest */ }
     }
     renderPanel();
+    // Discard the mutations we just made, so they cannot schedule another
+    // render. Without this the observer feeds itself forever.
+    if (renderObserver) renderObserver.takeRecords();
   }
 
-  /* Vue re-renders the shelf constantly; watch rather than run once. */
-  new MutationObserver(scheduleRender)
-    .observe(document.documentElement, { childList: true, subtree: true });
+  /* Vue re-renders the shelf constantly; watch rather than run once.
+   *
+   * render() mutates the DOM, so without draining the queue afterwards the
+   * observer sees its own work and schedules another render - a loop that ran
+   * every 120ms for as long as the page was open. It burned CPU and left the
+   * badges permanently "not stable", which is how a click could never land. */
+  const observer = new MutationObserver(scheduleRender);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+  renderObserver = observer;
 
   render();
   loadStatus();
