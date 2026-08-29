@@ -188,6 +188,7 @@ if (!items.length) { server.kill(); throw new Error("scan produced no items"); }
 
 const state = {
   absUrl: abs, token, libraryId, device, pid: server.pid,
+  libraryFolder: join(data, "books"),
   deviceOnly: { ...ONLY, source: onlyFile,
                 folder: `${ONLY.author} - ${ONLY.title}`,
                 file: `${ONLY.title}.m4a` },

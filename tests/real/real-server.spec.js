@@ -304,11 +304,16 @@ test.describe("against a real Audiobookshelf", () => {
 
     await page.close();
 
-    // Put the server back, so the run is repeatable: with the book in the
-    // library it is no longer device-only and the panel would never appear.
+    // Put everything back, so the run is repeatable. Deleting the library item
+    // alone is not enough: the upload also wrote a file into the library
+    // folder, and leaving it there made the next run fail deterministically -
+    // the upload had nowhere to land, and the book was no longer device-only.
     await fetch(`${state.absUrl}/api/items/${arrived.id}`, {
       method: "DELETE", headers: { Authorization: `Bearer ${state.token}` },
     }).catch(() => {});
+    if (state.libraryFolder) {
+      rmSync(join(state.libraryFolder, only.author), { recursive: true, force: true });
+    }
     rmSync(dst, { recursive: true, force: true });
   });
 
