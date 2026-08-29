@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 176" width="880" height="176" role="img" aria-label="The three states: on both, server only, device only">
+  <defs>
+    <style>
+      .p  { fill:#221F2B; stroke:#3A3448; stroke-width:1.5; }
+      .h  { font:700 14px ui-monospace,"SF Mono",Menlo,monospace; }
+      .t  { font:600 15px ui-sans-serif,system-ui,-apple-system,sans-serif; fill:#EFECF4; }
+      .s  { font:400 12.5px ui-sans-serif,system-ui,-apple-system,sans-serif; fill:#A49DB8; }
+      .c  { font:600 12px ui-monospace,"SF Mono",Menlo,monospace; }
+    </style>
+  </defs>
+  <rect width="880" height="176" rx="10" fill="#17151D"/>
+
+  <rect class="p" x="26" y="30" width="264" height="116" rx="9"/>
+  <text class="h" x="50" y="64" fill="#6FCF8E">=</text>
+  <text class="t" x="72" y="64">on both</text>
+  <text class="s" x="50" y="92">Already on the player.</text>
+  <text class="s" x="50" y="112">Nothing to do — or</text>
+  <text class="c" x="50" y="132" fill="#6FCF8E">absh rm</text>
+  <text class="s" x="112" y="132">to free space.</text>
+
+  <rect class="p" x="308" y="30" width="264" height="116" rx="9"/>
+  <text class="h" x="332" y="64" fill="#E9A857">v</text>
+  <text class="t" x="354" y="64">server only</text>
+  <text class="s" x="332" y="92">In your library, not on</text>
+  <text class="s" x="332" y="112">the player yet.</text>
+  <text class="c" x="332" y="132" fill="#E9A857">absh pull</text>
+  <text class="s" x="404" y="132">brings it down.</text>
+
+  <rect class="p" x="590" y="30" width="264" height="116" rx="9"/>
+  <text class="h" x="614" y="64" fill="#5EC5DC">^</text>
+  <text class="t" x="636" y="64">device only</text>
+  <text class="s" x="614" y="92">On the player, unknown</text>
+  <text class="s" x="614" y="112">to your library.</text>
+  <text class="c" x="614" y="132" fill="#5EC5DC">absh push</text>
+  <text class="s" x="690" y="132">uploads it.</text>
+</svg>

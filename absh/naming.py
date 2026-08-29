@@ -15,7 +15,8 @@ _RESERVED = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def clean(s):
-    """ASCII-ish, filesystem-safe. Clip firmware dislikes exotic characters."""
+    """ASCII-ish, filesystem-safe. Simple player firmware dislikes exotic
+    characters, and FAT32 forbids several outright."""
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
     s = _RESERVED.sub("", s)
     return re.sub(r"\s+", " ", s).strip() or "Untitled"
@@ -33,8 +34,8 @@ def human(n):
 def out_ext(path, rename_m4b=True):
     """The extension a file should have on the device.
 
-    The whole point of the tool: an .m4b IS an MP4/AAC container, and players
-    like the Sansa Clip refuse the extension rather than the codec.
+    The whole point of the tool: an .m4b IS an MP4/AAC container, and a player
+    that rejects one is refusing the extension, not the codec.
     """
     e = Path(path).suffix.lower()
     return ".m4a" if (rename_m4b and e == ".m4b") else e

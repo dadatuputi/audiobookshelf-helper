@@ -16,9 +16,9 @@ from pathlib import Path
 
 from .naming import AUDIO_EXT, safe_subdir
 
-# A Sansa Clip is 4-8GB; a Fuze 8-16. Anything enormous is far more likely to be
-# a backup disk than a player, so it sorts lower - but it is still listed,
-# because someone will use a 256GB stick and be right to.
+# Most USB players are a few GB. Anything enormous is far more likely to be a
+# backup disk than a player, so it sorts lower - but it is still listed, because
+# someone will use a 256GB stick and be right to.
 PLAYER_MAX_BYTES = 128 * 1024 ** 3
 
 
@@ -142,8 +142,8 @@ def resolve(value, subdir="AUDIOBOOKS", system=None):
     """Turn what someone typed into a device path.
 
     An existing path is taken as-is. Otherwise it is treated as a volume name,
-    so `--device CLIP` works without anyone remembering whether this OS puts it
-    under /Volumes, /media/you or /run/media/you.
+    so `--device PLAYER` works without anyone remembering whether this OS puts
+    it under /Volumes, /media/you or /run/media/you.
     """
     if not value:
         return None

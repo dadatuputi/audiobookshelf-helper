@@ -81,8 +81,8 @@ $("detect").addEventListener("click", async () => {
     const devices = found.data || [];
     list.innerHTML = "";
     if (!devices.length) {
-      note($("permState"), "Nothing removable is mounted. On a Sansa Clip, " +
-                           "Settings → USB Mode → MSC.", "warn");
+      note($("permState"), "Nothing removable is mounted. Some players need " +
+                           "USB Mode → MSC before they appear as a drive.", "warn");
       list.classList.add("hidden");
       return;
     }

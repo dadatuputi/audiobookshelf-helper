@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" width="880" height="250" role="img" aria-label="Audiobookshelf and your player, with absh between them">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8B85F5"/>
+    </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5EC5DC"/>
+    </marker>
+    <style>
+      .bx   { fill:#221F2B; stroke:#3A3448; stroke-width:1.5; }
+      .core { fill:#2A2438; stroke:#8B85F5; stroke-width:2; }
+      .t    { font:600 16px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; fill:#EFECF4; }
+      .s    { font:400 12.5px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; fill:#A49DB8; }
+      .m    { font:600 12.5px ui-monospace,"SF Mono",Menlo,monospace; fill:#8B85F5; }
+      .lp   { font:600 12px ui-sans-serif,system-ui,sans-serif; fill:#8B85F5; }
+      .lu   { font:600 12px ui-sans-serif,system-ui,sans-serif; fill:#5EC5DC; }
+    </style>
+  </defs>
+
+  <rect width="880" height="250" rx="10" fill="#17151D"/>
+
+  <!-- Audiobookshelf -->
+  <rect class="bx" x="26" y="70" width="210" height="110" rx="9"/>
+  <text class="t" x="50" y="108">Audiobookshelf</text>
+  <text class="s" x="50" y="130">your server</text>
+  <text class="s" x="50" y="150">the only thing it</text>
+  <text class="s" x="50" y="166">needs to reach</text>
+
+  <!-- absh -->
+  <rect class="core" x="330" y="52" width="220" height="146" rx="9"/>
+  <text class="m" x="354" y="86">absh</text>
+  <text class="s" x="354" y="110">one engine</text>
+  <text class="s" x="354" y="134">command line</text>
+  <text class="s" x="354" y="152">full-screen picker</text>
+  <text class="s" x="354" y="170">browser extension</text>
+
+  <!-- device -->
+  <rect class="bx" x="644" y="70" width="210" height="110" rx="9"/>
+  <text class="t" x="668" y="108">Your player</text>
+  <text class="s" x="668" y="130">any USB device that</text>
+  <text class="s" x="668" y="146">shows up as a drive</text>
+  <text class="s" x="668" y="166">no app, no account</text>
+
+  <!-- server -> absh : pull -->
+  <path d="M240 105 L326 105" stroke="#8B85F5" stroke-width="2" marker-end="url(#a)" fill="none"/>
+  <text class="lp" x="248" y="97">pull</text>
+  <!-- absh -> server : push -->
+  <path d="M326 148 L240 148" stroke="#5EC5DC" stroke-width="2" marker-end="url(#b)" fill="none"/>
+  <text class="lu" x="248" y="168">push</text>
+
+  <!-- absh -> device -->
+  <path d="M554 105 L640 105" stroke="#8B85F5" stroke-width="2" marker-end="url(#a)" fill="none"/>
+  <text class="lp" x="566" y="97">copy · rename</text>
+  <!-- device -> absh -->
+  <path d="M640 148 L554 148" stroke="#5EC5DC" stroke-width="2" marker-end="url(#b)" fill="none"/>
+  <text class="lu" x="566" y="168">read tags</text>
+
+  <text class="s" x="26" y="228">Books move both ways. Nothing but the server is ever mounted.</text>
+</svg>

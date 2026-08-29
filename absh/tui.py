@@ -341,7 +341,7 @@ def _pick_device(stdscr, app):
         stdscr.addnstr(0, 0, " choose a device".ljust(w - 1), w - 1, curses.A_REVERSE)
         if not found:
             stdscr.addnstr(2, 0, " nothing removable is mounted."[:w - 1], w - 1)
-            stdscr.addnstr(3, 0, " On a Sansa Clip: Settings -> USB Mode -> MSC."[:w - 1], w - 1)
+            stdscr.addnstr(3, 0, " Some players need USB Mode -> MSC to appear."[:w - 1], w - 1)
         for i, d in enumerate(found[:max(1, h - 6)]):
             mark = "*" if app.cfg.get("devicePath") == d["path"] else " "
             note = f"  {app.cfg.get('subdir', 'AUDIOBOOKS')}/" if d["hasSubdir"] else ""

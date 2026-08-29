@@ -1,6 +1,6 @@
 """The command line. This is the product; the extension is a front-end for it.
 
-    absh config --url http://media.local:13378 --key abc --device /Volumes/CLIP
+    absh config --url http://media.local:13378 --key abc --device /Volumes/PLAYER
     absh status                 what is where
     absh ls                     what is on the device
     absh pull redwall           server -> device
@@ -47,7 +47,7 @@ def client_for(cfg):
 
 def require_device(cfg):
     if not cfg.get("devicePath"):
-        die("no device path set - run:  absh config --device /Volumes/CLIP")
+        die("no device path set - run:  absh config --device <path or volume name>")
     if not Path(cfg["devicePath"]).is_dir():
         die(f"device not mounted at {cfg['devicePath']}")
 
@@ -141,8 +141,8 @@ def show_report(rep, verb):
 def cmd_config(args, cfg):
     changed = {}
     if getattr(args, "device", None):
-        # "CLIP" is easier to remember than /Volumes/CLIP, and on Linux nobody
-        # remembers whether it is /media/you or /run/media/you.
+        # A volume name is easier to remember than its full path, and on Linux
+        # nobody remembers whether it is /media/you or /run/media/you.
         found = devices_mod.resolve(args.device, cfg.get("subdir", "AUDIOBOOKS"))
         if found:
             args.device = found
@@ -175,7 +175,8 @@ def cmd_devices(args, cfg):
     found = devices_mod.candidates(cfg.get("subdir", "AUDIOBOOKS"))
     if not found:
         print("no removable volumes are mounted.")
-        print("Plug the player in - on a Sansa Clip, Settings -> USB Mode -> MSC.")
+        print("Plug the player in. Some players need a setting to mount as a\n"
+              "drive at all - look for USB Mode -> MSC.")
         return 1
 
     current = cfg.get("devicePath")
