@@ -100,28 +100,51 @@ async function syncContentScript() {
   }
   if (!pattern || !(await hasHostPermission(c.absUrl))) return;
 
-  await browser.scripting.registerContentScripts([
-    {
-      // Runs in the page's own world so it can see the API responses
-      // Audiobookshelf fetched - the only reliable source of the library item
-      // id for a rendered card. document_start, or the app has already made
-      // its first request before we are watching.
-      id: HOOK_ID,
-      matches: [pattern],
-      js: ["page-hook.js"],
-      runAt: "document_start",
-      world: "MAIN",
-      persistAcrossSessions: true
-    },
-    {
+  // Registered one at a time, deliberately. A single call is atomic: if the
+  // browser rejects the MAIN-world hook - an older engine, a tightened policy -
+  // it rejects the whole array and *neither* script registers, so the page gets
+  // no button and no badges and nothing says why. The hook is an enhancement;
+  // the content script is the feature. Losing the first must not cost the
+  // second.
+  const problems = [];
+
+  // The content script first: it is the part the user can see.
+  try {
+    await browser.scripting.registerContentScripts([{
       id: SCRIPT_ID,
       matches: [pattern],
       js: ["browser-polyfill.js", "content.js"],
       css: ["content.css"],
       runAt: "document_idle",
       persistAcrossSessions: true
-    }
-  ]).catch((e) => console.warn("content script registration failed", e));
+    }]);
+  } catch (e) {
+    problems.push(`content script: ${e && e.message ? e.message : e}`);
+  }
+
+  // Runs in the page's own world so it can see the API responses
+  // Audiobookshelf fetched - the only reliable source of the library item id
+  // for a rendered card. document_start, or the app has already made its first
+  // request before we are watching.
+  try {
+    await browser.scripting.registerContentScripts([{
+      id: HOOK_ID,
+      matches: [pattern],
+      js: ["page-hook.js"],
+      runAt: "document_start",
+      world: "MAIN",
+      persistAcrossSessions: true
+    }]);
+  } catch (e) {
+    problems.push(`page hook: ${e && e.message ? e.message : e}`);
+  }
+
+  // Recorded rather than logged. console.warn goes to the background console,
+  // which nobody opens; the options page reads this and says so out loud.
+  await browser.storage.local.set({
+    registrationError: problems.length ? problems.join("; ") : "",
+    registeredPattern: problems.length ? "" : pattern
+  }).catch(() => {});
 }
 
 /* ------------------------------------------------------------------- API

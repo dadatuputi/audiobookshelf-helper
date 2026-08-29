@@ -38,6 +38,24 @@ async function refreshPermissionState() {
   btn.disabled = granted;
   note(out, granted ? `Access granted for ${pattern}` : `Not granted yet for ${pattern}`,
        granted ? "ok" : "warn");
+
+  // A granted permission is not the same as a registered content script, and
+  // the difference is invisible on the page: the in-page UI is simply absent.
+  // Say which pages the script is actually registered for, and say so loudly
+  // when registering failed.
+  const reg = $("regState");
+  if (reg) {
+    const st = await browser.storage.local.get(["registrationError", "registeredPattern"]);
+    if (st.registrationError) {
+      note(reg, `In-page UI not registered - ${st.registrationError}`, "err");
+    } else if (st.registeredPattern) {
+      note(reg, `In-page UI active on ${st.registeredPattern}`, "ok");
+    } else if (granted) {
+      note(reg, "In-page UI not registered yet. Save, then reload the library page.", "warn");
+    } else {
+      note(reg, "", "");
+    }
+  }
   return granted;
 }
 
