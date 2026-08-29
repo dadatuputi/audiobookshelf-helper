@@ -166,6 +166,11 @@ synced to before is next, and a small volume beats a large one. You pick.
 All three front-ends offer it: `absh devices`, <kbd>s</kbd> in the TUI, and the
 **Detect** button on the extension's options page.
 
+If your player mounts somewhere the desktop conventions do not cover — by hand
+under `~/mnt`, or from an idiosyncratic fstab entry — set `ABSH_DEVICE_ROOTS`
+to the mount point (several separated like `PATH`) and that replaces the search
+entirely.
+
 On macOS the boot volume is deliberately skipped: it appears under `/Volumes` as
 a symlink to `/`, and offering it as a "device" would point `remove` at your
 whole filesystem.

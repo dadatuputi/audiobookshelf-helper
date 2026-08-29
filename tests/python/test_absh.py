@@ -8,6 +8,7 @@ import contextlib
 import importlib
 import io
 import json
+import os
 import struct
 import sys
 import shutil
@@ -617,6 +618,46 @@ class TestPlatformRoots(unittest.TestCase):
     def test_unknown_platform_falls_back_to_the_linux_layout(self):
         with mock.patch.object(devices_mod, "_linux_roots", lambda: ["sentinel"]):
             self.assertEqual(devices_mod.roots("freebsd13"), ["sentinel"])
+
+
+class TestDeviceRootsOverride(unittest.TestCase):
+    """ABSH_DEVICE_ROOTS replaces the per-OS search, for players mounted
+    somewhere the desktop conventions do not cover."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "one").mkdir()
+        (self.tmp / "two").mkdir()
+
+    def test_it_replaces_the_platform_search(self):
+        with mock.patch.dict(os.environ, {"ABSH_DEVICE_ROOTS": str(self.tmp / "one")}):
+            self.assertEqual(devices_mod.roots(), [self.tmp / "one"])
+
+    def test_several_roots_split_on_the_path_separator(self):
+        val = os.pathsep.join([str(self.tmp / "one"), str(self.tmp / "two")])
+        with mock.patch.dict(os.environ, {"ABSH_DEVICE_ROOTS": val}):
+            self.assertEqual(devices_mod.roots(),
+                             [self.tmp / "one", self.tmp / "two"])
+
+    def test_paths_that_do_not_exist_are_dropped(self):
+        val = os.pathsep.join([str(self.tmp / "one"), str(self.tmp / "nope")])
+        with mock.patch.dict(os.environ, {"ABSH_DEVICE_ROOTS": val}):
+            self.assertEqual(devices_mod.roots(), [self.tmp / "one"])
+
+    def test_naming_a_root_that_is_gone_returns_nothing_not_the_platform_list(self):
+        # Otherwise pulling the device out silently falls back to /media and
+        # offers something else as "the player".
+        with mock.patch.dict(os.environ, {"ABSH_DEVICE_ROOTS": str(self.tmp / "nope")}):
+            self.assertEqual(devices_mod.roots(), [])
+
+    def test_unset_leaves_the_platform_search_alone(self):
+        env = dict(os.environ)
+        env.pop("ABSH_DEVICE_ROOTS", None)
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch.object(devices_mod, "_linux_roots",
+                                   lambda: ["sentinel"]):
+                self.assertEqual(devices_mod.roots("linux"), ["sentinel"])
 
 
 # ----------------------------------------------------------------- tui

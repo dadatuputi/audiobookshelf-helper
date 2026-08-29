@@ -221,6 +221,10 @@ test.describe("full loop in a real browser", () => {
     const { srv, port } = await startAbs();
     const { lib, dev } = makeLibrary();
     const absUrl = `http://127.0.0.1:${port}`;
+    // The runner has nothing removable mounted, so name the temp device as the
+    // volume to consider. Chromium inherits this and passes it to the native
+    // host it spawns.
+    process.env.ABSH_DEVICE_ROOTS = dev;
     const ctx = await launch(makeProfile(`${absUrl}/*`));
     env = { ctx, srv, lib, dev, absUrl };
     const page = await configure(ctx, env);
@@ -250,8 +254,12 @@ test.describe("full loop in a real browser", () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
     await page.click("#detect");
-    // The helper lists what the OS has mounted; the temp device is among them.
-    await expect(page.locator("#deviceList option")).not.toHaveCount(0, { timeout: 20_000 });
+    // Assert the device itself is offered, by path. "at least one option" passed
+    // on any machine with a stray directory under /mnt while never once finding
+    // the device it claimed to - which is how this read green locally and red
+    // on a runner where /mnt is empty.
+    await expect(page.locator(`#deviceList option[value="${env.dev}"]`))
+      .toHaveCount(1, { timeout: 20_000 });
     await page.close();
   });
 

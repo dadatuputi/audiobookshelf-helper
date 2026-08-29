@@ -6,6 +6,8 @@ OS has mounted, scores them on how much they look like a player, and lets you
 pick. The score is a hint for ordering, never a decision: `absh devices` shows
 the list and you choose.
 
+Set ABSH_DEVICE_ROOTS to search somewhere else entirely - see _env_roots.
+
 Deliberately stdlib-only, like everything the native host can reach.
 """
 import os
@@ -79,8 +81,34 @@ def _windows_roots():
     return out
 
 
+def _env_roots():
+    """ABSH_DEVICE_ROOTS overrides the search entirely: it names the volumes
+    themselves, not directories to scan for them.
+
+    The per-OS lists below cover where desktops normally automount, which is
+    not everywhere: a player mounted by hand at ~/mnt/player, or by an fstab
+    entry somewhere idiosyncratic, is invisible to `absh devices` and to the
+    extension's Detect button. Rather than guess wider and offer half the
+    filesystem as candidates, let the person who knows say where to look.
+
+    Separator is os.pathsep, like PATH: ":" everywhere but Windows.
+    """
+    raw = os.environ.get("ABSH_DEVICE_ROOTS")
+    if not raw:
+        return None
+    out = []
+    for part in raw.split(os.pathsep):
+        p = Path(part.strip()).expanduser()
+        if part.strip() and p.is_dir() and p not in out:
+            out.append(p)
+    return out
+
+
 def roots(system=None):
     """Mounted volumes that could plausibly be a removable player."""
+    override = _env_roots()
+    if override is not None:            # [] means "you named roots, none exist"
+        return override
     system = system or sys.platform
     if system == "darwin":
         return _mac_roots()
