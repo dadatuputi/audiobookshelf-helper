@@ -18,7 +18,8 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
 import { installTemporaryAddon, seedGrantedPermissions, seedLocalStorage,
-         readLocalStorage, grantInStore, FIREFOX_PREFS } from "./firefox-addon.mjs";
+         readLocalStorage, grantInStore, writeProbeAddon,
+         FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   let disconnect;
   let imported = null;
   let inStore = null;
+  let probeInstalled = null;
+  let probeDisconnect;
 
   test.beforeAll(async () => {
     profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
@@ -142,6 +145,14 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
 
     const installed = await installTemporaryAddon(port, distFirefox);
     disconnect = installed.disconnect;
+
+    // The control described in writeProbeAddon: a second, trivial add-on that
+    // marks every page from a static content script. Its mark, or its absence,
+    // says whether any add-on can reach a page in this harness.
+    const probeDir = writeProbeAddon(mkdtempSync(join(tmpdir(), "absh-probe-")));
+    const probe = await installTemporaryAddon(port, probeDir).catch(() => null);
+    probeInstalled = !!probe;
+    if (probe) probeDisconnect = probe.disconnect;
     EXT_UUID = installed.addon.uuid;
 
     // Belt and braces: if this build of Firefox does let Playwright reach an
@@ -172,6 +183,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   test.afterAll(async () => {
     await ctx?.close();
     disconnect?.();
+    probeDisconnect?.();
   });
 
   async function libraryPage() {
@@ -255,6 +267,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           badges: document.querySelectorAll(".absh-badge").length,
           quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
           note: document.getElementById("absh-note")?.textContent || "",
+          controlAddonRan: document.documentElement.dataset.abshProbe || null,
           cssInjected: css,
           sheets: [...document.styleSheets]
             .map((s) => s.href || "inline")
@@ -269,6 +282,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           injectError: recorded.injectError || null,
           grantImportedByFirefox: imported,
           grantInFirefoxStore: inStore,
+          controlAddonInstalled: probeInstalled,
         })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;

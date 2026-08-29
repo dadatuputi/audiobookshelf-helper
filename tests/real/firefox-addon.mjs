@@ -71,6 +71,38 @@ export function readLocalStorage(profileDir, addonId) {
   }
 }
 
+/** A throwaway add-on that does the simplest possible thing: a static content
+ *  script, on every site, with the host permission declared up front rather
+ *  than asked for. Firefox grants those at install.
+ *
+ *  It is a control, not a feature. The add-on under test asks for one origin
+ *  at runtime and registers its content script dynamically, and in this
+ *  harness Firefox injects nothing for it - no stylesheet, no script, no
+ *  error, with the registration reporting success. That leaves two very
+ *  different explanations: the runtime permission-and-registration path, or
+ *  Playwright's Firefox not running content scripts from a temporarily
+ *  installed add-on at all. If this one marks the page, the harness works and
+ *  the difference is ours; if it does not, no add-on can reach a page here.
+ */
+export function writeProbeAddon(dir) {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "manifest.json"), JSON.stringify({
+    manifest_version: 3,
+    name: "absh injection probe",
+    version: "1.0",
+    host_permissions: ["<all_urls>"],
+    content_scripts: [{
+      matches: ["<all_urls>"],
+      js: ["probe.js"],
+      run_at: "document_start",
+    }],
+    browser_specific_settings: { gecko: { id: "absh-probe@example.invalid" } },
+  }, null, 2));
+  writeFileSync(join(dir, "probe.js"),
+    'document.documentElement.dataset.abshProbe = "ran";\n');
+  return dir;
+}
+
 /** Whether Firefox's own permission store holds this origin.
  *
  *  The store is a binary key-value file, but a granted origin is written into
