@@ -140,6 +140,13 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     const page = await ctx.newPage();
     const url = `${state.absUrl}/library/${state.libraryId}`;
 
+    // Anything the content script logs or throws, kept for the failure
+    // message. A content script that is injected and then dies says so here
+    // and nowhere else.
+    const log = [];
+    page.on("console", (m) => log.push(`${m.type()}: ${m.text()}`.slice(0, 200)));
+    page.on("pageerror", (e) => log.push(`pageerror: ${String(e).slice(0, 200)}`));
+
     // Up to three passes, because two different things send this back to
     // /login: a context with no session yet, and a login whose token has not
     // been stored by the time we navigate away. The second cost a whole CI
@@ -190,15 +197,38 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       // Say which half broke. A missing toolbar button means no content script
       // ran at all; a badge with no button means it ran but never got the
       // library. Guessing between those cost several rounds.
-      const d = await page.evaluate(() => ({
-        url: location.pathname,
-        cards: document.querySelectorAll('[id^="book-card-"]').length,
-        script: !!document.getElementById("absh-sync-btn"),
-        badges: document.querySelectorAll(".absh-badge").length,
-        quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
-        note: document.getElementById("absh-note")?.textContent || "",
-      })).catch(() => null);
-      throw new Error(`no actionable badge; page state: ${JSON.stringify(d)}`);
+      const d = await page.evaluate(() => {
+        // The registration carries content.css, and Firefox applies that
+        // whenever it injects into a document - separately from whether
+        // content.js then runs to completion. A probe styled by it therefore
+        // separates "never injected here" from "injected and the script did
+        // not finish", which nothing else on the page can distinguish: the
+        // script's own flags live in an isolated world this cannot see.
+        const probe = document.createElement("div");
+        probe.className = "absh-badge";
+        probe.style.position = "absolute";
+        document.body.appendChild(probe);
+        const css = getComputedStyle(probe).zIndex;
+        probe.remove();
+        return {
+          url: location.pathname,
+          cards: document.querySelectorAll('[id^="book-card-"]').length,
+          script: !!document.getElementById("absh-sync-btn"),
+          badges: document.querySelectorAll(".absh-badge").length,
+          quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
+          note: document.getElementById("absh-note")?.textContent || "",
+          cssInjected: css,
+          sheets: [...document.styleSheets]
+            .map((s) => s.href || "inline")
+            .filter((h) => h.startsWith("moz-extension")).length,
+        };
+      }).catch(() => null);
+      const recorded = readLocalStorage(profile, GECKO_ID);
+      throw new Error(`no actionable badge; page state: ${JSON.stringify(d)}` +
+        `; add-on recorded: ${JSON.stringify({
+          registeredPattern: recorded.registeredPattern,
+          registrationError: recorded.registrationError,
+        })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;
   }
