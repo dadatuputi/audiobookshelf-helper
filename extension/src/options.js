@@ -4,8 +4,7 @@
  * permissions at all - it asks for the one origin the user configures, and a
  * permissions.request() has to come from a real user gesture, which is what
  * the Grant access button is. */
-const FIELDS = ["absUrl", "apiKey", "devicePath", "subdir", "folderTemplate",
-                "localRoot", "sourceMode"];
+const FIELDS = ["absUrl", "apiKey", "devicePath", "subdir", "folderTemplate"];
 const CHECKS = ["renameM4b"];
 
 const $ = (id) => document.getElementById(id);

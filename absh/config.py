@@ -21,8 +21,6 @@ DEFAULTS = {
     "folderTemplate": "{author} - {title}",
     "renameM4b": True,
     "restoreM4b": True,
-    "sourceMode": "auto",
-    "localRoot": "",
 }
 
 # Everything is settable from the environment, which is how you drive this in

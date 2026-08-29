@@ -27,6 +27,11 @@ Firefox and Chrome. The Python side runs on macOS, Linux and Windows.
 
 ---
 
+**The server is all it needs.** Books are fetched through the Audiobookshelf
+API — there is no second path that reaches into the library's files, so no SMB
+mount, no NFS, nothing to keep in sync. If you can open Audiobookshelf in a
+browser, `absh` can use it.
+
 ## How it fits together
 
 ```
@@ -212,7 +217,6 @@ Toolbar icon → ⚙.
 | Folder on device | `AUDIOBOOKS` — SanDisk players give this folder resume + bookmarks |
 | Folder template | `{author}` `{title}` `{series}`. Also how a book is recognised on the device, so changing it makes synced books look absent |
 | Rename m4b → m4a | Leave on unless your player handles `.m4b` |
-| Source | `auto` prefers a mounted SMB share (much faster) and falls back to HTTP |
 
 ### The permission grant
 
@@ -243,8 +247,9 @@ absh tui                 # full-screen picker
 absh doctor              # why isn't it working
 ```
 
-Every command takes `--dry-run`. `pull` skips files already present with a
-matching size, so re-running is cheap.
+Every command takes `--dry-run`. `pull` skips books already on the device
+*before* downloading them, so `absh pull --all` is cheap to re-run; pass
+`--force` to fetch them again anyway.
 
 In the TUI: `space` selects, `/` filters, `p` pulls, `u` pushes, `d` deletes,
 `r` refreshes, `q` quits.

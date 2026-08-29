@@ -268,19 +268,41 @@ class TestContract(unittest.TestCase):
 
 
 # ------------------------------------------------ device, index, matching
+class FakeClient:
+    """Serves books over the same interface the real client exposes.
+
+    Everything moves through the server now, so the tests drive the download
+    path rather than a shortcut that no longer exists.
+    """
+
+    def __init__(self, bodies=None):
+        self.bodies = bodies or {}
+        self.downloads = []
+        self.uploads = []
+
+    def open_download(self, item_id, timeout=None):
+        self.downloads.append(item_id)
+        body, name, ctype = self.bodies[item_id]
+        return FakeResponse(body, {"Content-Type": ctype,
+                                   "Content-Disposition": f'attachment; filename="{name}"'})
+
+    def upload(self, library_id, folder_id, title, author, files, series=None, timeout=None):
+        self.uploads.append({"library": library_id, "folder": folder_id, "title": title,
+                             "author": author, "names": [n for n, _ in files]})
+        return {"id": "li_new"}
+
+
 class DeviceBase(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.dev = self.tmp / "dev"
-        self.lib = self.tmp / "lib"
         (self.dev / "AUDIOBOOKS").mkdir(parents=True)
-        for it in ITEMS:
-            d = self.lib / it["relPath"]
-            d.mkdir(parents=True)
-            (d / f"{it['title']}.m4b").write_bytes(mp4(it["title"], it["author"]))
+        self.client = FakeClient({
+            it["id"]: (mp4(it["title"], it["author"]), f"{it['title']}.m4b", "audio/mp4")
+            for it in ITEMS
+        })
         self.opts = {"devicePath": str(self.dev), "subdir": "AUDIOBOOKS",
-                     "renameM4b": True, "folderTemplate": "{author} - {title}",
-                     "sourceMode": "local", "localRoot": str(self.lib)}
+                     "renameM4b": True, "folderTemplate": "{author} - {title}"}
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -293,21 +315,30 @@ class DeviceBase(unittest.TestCase):
 
 class TestPullAndMatch(DeviceBase):
     def test_pull_renames_and_records(self):
-        rep = sync.pull(None, [ITEMS[0]], self.opts)
+        rep = sync.pull(self.client, [ITEMS[0]], self.opts)
         self.assertEqual(rep["copied"], 1)
         self.assertEqual(rep["errors"], [])
         self.assertTrue((self.dev / "AUDIOBOOKS" / "Brian Jacques - Redwall.m4a").exists())
         self.assertIn("Brian Jacques - Redwall.m4a",
                       index_mod.load(str(self.dev))["entries"])
 
-    def test_second_pull_skips(self):
-        sync.pull(None, [ITEMS[0]], self.opts)
-        rep = sync.pull(None, [ITEMS[0]], self.opts)
+    def test_second_pull_skips_without_downloading_again(self):
+        """The expensive mistake: everything comes over the wire now, so a
+        re-run must not fetch a whole book to discover it is already there."""
+        sync.pull(self.client, [ITEMS[0]], self.opts)
+        self.assertEqual(self.client.downloads, ["li_1"])
+        rep = sync.pull(self.client, [ITEMS[0]], self.opts)
         self.assertEqual(rep["copied"], 0)
         self.assertEqual(rep["skipped"], 1)
+        self.assertEqual(self.client.downloads, ["li_1"], "downloaded it a second time")
+
+    def test_force_re_downloads(self):
+        sync.pull(self.client, [ITEMS[0]], self.opts)
+        sync.pull(self.client, [ITEMS[0]], dict(self.opts, force=True))
+        self.assertEqual(self.client.downloads, ["li_1", "li_1"])
 
     def test_status_matches_by_id(self):
-        sync.pull(None, [ITEMS[0]], self.opts)
+        sync.pull(self.client, [ITEMS[0]], self.opts)
         st = device_mod.status(str(self.dev), "AUDIOBOOKS", ITEMS)
         self.assertEqual([b["matchedBy"] for b in st["both"]], ["id"])
         self.assertEqual([i["title"] for i in st["serverOnly"]], ["Holes"])
@@ -334,7 +365,7 @@ class TestPullAndMatch(DeviceBase):
         self.assertEqual([b["matchedBy"] for b in st["both"]], ["name"])
 
     def test_index_is_pruned_when_files_vanish(self):
-        sync.pull(None, [ITEMS[0]], self.opts)
+        sync.pull(self.client, [ITEMS[0]], self.opts)
         (self.dev / "AUDIOBOOKS" / "Brian Jacques - Redwall.m4a").unlink()
         device_mod.scan(str(self.dev), "AUDIOBOOKS")
         self.assertEqual(index_mod.load(str(self.dev))["entries"], {})
@@ -354,71 +385,85 @@ class TestPullAndMatch(DeviceBase):
         self.assertEqual(entry["files"], 2)
 
 
-class TestHttpPull(DeviceBase):
-    def test_zip_is_expanded_and_renamed(self):
+class TestMultiFileDownload(DeviceBase):
+    """Audiobookshelf returns a zip when a book is more than one file."""
+
+    def zipped(self, *names):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
-            z.writestr("one.m4b", b"a")
-            z.writestr("two.m4b", b"b")
-            z.writestr("cover.jpg", b"nope")
-        resp = FakeResponse(buf.getvalue(),
-                            {"Content-Type": "application/zip",
-                             "Content-Disposition": 'attachment; filename="book.zip"'})
-        client = mock.Mock()
-        client.open_download.return_value = resp
-        opts = dict(self.opts, sourceMode="http")
-        rep = sync.pull(client, [ITEMS[0]], opts)
+            for n in names:
+                z.writestr(n, b"audio")
+            z.writestr("cover.jpg", b"not audio")
+        return buf.getvalue()
+
+    def test_zip_is_expanded_numbered_and_renamed(self):
+        client = FakeClient({"li_1": (self.zipped("one.m4b", "two.m4b"),
+                                      "book.zip", "application/zip")})
+        rep = sync.pull(client, [ITEMS[0]], self.opts)
         out = self.dev / "AUDIOBOOKS" / "Brian Jacques - Redwall"
         self.assertEqual(rep["copied"], 2)
         self.assertEqual(sorted(p.suffix for p in out.iterdir()), [".m4a", ".m4a"])
+        self.assertTrue(all(p.name[:3].isdigit() for p in out.iterdir()),
+                        "parts must sort in order on the player")
+
+    def test_the_cover_is_not_treated_as_a_track(self):
+        client = FakeClient({"li_1": (self.zipped("one.m4b"), "book.zip", "application/zip")})
+        sync.pull(client, [ITEMS[0]], self.opts)
+        out = self.dev / "AUDIOBOOKS" / "Brian Jacques - Redwall"
+        self.assertEqual([p.suffix for p in out.iterdir()], [".m4a"])
 
     def test_a_zip_with_no_audio_is_an_error_not_an_empty_book(self):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
             z.writestr("readme.txt", b"nothing here")
-        client = mock.Mock()
-        client.open_download.return_value = FakeResponse(
-            buf.getvalue(), {"Content-Type": "application/zip",
-                             "Content-Disposition": 'attachment; filename="b.zip"'})
-        rep = sync.pull(client, [ITEMS[0]], dict(self.opts, sourceMode="http"))
+        client = FakeClient({"li_1": (buf.getvalue(), "b.zip", "application/zip")})
+        rep = sync.pull(client, [ITEMS[0]], self.opts)
         self.assertEqual(rep["copied"], 0)
         self.assertIn("no audio files", rep["errors"][0])
+
+    def test_a_download_failure_is_reported_not_raised(self):
+        class Broken(FakeClient):
+            def open_download(self, item_id, timeout=None):
+                raise AbsError("server said 500")
+        rep = sync.pull(Broken(), [ITEMS[0]], self.opts)
+        self.assertEqual(rep["copied"], 0)
+        self.assertIn("500", rep["errors"][0])
 
 
 class TestPush(DeviceBase):
     def test_upload_restores_the_m4b_extension(self):
         self.place("scruffy_name.m4a", "The Silmarillion", "J.R.R. Tolkien")
         st = device_mod.status(str(self.dev), "AUDIOBOOKS", ITEMS)
-        client = mock.Mock()
-        client.upload.return_value = {"id": "li_new"}
+        client = FakeClient()
         rep = sync.push(client, st["deviceOnly"],
                         dict(self.opts, libraryId="lib1", folderId="fol1"))
         self.assertEqual(rep["uploaded"], 1)
-        _, kwargs = client.upload.call_args[0], client.upload.call_args[1]
-        args = client.upload.call_args[0]
-        self.assertEqual(args[2], "The Silmarillion")     # title from tags
-        self.assertEqual(args[3], "J.R.R. Tolkien")       # author from tags
-        self.assertEqual([n for n, _ in args[4]], ["scruffy_name.m4b"])
+        sent = client.uploads[0]
+        self.assertEqual(sent["title"], "The Silmarillion")   # from the tags
+        self.assertEqual(sent["author"], "J.R.R. Tolkien")    # from the tags
+        self.assertEqual(sent["names"], ["scruffy_name.m4b"])  # rename undone
 
     def test_upload_without_a_target_is_an_error_not_a_crash(self):
         self.place("x.m4a", "Some Book", "Someone")
         st = device_mod.status(str(self.dev), "AUDIOBOOKS", ITEMS)
-        rep = sync.push(mock.Mock(), st["deviceOnly"], self.opts)
+        rep = sync.push(FakeClient(), st["deviceOnly"], self.opts)
         self.assertEqual(rep["uploaded"], 0)
         self.assertIn("no target library", rep["errors"][0])
 
 
 class TestRemove(DeviceBase):
     def test_removes_and_forgets(self):
-        sync.pull(None, [ITEMS[0]], self.opts)
+        sync.pull(self.client, [ITEMS[0]], self.opts)
         rep = sync.remove(["Brian Jacques - Redwall.m4a"], self.opts)
         self.assertEqual(rep["removed"], ["Brian Jacques - Redwall.m4a"])
         self.assertEqual(index_mod.load(str(self.dev))["entries"], {})
 
-    def test_library_is_never_touched(self):
-        sync.pull(None, [ITEMS[0]], self.opts)
+    def test_nothing_outside_the_device_folder_is_touched(self):
+        outside = self.dev / "keepme.txt"
+        outside.write_text("not in the subdir")
+        sync.pull(self.client, [ITEMS[0]], self.opts)
         sync.remove(["Brian Jacques - Redwall.m4a"], self.opts)
-        self.assertTrue((self.lib / "Brian Jacques/Redwall/Redwall.m4b").exists())
+        self.assertTrue(outside.exists())
 
     def test_refuses_traversal_and_absolute_paths(self):
         outside = self.tmp / "precious.txt"
@@ -442,7 +487,7 @@ class TestRemove(DeviceBase):
         self.assertIn("symlink", rep["errors"][0])
 
     def test_partial_success(self):
-        sync.pull(None, [ITEMS[0]], self.opts)
+        sync.pull(self.client, [ITEMS[0]], self.opts)
         rep = sync.remove(["Brian Jacques - Redwall.m4a", "ghost"], self.opts)
         self.assertEqual(len(rep["removed"]), 1)
         self.assertEqual(len(rep["errors"]), 1)

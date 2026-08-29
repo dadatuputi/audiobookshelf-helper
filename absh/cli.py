@@ -141,7 +141,6 @@ def cmd_config(args, cfg):
     changed = {}
     for flag, key in (("url", "absUrl"), ("key", "apiKey"), ("device", "devicePath"),
                       ("subdir", "subdir"), ("template", "folderTemplate"),
-                      ("local_root", "localRoot"), ("source", "sourceMode"),
                       ("library", "libraryId"), ("folder", "folderId")):
         v = getattr(args, flag, None)
         if v is not None:
@@ -224,6 +223,8 @@ def cmd_pull(args, cfg):
     items = client.items(lib["id"])
     st = device_mod.status(cfg["devicePath"], cfg["subdir"], items,
                            cfg["folderTemplate"], read_tags=False)
+    # --force re-downloads books already on the device; otherwise only the
+    # ones that are missing are even considered.
     pool = items if args.force else st["serverOnly"]
     chosen = [i for i in pool if matches(f"{i.get('title')} {i.get('author')} {i.get('series')}",
                                          args.query)]
@@ -239,7 +240,7 @@ def cmd_pull(args, cfg):
             print(f"  would pull  {i.get('title')}")
         return 0
     emit = progress_printer(args.quiet)
-    rep = sync_mod.pull(client, chosen, cfg, emit)
+    rep = sync_mod.pull(client, chosen, dict(cfg, force=args.force), emit)
     emit.finish()
     return show_report(rep, "pull")
 
@@ -361,8 +362,8 @@ def build_parser():
     c = sub.add_parser("config", help="show or change settings")
     for flag, helptext in (("--url", "Audiobookshelf URL"), ("--key", "API key"),
                            ("--device", "player mount path"), ("--subdir", "folder on the device"),
-                           ("--template", "folder template"), ("--local-root", "mounted library root"),
-                           ("--source", "auto|local|http"), ("--library", "library id to pin"),
+                           ("--template", "folder template"),
+                           ("--library", "library id to pin"),
                            ("--folder", "upload folder id to pin")):
         c.add_argument(flag, help=helptext)
     c.add_argument("--rename-m4b", dest="rename_m4b", action="store_true", default=None,

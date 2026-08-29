@@ -70,6 +70,19 @@ function startAbs() {
         return;
       }
       if (req.url.startsWith("/api/me")) return send({ username: "tester" });
+      if (/\/api\/items\/[^/]+\/download/.test(req.url)) {
+        const id = /\/api\/items\/([^/]+)\/download/.exec(req.url)[1];
+        const book = BOOKS.find((b) => b.id === id);
+        if (!book) { rep.writeHead(404); return rep.end("no"); }
+        const tagged = m4aWithTags(book.title, book.author);
+        const body = Buffer.concat([tagged, Buffer.alloc(2048 - tagged.length, 7)]);
+        rep.writeHead(200, {
+          "Content-Type": "audio/mp4",
+          "Content-Disposition": `attachment; filename="${book.title}.m4b"`,
+          "Content-Length": String(body.length),
+        });
+        return rep.end(body);
+      }
       if (req.url.includes("/items")) {
         return send({
           results: BOOKS.map((b) => ({
@@ -151,8 +164,6 @@ async function configure(ctx, { absUrl, dev, lib }) {
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
   await page.fill("#devicePath", dev);
-  await page.fill("#localRoot", lib);
-  await page.selectOption("#sourceMode", "local");
   await page.click("#save");
   await expect(page.locator("#msg")).toHaveText("saved");
   return page;
@@ -240,7 +251,6 @@ test.describe("full loop in a real browser", () => {
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
     await expect(page.locator("#absUrl")).toHaveValue(env.absUrl);
     await expect(page.locator("#devicePath")).toHaveValue(env.dev);
-    await expect(page.locator("#sourceMode")).toHaveValue("local");
     await expect(page.locator("#renameM4b")).toBeChecked();
     await page.close();
   });

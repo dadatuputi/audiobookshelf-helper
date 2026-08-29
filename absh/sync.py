@@ -1,10 +1,14 @@
 """Moving books between the server and the device.
 
-Three operations, all of which report progress and none of which raise on a
-per-book failure - a batch of 200 must not stop because one book's tags are
-odd. Errors are collected and returned.
+Everything goes through the Audiobookshelf API. There is no second path that
+reaches into the library's files directly: the server is the only thing this
+needs to be able to see, which is the whole point of it being self-hosted.
 
-pull   server -> device   (from a mounted share if available, else HTTP)
+Three operations, none of which raise on a per-book failure - a batch of 200
+must not stop because one book's tags are odd. Errors are collected and
+returned.
+
+pull   server -> device   (download)
 push   device -> server   (upload, undoing the .m4a rename on the way)
 remove device            (delete, with hard containment checks)
 """
@@ -16,7 +20,7 @@ from pathlib import Path
 
 from . import index as index_mod
 from . import tags as tags_mod
-from .abs_api import AbsError, local_files
+from .abs_api import AbsError
 from .device import device_root
 from .naming import AUDIO_EXT, clean, out_ext, source_ext, target_name
 
@@ -37,50 +41,42 @@ class Report(dict):
 
 
 # ------------------------------------------------------------------- pull
+def already_on_device(opts, item):
+    """The entry name this book already occupies, or None.
+
+    Checked before downloading rather than after. Everything comes over the
+    API now, so discovering a book is already present by fetching all of it
+    first would make `pull --all` cost a full re-download every time.
+    """
+    root = device_root(opts["devicePath"], opts.get("subdir"))
+    for name, rec in index_mod.load(opts["devicePath"]).get("entries", {}).items():
+        if rec.get("itemId") and rec["itemId"] == item.get("id") and (root / name).exists():
+            return name
+    return None
+
+
 def pull_book(client, item, opts, report, emit=_noop):
-    """Put one server book on the device."""
+    """Put one server book on the device, over the API."""
     root = device_root(opts["devicePath"], opts.get("subdir"))
     name = target_name(item, opts.get("folderTemplate"))
     rename = bool(opts.get("renameM4b", True))
-    mode = opts.get("sourceMode", "auto")
     title = item.get("title") or name
 
     def step(done, total, label):
         emit({"event": "progress", "id": item.get("id"), "title": title,
               "file": label, "done": done, "total": total})
 
-    written = []
+    if not opts.get("force"):
+        have = already_on_device(opts, item)
+        if have:
+            report["skipped"] += 1
+            step(1, 1, have)
+            return have
 
-    # A mounted share is dramatically faster than pulling the same bytes back
-    # out through HTTP, so prefer it when we have one.
-    files = []
-    if mode in ("auto", "local"):
-        files = local_files(opts.get("localRoot"), item.get("relPath"))
-    if not files and mode == "local":
-        report.fail(title, "not found on the local share")
+    got = _download(client, item, root, name, rename, report, step)
+    if got is None:
         return None
-
-    if files:
-        single = len(files) == 1
-        src_ext = files[0].suffix.lower()
-        for i, f in enumerate(files, 1):
-            ext = out_ext(f, rename)
-            dst = (root / f"{name}{ext}") if single else (root / name / f"{i:03d} - {clean(f.stem)}{ext}")
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            step(i, len(files), dst.name)
-            if dst.exists() and dst.stat().st_size == f.stat().st_size:
-                report["skipped"] += 1
-            else:
-                shutil.copy2(f, dst)
-                report["copied"] += 1
-            written.append(dst)
-        entry_name = written[0].name if single else name
-        kind = "file" if single else "dir"
-    else:
-        got = _pull_http(client, item, root, name, rename, report, step)
-        if got is None:
-            return None
-        written, entry_name, kind, src_ext = got
+    written, entry_name, kind, src_ext = got
 
     index_mod.record(opts["devicePath"], entry_name, item,
                      [{"name": p.name, "size": p.stat().st_size} for p in written if p.exists()],
@@ -89,7 +85,7 @@ def pull_book(client, item, opts, report, emit=_noop):
     return entry_name
 
 
-def _pull_http(client, item, root, name, rename, report, step):
+def _download(client, item, root, name, rename, report, step):
     """Fetch over the API. One file, or a zip for a multi-file book."""
     title = item.get("title") or name
     tmp = None

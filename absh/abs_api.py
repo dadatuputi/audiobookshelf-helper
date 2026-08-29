@@ -18,8 +18,6 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from .naming import AUDIO_EXT
-
 DEFAULT_TIMEOUT = 60
 DOWNLOAD_TIMEOUT = 900  # a whole audiobook over a slow LAN
 
@@ -218,18 +216,3 @@ def normalize_item(it):
         "numTracks": tracks or 0,
         "size": it.get("size") or media.get("size") or 0,
     }
-
-
-def local_files(local_root, rel_path):
-    """Audio files for a book on a mounted share, in stable order.
-
-    Sorting by parent directory first is what flattens "CD 1"/"CD 2" folders
-    into the right order rather than interleaving the discs.
-    """
-    if not local_root or not rel_path:
-        return []
-    d = Path(local_root) / rel_path
-    if not d.is_dir():
-        return []
-    fs = [p for p in d.rglob("*") if p.is_file() and p.suffix.lower() in AUDIO_EXT]
-    return sorted(fs, key=lambda p: (str(p.parent).lower(), p.name.lower()))

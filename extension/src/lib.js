@@ -19,7 +19,7 @@
   const DEFAULTS = {
     absUrl: "", apiKey: "", devicePath: "", libraryId: "",
     renameM4b: true, folderTemplate: "{author} - {title}",
-    subdir: "AUDIOBOOKS", sourceMode: "auto", localRoot: ""
+    subdir: "AUDIOBOOKS"
   };
 
   /** Trim a trailing slash so URL joining never doubles up. */

@@ -58,20 +58,33 @@ jobs:
           sys.path.insert(0, ".")
           from absh import device, sync, index
 
-          # 1. The engine, against a fake library and a fake "device".
+          # 1. The engine, downloading from a stand-in server onto a fake device.
           tmp = pathlib.Path(tempfile.mkdtemp())
-          lib, dev = tmp / "lib", tmp / "dev"
-          book = lib / "Author" / "Title"
-          book.mkdir(parents=True); dev.mkdir()
-          (book / "Title.m4b").write_bytes(b"x" * 2048)
+          dev = tmp / "dev"
+          dev.mkdir(parents=True)
 
+          class Resp:
+              headers = {"Content-Type": "audio/mp4",
+                         "Content-Disposition": 'attachment; filename="Title.m4b"'}
+              def __init__(self): self.body = b"x" * 2048
+              def read(self, n=-1):
+                  out, self.body = (self.body, b"") if n is None or n < 0 else (self.body[:n], self.body[n:])
+                  return out
+              def __enter__(self): return self
+              def __exit__(self, *a): return False
+
+          class Client:
+              def __init__(self): self.fetched = []
+              def open_download(self, item_id, timeout=None):
+                  self.fetched.append(item_id); return Resp()
+
+          client = Client()
           item = {"id": "i1", "title": "Title", "author": "Author",
                   "series": "", "relPath": "Author/Title", "numTracks": 1, "size": 2048}
           opts = {"devicePath": str(dev), "subdir": "AUDIOBOOKS", "renameM4b": True,
-                  "folderTemplate": "{author} - {title}", "sourceMode": "local",
-                  "localRoot": str(lib)}
+                  "folderTemplate": "{author} - {title}"}
 
-          rep = sync.pull(None, [item], opts)
+          rep = sync.pull(client, [item], opts)
           assert rep["copied"] == 1 and not rep["errors"], rep
           expected = dev / "AUDIOBOOKS" / "Author - Title.m4a"
           assert expected.exists(), sorted(p.name for p in (dev / "AUDIOBOOKS").iterdir())
@@ -80,15 +93,18 @@ jobs:
           assert [b["matchedBy"] for b in st["both"]] == ["id"], st
           assert st["serverOnly"] == [] and st["deviceOnly"] == [], st
 
+          rep = sync.pull(client, [item], opts)
+          assert rep["skipped"] == 1 and client.fetched == ["i1"], \
+              "a re-run must not download the book again"
+
           rep = sync.remove(["Author - Title.m4a"], opts)
           assert rep["removed"] == ["Author - Title.m4a"], rep
           assert not expected.exists(), "remove did not delete the file"
-          assert (book / "Title.m4b").exists(), "remove touched the library"
           assert index.load(str(dev))["entries"] == {}, "index not cleaned up"
 
           bad = sync.remove(["../../escape"], opts)
           assert bad["removed"] == [] and bad["errors"], bad
-          print("engine OK - pull, status, remove, refusal")
+          print("engine OK - download, status, skip-on-rerun, remove, refusal")
 
           # 2. The host binary the browser actually launches, on this OS.
           cfgfile = tmp / "config.json"
