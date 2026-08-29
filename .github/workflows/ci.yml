@@ -146,6 +146,21 @@ jobs:
         run: python extension/build.py
       - name: web-ext lint (Firefox bundle)
         run: npx web-ext lint --source-dir extension/dist/firefox --self-hosted
+
+      # The dev build carries the manifest's own version, never a release one,
+      # so linting only that let an invalid release version ship: Mozilla no
+      # longer allows letters, and 1.0.0a1 reached a published alpha as a
+      # VERSION_FORMAT_INVALID error nobody saw. Lint what a tag would build.
+      - name: web-ext lint (Firefox bundle, at a release version)
+        run: |
+          for TAG in v1.0.0-alpha.1 v1.2.3-beta.2 v2.0.0-rc.1 v1.2.3; do
+            V=$(python3 tools/release_version.py "$TAG" --field firefox)
+            echo "::group::$TAG -> $V"
+            python3 extension/build.py --target firefox --version "$V"
+            npx web-ext lint --source-dir extension/dist/firefox --self-hosted
+            echo "::endgroup::"
+          done
+          python3 extension/build.py    # leave the dev build in place
       - name: addons-linter (Chrome bundle - catches MV3 mistakes too)
         run: npx addons-linter extension/dist/chrome || true
 

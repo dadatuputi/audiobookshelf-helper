@@ -34,11 +34,20 @@ class TestPrerelease(unittest.TestCase):
         self.assertEqual(v["kind"], "alpha")
         self.assertEqual(v["semver"], "1.0.0-alpha.1")
 
-    def test_firefox_prerelease_sorts_below_the_release(self):
-        """1.0.0a1 < 1.0.0 in Mozilla's version comparison."""
-        self.assertEqual(RV.parse_tag("v1.0.0-alpha.1")["firefox"], "1.0.0a1")
-        self.assertEqual(RV.parse_tag("v1.0.0-beta.2")["firefox"], "1.0.0b2")
-        self.assertEqual(RV.parse_tag("v1.0.0-rc.1")["firefox"], "1.0.0rc1")
+    def test_firefox_prerelease_is_numeric_like_chrome(self):
+        """Was 1.0.0a1, which sorted below 1.0.0 - the ordering a prerelease
+        wants. Mozilla removed letters from the version format, so that form
+        is now a lint error and both stores get the same numbers."""
+        self.assertEqual(RV.parse_tag("v1.0.0-alpha.1")["firefox"], "1.0.0.1")
+        self.assertEqual(RV.parse_tag("v1.0.0-beta.2")["firefox"], "1.0.0.102")
+        self.assertEqual(RV.parse_tag("v1.0.0-rc.1")["firefox"], "1.0.0.201")
+
+    def test_a_prerelease_now_sorts_above_its_base(self):
+        """The cost of dropping letters, asserted so it stays deliberate.
+        Harmless only because a prerelease never reaches a listed channel."""
+        v = RV.parse_tag("v1.0.0-alpha.1")
+        self.assertEqual(v["base"], "1.0.0")
+        self.assertEqual(v["firefox"], "1.0.0.1")
 
     def test_chrome_prerelease_is_all_numeric(self):
         for tag in ("v1.0.0-alpha.1", "v1.0.0-beta.2", "v1.0.0-rc.3"):
@@ -57,10 +66,10 @@ class TestPrerelease(unittest.TestCase):
         self.assertLess(key("v1.0.0-beta.9"), key("v1.0.0-rc.1"))
 
     def test_number_defaults_to_one(self):
-        self.assertEqual(RV.parse_tag("v1.0.0-alpha")["firefox"], "1.0.0a1")
+        self.assertEqual(RV.parse_tag("v1.0.0-alpha")["firefox"], "1.0.0.1")
 
     def test_dashless_form_is_accepted(self):
-        self.assertEqual(RV.parse_tag("v1.0.0-beta3")["firefox"], "1.0.0b3")
+        self.assertEqual(RV.parse_tag("v1.0.0-beta3")["firefox"], "1.0.0.103")
 
     def test_base_is_the_release_it_leads_to(self):
         self.assertEqual(RV.parse_tag("v1.0.0-alpha.1")["base"], "1.0.0")
@@ -87,9 +96,53 @@ class TestManifestAcceptance(unittest.TestCase):
         BUILD = importlib.util.module_from_spec(bspec)
         bspec.loader.exec_module(BUILD)
         v = RV.parse_tag("v1.0.0-alpha.1")
-        self.assertEqual(BUILD.manifest_for("firefox", v["firefox"])["version"], "1.0.0a1")
+        self.assertEqual(BUILD.manifest_for("firefox", v["firefox"])["version"], "1.0.0.1")
         self.assertEqual(BUILD.manifest_for("chrome", v["chrome"])["version"], "1.0.0.1")
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+class TestStoreVersionFormat(unittest.TestCase):
+    """Both stores take 1-4 integers, <=9 digits, no leading zeros.
+
+    Firefox used to allow letters, and 1.0.0a1 sorted below 1.0.0 - the exact
+    ordering a prerelease wants. Mozilla removed them; web-ext lint now calls
+    the old form VERSION_FORMAT_INVALID. That shipped in a published alpha
+    because CI only ever linted the dev build, which carries the manifest's
+    own version and never a release one.
+    """
+
+    TAGS = ["v1.0.0", "v0.1.0", "v1.2.3", "v10.20.30",
+            "v1.0.0-alpha.1", "v1.0.0-alpha.9", "v1.2.3-beta.2",
+            "v2.0.0-rc.1", "v1.0.0-alpha"]
+
+    def test_every_tag_yields_a_version_both_stores_accept(self):
+        for tag in self.TAGS:
+            info = RV.parse_tag(tag)
+            for store in ("firefox", "chrome"):
+                with self.subTest(tag=tag, store=store):
+                    self.assertRegex(info[store], RV.VALID)
+
+    def test_no_letters_anywhere(self):
+        for tag in self.TAGS:
+            info = RV.parse_tag(tag)
+            for store in ("firefox", "chrome"):
+                with self.subTest(tag=tag, store=store):
+                    self.assertFalse(any(c.isalpha() for c in info[store]),
+                                     f"{store} version {info[store]!r} has letters")
+
+    def test_the_old_letter_form_would_be_rejected(self):
+        # Guards the regex itself: if VALID ever loosens, this fails.
+        for bad in ("1.0.0a1", "1.0.0b2", "1.0.0rc1", "1.0.0-alpha.1",
+                    "1.0.01", "01.0.0", "1.0.0.0.0", "1234567890.0"):
+            with self.subTest(bad=bad):
+                self.assertNotRegex(bad, RV.VALID)
+
+    def test_prereleases_of_one_base_stay_ordered(self):
+        def parts(v):
+            return tuple(int(x) for x in v.split("."))
+        seq = [RV.parse_tag(t)["firefox"] for t in
+               ("v1.0.0-alpha.1", "v1.0.0-alpha.2", "v1.0.0-beta.1", "v1.0.0-rc.1")]
+        self.assertEqual(seq, sorted(seq, key=parts), seq)
+        self.assertEqual(len(set(seq)), len(seq), "versions must be distinct")
