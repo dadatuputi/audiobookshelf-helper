@@ -234,9 +234,19 @@ jobs:
   # than one shelf. Neither is expressible in a stub we wrote. So build the
   # real server and drive the extension against it.
   real-server:
-    name: real audiobookshelf
+    name: real audiobookshelf (${{ matrix.project }})
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # real-firefox installs the add-on over Firefox's remote debugging
+        # protocol, since Playwright cannot load one itself.
+        include:
+          - project: real
+            browser: chromium
+          - project: real-firefox
+            browser: firefox
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -250,7 +260,7 @@ jobs:
       - name: Build bundles
         run: python extension/build.py
       - name: Install browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
       # Pinned in setup.mjs, so an upstream release cannot turn unrelated work
       # red. upstream.yml is what notices new versions.
@@ -266,13 +276,13 @@ jobs:
       - name: Run the real-server suite
         run: |
           set +e
-          npx playwright test --project=real --reporter=list > pw.log 2>&1
+          npx playwright test --project=${{ matrix.project }} --reporter=list > pw.log 2>&1
           code=$?
           echo "----- playwright output -----"
           cat pw.log
           if [ $code -ne 0 ]; then
             msg=$(head -c 3000 pw.log | sed 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')
-            echo "::error title=real-server::${msg}"
+            echo "::error title=${{ matrix.project }}::${msg}"
           fi
           exit $code
 
@@ -283,7 +293,7 @@ jobs:
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: playwright-real
+          name: playwright-${{ matrix.project }}
           path: |
             test-results/
             playwright-report/

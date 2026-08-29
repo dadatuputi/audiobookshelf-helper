@@ -26,6 +26,16 @@ export default defineConfig({
       testDir: "tests/real",
       timeout: 120_000,
       use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") }
+    },
+    /* The same, in Firefox. Playwright cannot load an add-on there
+     * (microsoft/playwright#2644), so tests/real/firefox-addon.mjs installs it
+     * over Firefox's remote debugging protocol. This is the browser where the
+     * manifest diverges most and where lint was, until now, the only check. */
+    {
+      name: "real-firefox",
+      testDir: "tests/real",
+      timeout: 180_000,
+      use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") }
     }
   ]
 });

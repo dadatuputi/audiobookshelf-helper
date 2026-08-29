@@ -54,9 +54,11 @@
   async function loadStatus() {
     try {
       STATUS = await send({ type: "status", readTags: true });
+      TITLES = null;
     } catch (e) {
       STATUS = { error: String(e.message || e), both: [], serverOnly: [], deviceOnly: [] };
     }
+    TITLES = null;                       // status feeds the mapping as well
     render();
   }
 
@@ -72,13 +74,26 @@
 
   /* Ambiguous titles map to null rather than to one of the candidates: a badge
      on the wrong book is worse than no badge, and this is the same rule the
-     rest of the file follows when the mapping is unavailable. */
+     rest of the file follows when the mapping is unavailable.
+   *
+   * Built from the helper's status as well as the page hook. The hook only
+   * sees /personalized if it is injected before the app requests it, and it
+   * loses that race often enough to matter - the badges then never appear
+   * until a reload, which is what the real-server suite kept catching. The
+   * helper already fetched the same library through the API, so the mapping
+   * does not need to depend on winning a race against the page. */
   function titleIndex() {
     const byTitle = new Map();
-    for (const [id, it] of KNOWN) {
-      const k = normTitle(it.title);
-      if (!k) continue;
-      byTitle.set(k, byTitle.has(k) ? null : id);
+    const add = (id, title) => {
+      const k = normTitle(title);
+      if (!k || !id) return;
+      if (byTitle.has(k) && byTitle.get(k) !== id) byTitle.set(k, null);
+      else if (!byTitle.has(k)) byTitle.set(k, id);
+    };
+    for (const [id, it] of KNOWN) add(id, it.title);
+    if (STATUS && !STATUS.error) {
+      for (const i of STATUS.serverOnly || []) add(i.id, i.title);
+      for (const b of STATUS.both || []) add(b.item && b.item.id, b.item && b.item.title);
     }
     return byTitle;
   }
