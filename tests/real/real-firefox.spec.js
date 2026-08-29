@@ -17,9 +17,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
-import { installTemporaryAddon, seedGrantedPermissions, seedLocalStorage,
+import { installTemporaryAddon, seedLocalStorage,
          readLocalStorage, grantInStore, writeProbeAddon,
-         FIREFOX_PREFS } from "./firefox-addon.mjs";
+         withDeclaredHostPermission, FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -58,12 +58,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   let home;
   let profile;
   let disconnect;
-  let imported = null;
-  let inStore = null;
   let probeInstalled = null;
-  let probeDynamicInstalled = null;
   let probeDisconnect;
-  let dynDisconnect;
 
   test.beforeAll(async () => {
     profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
@@ -83,9 +79,6 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       allowed_extensions: [GECKO_ID],
     }, null, 2));
 
-    seedGrantedPermissions(profile, GECKO_ID, {
-      origins: [`${new URL(state.absUrl).origin}/*`],
-    });
 
     // Configure it before it starts. Omitting this was the whole failure the
     // first time round: with no server URL there is nothing to register a
@@ -102,40 +95,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       subdir: "AUDIOBOOKS",
     });
 
-    const ports = [await freePort(), await freePort()];
-
-    // Launch twice, deliberately. The seeded grant is in the file Firefox
-    // migrates from, and that migration happens while the browser is running -
-    // by which time the add-on has already started and computed what it is
-    // allowed to touch. The first run exists only to let the import happen;
-    // the second starts with the grant already in Firefox's own store. Without
-    // it the add-on registered its content script for exactly the right
-    // pattern and Firefox then injected nothing at all - no stylesheet, no
-    // script, no error anywhere.
-    const warm = await firefox.launchPersistentContext(profile, {
-      headless: true,
-      ...(process.env.ABSH_FIREFOX_PATH
-        ? { executablePath: process.env.ABSH_FIREFOX_PATH } : {}),
-      args: ["-start-debugger-server", String(ports[0])],
-      firefoxUserPrefs: FIREFOX_PREFS,
-      env: { ...process.env, HOME: home },
-    });
-    // The add-on has to be installed here too. Nothing reads the permission
-    // store until an extension asks about its permissions, so a browser that
-    // starts with no add-on imports nothing - which is exactly what the first
-    // attempt measured, and it measured only itself.
-    const warmed = await installTemporaryAddon(ports[0], distFirefox);
-    await new Promise((r) => setTimeout(r, 5000));
-    warmed.disconnect();
-    await warm.close();
-    // Firefox deletes the file once it has imported it, and writes the granted
-    // origin into its own store as plain text. Between them these say whether
-    // the grant ever reached the browser - which no amount of looking at the
-    // page can tell you.
-    imported = !existsSync(join(profile, "extension-preferences.json"));
-    inStore = grantInStore(profile, `${new URL(state.absUrl).origin}/*`);
-
-    const port = ports[1];
+    const port = await freePort();
     ctx = await firefox.launchPersistentContext(profile, {
       headless: true,
       ...(process.env.ABSH_FIREFOX_PATH
@@ -145,7 +105,11 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       env: { ...process.env, HOME: home },
     });
 
-    const installed = await installTemporaryAddon(port, distFirefox);
+    // The one manifest field this suite moves - see withDeclaredHostPermission
+    // for exactly what that costs and why nothing else will do.
+    const addonDir = withDeclaredHostPermission(
+      distFirefox, mkdtempSync(join(tmpdir(), "absh-ffdist-")));
+    const installed = await installTemporaryAddon(port, addonDir);
     disconnect = installed.disconnect;
 
     // The control described in writeProbeAddon: a second, trivial add-on that
@@ -156,16 +120,6 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     probeInstalled = !!probe;
     if (probe) probeDisconnect = probe.disconnect;
 
-    // And the same probe again, with one thing changed: its content script is
-    // registered at runtime instead of named in the manifest. That is the only
-    // remaining difference from the add-on under test, whose permission is
-    // also asked for at runtime - so between the two marks, the page says
-    // which of the two is what Firefox refuses.
-    const dynDir = writeProbeAddon(mkdtempSync(join(tmpdir(), "absh-probedyn-")),
-                                   { dynamic: true });
-    const dyn = await installTemporaryAddon(port, dynDir).catch(() => null);
-    probeDynamicInstalled = !!dyn;
-    if (dyn) dynDisconnect = dyn.disconnect;
     EXT_UUID = installed.addon.uuid;
 
     // Belt and braces: if this build of Firefox does let Playwright reach an
@@ -197,7 +151,6 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     await ctx?.close();
     disconnect?.();
     probeDisconnect?.();
-    dynDisconnect?.();
   });
 
   async function libraryPage() {
@@ -282,8 +235,6 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
           note: document.getElementById("absh-note")?.textContent || "",
           controlAddonRan: document.documentElement.dataset.abshProbe || null,
-          controlDynamicRan:
-            document.documentElement.dataset.abshProbeDynamic || null,
           cssInjected: css,
           sheets: [...document.styleSheets]
             .map((s) => s.href || "inline")
@@ -296,10 +247,9 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           registeredPattern: recorded.registeredPattern,
           registrationError: recorded.registrationError,
           injectError: recorded.injectError || null,
-          grantImportedByFirefox: imported,
-          grantInFirefoxStore: inStore,
+          grantInFirefoxStore: grantInStore(
+            profile, `${new URL(state.absUrl).origin}/*`),
           controlAddonInstalled: probeInstalled,
-          controlDynamicInstalled: probeDynamicInstalled,
         })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;

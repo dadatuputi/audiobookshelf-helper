@@ -16,106 +16,70 @@
  * Framing is `<byte length>:<JSON>`, length in bytes and not characters.
  */
 import net from "node:net";
-import { writeFileSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, readdirSync, mkdirSync, cpSync } from "node:fs";
 import { join } from "node:path";
 
-/** Grant optional permissions up front. Headless Firefox draws no doorhanger,
- *  so permissions.request() never resolves there - the same reason the
- *  Chromium suite seeds its grant into Preferences. Firefox keeps them in
- *  extension-preferences.json, keyed by add-on id. */
-export function seedGrantedPermissions(profileDir, addonId, { origins = [], permissions = [] }) {
-  writeFileSync(
-    join(profileDir, "extension-preferences.json"),
-    // The shape Firefox's own migration expects: extension id at the top
-    // level, and an entry keeping both arrays. On a fresh profile the store
-    // imports this file once and then deletes it. data_collection is carried
-    // because newer builds store it alongside; it is empty for this add-on.
-    JSON.stringify({ [addonId]: { permissions, origins, data_collection: [] } }, null, 2)
-  );
-}
-
-/** Put the add-on's settings in the profile before Firefox starts.
+/** A copy of the built add-on whose one asked-for host permission is declared
+ *  instead, because Firefox grants declared ones at install.
  *
- *  The obvious route - open moz-extension://<uuid>/options.html and fill the
- *  form - does not work under Playwright. Its Firefox is stock, and Juggler
- *  cannot drive moz-extension:// documents: the navigation commits and then
- *  waits for a load event that never arrives. DuckDuckGo's Firefox extension
- *  harness has to patch omni.ja to "let Juggler interact with moz-extension://
- *  pages", which is the same limitation seen from the other side. Three
- *  rounds were spent blaming the UUID for that hang; the UUID was right.
+ *  This is the compromise the Firefox suite runs under, and it is worth being
+ *  exact about. Two controls established the rest: a probe add-on with a
+ *  static content script injects into the page here, and a second probe that
+ *  registers the same script through browser.scripting injects too - so
+ *  temporary add-ons, and runtime registration, both work in this browser.
+ *  What the add-on under test never gets is the grant. Its host permission is
+ *  optional by design (it asks for the one server the user configures, which
+ *  is what keeps the shipped manifest asking for no host at all), that grant
+ *  is a click in an extension page, and Playwright cannot open one - nor can
+ *  the grant be seeded: a run proved the origin never reaches Firefox's own
+ *  permission store however the profile is prepared.
  *
- *  So write storage.local directly. With the IndexedDB backend turned off
- *  (see FIREFOX_PREFS) storage.local is a single JSON file per add-on, keyed
- *  by add-on id, and an add-on installed afterwards reads it as its own -
- *  the same values the options page would have saved, reaching the add-on
- *  through the same API.
+ *  So exactly one manifest field moves, and everything the tests then drive -
+ *  the background, the content script, the page hook, the native host - is the
+ *  shipped code. What this cannot cover is the permission request itself; the
+ *  Chromium suite covers that, on a browser where the grant can be seeded.
  */
-export function seedLocalStorage(profileDir, addonId, data) {
-  writeFileSync(storageFile(profileDir, addonId, true), JSON.stringify(data, null, 2));
-}
-
-/** Read that same file back.
- *
- *  It is how the add-on's own writes become visible from outside: the
- *  background records what it registered a content script for, and with the
- *  JSON backend that lands here. It is the only way this suite can see the
- *  registration table at all - browser.scripting is reachable only from an
- *  extension page, and Playwright cannot open one. Returns {} until the
- *  add-on has written anything; the file is flushed a beat after each set().
- */
-export function readLocalStorage(profileDir, addonId) {
-  try {
-    return JSON.parse(readFileSync(storageFile(profileDir, addonId), "utf8"));
-  } catch {
-    return {};
-  }
+export function withDeclaredHostPermission(distDir, outDir) {
+  mkdirSync(outDir, { recursive: true });
+  cpSync(distDir, outDir, { recursive: true });
+  const file = join(outDir, "manifest.json");
+  const manifest = JSON.parse(readFileSync(file, "utf8"));
+  manifest.host_permissions = manifest.optional_host_permissions;
+  delete manifest.optional_host_permissions;
+  writeFileSync(file, JSON.stringify(manifest, null, 2));
+  return outDir;
 }
 
 /** A throwaway add-on that does the simplest possible thing: a static content
  *  script, on every site, with the host permission declared up front rather
- *  than asked for. Firefox grants those at install.
+ *  than asked for.
  *
- *  It is a control, not a feature. The add-on under test asks for one origin
- *  at runtime and registers its content script dynamically, and in this
- *  harness Firefox injects nothing for it - no stylesheet, no script, no
- *  error, with the registration reporting success. That leaves two very
- *  different explanations: the runtime permission-and-registration path, or
- *  Playwright's Firefox not running content scripts from a temporarily
- *  installed add-on at all. If this one marks the page, the harness works and
- *  the difference is ours; if it does not, no add-on can reach a page here.
+ *  It is a control, not a feature, and it stays because it is the thing that
+ *  tells you the harness itself is sound: if the real add-on draws nothing and
+ *  this marks the page, the browser is fine and the fault is ours. Run once
+ *  with its script registered through browser.scripting instead of named in
+ *  the manifest, it still marked the page - which is how the host permission,
+ *  and not runtime registration, was established as what Firefox was
+ *  withholding.
  */
-export function writeProbeAddon(dir, { dynamic = false } = {}) {
+export function writeProbeAddon(dir) {
   mkdirSync(dir, { recursive: true });
-  const id = dynamic ? "absh-probe-dyn@example.invalid" : "absh-probe@example.invalid";
-  const mark = dynamic ? "abshProbeDynamic" : "abshProbe";
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({
     manifest_version: 3,
-    name: `absh injection probe${dynamic ? " (dynamic)" : ""}`,
+    name: "absh injection probe",
     version: "1.0",
-    // Declared, not requested: Firefox grants these at install, so neither
-    // probe depends on a grant arriving from anywhere.
+    // Declared, not requested: Firefox grants these at install, so the probe
+    // depends on no grant arriving from anywhere.
     host_permissions: ["<all_urls>"],
-    ...(dynamic
-      ? { permissions: ["scripting"], background: { scripts: ["back.js"] } }
-      : { content_scripts: [{ matches: ["<all_urls>"], js: ["probe.js"],
-                              run_at: "document_start" }] }),
-    browser_specific_settings: { gecko: { id } },
+    content_scripts: [{
+      matches: ["<all_urls>"],
+      js: ["probe.js"],
+      run_at: "document_start",
+    }],
+    browser_specific_settings: { gecko: { id: "absh-probe@example.invalid" } },
   }, null, 2));
   writeFileSync(join(dir, "probe.js"),
-    `document.documentElement.dataset.${mark} = "ran";\n`);
-  if (dynamic) {
-    // The one thing the add-on under test does differently, with everything
-    // else held still: the same script, registered at runtime rather than
-    // named in the manifest.
-    writeFileSync(join(dir, "back.js"),
-      'browser.scripting.registerContentScripts([{\n' +
-      '  id: "absh-probe-dynamic",\n' +
-      '  matches: ["<all_urls>"],\n' +
-      '  js: ["probe.js"],\n' +
-      '  runAt: "document_start",\n' +
-      '  persistAcrossSessions: false,\n' +
-      '}]).catch((e) => console.error("probe register failed", e));\n');
-  }
+    'document.documentElement.dataset.abshProbe = "ran";\n');
   return dir;
 }
 
@@ -141,6 +105,42 @@ export function grantInStore(profileDir, origin) {
     if (readFileSync(join(dir, name), "latin1").includes(origin)) return "present";
   }
   return "absent";
+}
+
+/** Put the add-on's settings in the profile before Firefox starts.
+ *
+ *  The obvious route - open moz-extension://<uuid>/options.html and fill the
+ *  form - does not work under Playwright. Its Firefox is stock, and Juggler
+ *  cannot drive moz-extension:// documents: the navigation commits and then
+ *  waits for a load event that never arrives. DuckDuckGo's Firefox extension
+ *  harness has to patch omni.ja to "let Juggler interact with moz-extension://
+ *  pages", which is the same limitation seen from the other side.
+ *
+ *  So write storage.local directly. With the IndexedDB backend turned off
+ *  (see FIREFOX_PREFS) storage.local is a single JSON file per add-on, keyed
+ *  by add-on id, and an add-on installed afterwards reads it as its own - the
+ *  same values the options page would have saved, reaching the add-on through
+ *  the same API.
+ */
+export function seedLocalStorage(profileDir, addonId, data) {
+  writeFileSync(storageFile(profileDir, addonId, true), JSON.stringify(data, null, 2));
+}
+
+/** Read that same file back.
+ *
+ *  It is how the add-on's own writes become visible from outside: the
+ *  background records what it registered a content script for, and with the
+ *  JSON backend that lands here. It is the only way this suite can see the
+ *  registration table at all - browser.scripting is reachable only from an
+ *  extension page, and Playwright cannot open one. Returns {} until the
+ *  add-on has written anything; the file is flushed a beat after each set().
+ */
+export function readLocalStorage(profileDir, addonId) {
+  try {
+    return JSON.parse(readFileSync(storageFile(profileDir, addonId), "utf8"));
+  } catch {
+    return {};
+  }
 }
 
 function storageFile(profileDir, addonId, create = false) {
