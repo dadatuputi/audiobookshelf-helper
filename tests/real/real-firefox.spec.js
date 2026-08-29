@@ -61,7 +61,9 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   let imported = null;
   let inStore = null;
   let probeInstalled = null;
+  let probeDynamicInstalled = null;
   let probeDisconnect;
+  let dynDisconnect;
 
   test.beforeAll(async () => {
     profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
@@ -153,6 +155,17 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     const probe = await installTemporaryAddon(port, probeDir).catch(() => null);
     probeInstalled = !!probe;
     if (probe) probeDisconnect = probe.disconnect;
+
+    // And the same probe again, with one thing changed: its content script is
+    // registered at runtime instead of named in the manifest. That is the only
+    // remaining difference from the add-on under test, whose permission is
+    // also asked for at runtime - so between the two marks, the page says
+    // which of the two is what Firefox refuses.
+    const dynDir = writeProbeAddon(mkdtempSync(join(tmpdir(), "absh-probedyn-")),
+                                   { dynamic: true });
+    const dyn = await installTemporaryAddon(port, dynDir).catch(() => null);
+    probeDynamicInstalled = !!dyn;
+    if (dyn) dynDisconnect = dyn.disconnect;
     EXT_UUID = installed.addon.uuid;
 
     // Belt and braces: if this build of Firefox does let Playwright reach an
@@ -184,6 +197,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     await ctx?.close();
     disconnect?.();
     probeDisconnect?.();
+    dynDisconnect?.();
   });
 
   async function libraryPage() {
@@ -268,6 +282,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
           note: document.getElementById("absh-note")?.textContent || "",
           controlAddonRan: document.documentElement.dataset.abshProbe || null,
+          controlDynamicRan:
+            document.documentElement.dataset.abshProbeDynamic || null,
           cssInjected: css,
           sheets: [...document.styleSheets]
             .map((s) => s.href || "inline")
@@ -283,6 +299,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           grantImportedByFirefox: imported,
           grantInFirefoxStore: inStore,
           controlAddonInstalled: probeInstalled,
+          controlDynamicInstalled: probeDynamicInstalled,
         })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;

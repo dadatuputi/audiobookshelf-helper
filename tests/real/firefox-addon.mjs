@@ -84,22 +84,38 @@ export function readLocalStorage(profileDir, addonId) {
  *  installed add-on at all. If this one marks the page, the harness works and
  *  the difference is ours; if it does not, no add-on can reach a page here.
  */
-export function writeProbeAddon(dir) {
+export function writeProbeAddon(dir, { dynamic = false } = {}) {
   mkdirSync(dir, { recursive: true });
+  const id = dynamic ? "absh-probe-dyn@example.invalid" : "absh-probe@example.invalid";
+  const mark = dynamic ? "abshProbeDynamic" : "abshProbe";
   writeFileSync(join(dir, "manifest.json"), JSON.stringify({
     manifest_version: 3,
-    name: "absh injection probe",
+    name: `absh injection probe${dynamic ? " (dynamic)" : ""}`,
     version: "1.0",
+    // Declared, not requested: Firefox grants these at install, so neither
+    // probe depends on a grant arriving from anywhere.
     host_permissions: ["<all_urls>"],
-    content_scripts: [{
-      matches: ["<all_urls>"],
-      js: ["probe.js"],
-      run_at: "document_start",
-    }],
-    browser_specific_settings: { gecko: { id: "absh-probe@example.invalid" } },
+    ...(dynamic
+      ? { permissions: ["scripting"], background: { scripts: ["back.js"] } }
+      : { content_scripts: [{ matches: ["<all_urls>"], js: ["probe.js"],
+                              run_at: "document_start" }] }),
+    browser_specific_settings: { gecko: { id } },
   }, null, 2));
   writeFileSync(join(dir, "probe.js"),
-    'document.documentElement.dataset.abshProbe = "ran";\n');
+    `document.documentElement.dataset.${mark} = "ran";\n`);
+  if (dynamic) {
+    // The one thing the add-on under test does differently, with everything
+    // else held still: the same script, registered at runtime rather than
+    // named in the manifest.
+    writeFileSync(join(dir, "back.js"),
+      'browser.scripting.registerContentScripts([{\n' +
+      '  id: "absh-probe-dynamic",\n' +
+      '  matches: ["<all_urls>"],\n' +
+      '  js: ["probe.js"],\n' +
+      '  runAt: "document_start",\n' +
+      '  persistAcrossSessions: false,\n' +
+      '}]).catch((e) => console.error("probe register failed", e));\n');
+  }
   return dir;
 }
 
