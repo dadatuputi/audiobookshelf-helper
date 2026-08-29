@@ -50,6 +50,10 @@ const BOOKS = [
  *  same client the CLI uses - so it needs the real endpoint surface. */
 const UPLOADS = [];
 
+/* Audiobookshelf behind a reverse proxy at a subpath - the deployment that
+ * broke the in-page UI. Everything the stub serves lives under it. */
+const BASE = "/audiobookshelf";
+
 function startAbs() {
   return new Promise((res) => {
     const srv = createServer((req, rep) => {
@@ -57,6 +61,12 @@ function startAbs() {
         rep.writeHead(200, { "Content-Type": "application/json" });
         rep.end(JSON.stringify(obj));
       };
+      // Audiobookshelf is very often reverse-proxied under a subpath. Serving
+      // the stub at the root hid a bug that made the whole in-page UI silently
+      // absent for anyone deployed that way, so the stub lives under one now.
+      if (!req.url.startsWith(BASE)) { rep.writeHead(404); return rep.end("no"); }
+      req.url = req.url.slice(BASE.length) || "/";
+
       if (req.method === "POST" && req.url.startsWith("/api/upload")) {
         const chunks = [];
         req.on("data", (c) => chunks.push(c));
@@ -100,10 +110,17 @@ function startAbs() {
       }
       if (req.url.startsWith("/library/")) {
         rep.writeHead(200, { "Content-Type": "text/html" });
+        // The page fetches its own items, as Audiobookshelf does. That call is
+        // the only source of item ids - the DOM never carries them - so a stub
+        // that skipped it could never produce a badge, which is why the badge
+        // path went uncovered for so long.
         return rep.end('<!doctype html><html><body><div id="app">' +
                        '<div id="toolbar" role="toolbar"></div>' +
                        '<div id="book-card-0"></div><div id="book-card-1"></div>' +
-                       '</div></body></html>');
+                       '</div><script>' +
+                       `fetch(${JSON.stringify(BASE)} + "/api/libraries/lib1/items?limit=0&minified=1")` +
+                       '.then(r => r.json());' +
+                       '</script></body></html>');
       }
       rep.writeHead(404); rep.end("no");
     });
@@ -220,7 +237,7 @@ test.describe("full loop in a real browser", () => {
   test.beforeAll(async () => {
     const { srv, port } = await startAbs();
     const { lib, dev } = makeLibrary();
-    const absUrl = `http://127.0.0.1:${port}`;
+    const absUrl = `http://127.0.0.1:${port}${BASE}`;
     // The runner has nothing removable mounted, so name the temp device as the
     // volume to consider. Chromium inherits this and passes it to the native
     // host it spawns.
@@ -245,7 +262,7 @@ test.describe("full loop in a real browser", () => {
 
     // Exactly the one server - the shipped manifest asks for no host at all.
     const granted = await page.evaluate(() => chrome.permissions.getAll());
-    expect(granted.origins).toEqual([`${env.absUrl}/*`]);
+    expect(granted.origins).toEqual([`${new URL(env.absUrl).origin}/*`]);
     expect(granted.origins).not.toContain("*://*/*");
     await page.close();
   });
@@ -369,6 +386,21 @@ test.describe("full loop in a real browser", () => {
     await lib.close();
   });
 
+  test("book cards get a badge saying whether the book is on the device", async () => {
+    // Never asserted before this: the stubs carried #book-card- divs, but the
+    // only thing checked was the toolbar button, so the badges could be - and
+    // were - absent on a real server with nobody the wiser.
+    const lib = await env.ctx.newPage();
+    await lib.goto(`${env.absUrl}/library/main`);
+    const badges = lib.locator(".absh-badge");
+    await expect(badges.first()).toBeVisible({ timeout: 20_000 });
+    expect(await badges.count()).toBe(2);       // one per card on the stub page
+    // Each badge offers an action: copy it over, or take it off.
+    const buttons = lib.locator(".absh-badge .absh-mini");
+    expect(await buttons.count()).toBeGreaterThan(0);
+    await lib.close();
+  });
+
   test("removing deletes from the device but never from the library", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
@@ -400,7 +432,7 @@ test.describe("when the device is not mounted", () => {
 
   test.beforeAll(async () => {
     ({ srv } = await startAbs());
-    absUrl = `http://127.0.0.1:${srv.address().port}`;
+    absUrl = `http://127.0.0.1:${srv.address().port}${BASE}`;
     ({ lib } = makeLibrary());
     ctx = await launch(makeProfile(`${absUrl}/*`));
     await (await configure(ctx, {
@@ -431,7 +463,7 @@ test.describe("before access is granted", () => {
 
   test.beforeAll(async () => {
     ({ srv } = await startAbs());
-    absUrl = `http://127.0.0.1:${srv.address().port}`;
+    absUrl = `http://127.0.0.1:${srv.address().port}${BASE}`;
     ({ lib, dev } = makeLibrary());
     ctx = await launch(makeProfile(null));      // no seeded grant
     await (await configure(ctx, { absUrl, dev, lib })).close();
@@ -443,7 +475,7 @@ test.describe("before access is granted", () => {
     const page = await ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
     await expect(page.locator("#permState")).toContainText("Not granted yet");
-    await expect(page.locator("#permState")).toContainText(absUrl);
+    await expect(page.locator("#permState")).toContainText(new URL(absUrl).origin);
     await expect(page.locator("#grant")).toBeEnabled();
     await page.close();
   });

@@ -51,6 +51,30 @@ describe("originPattern", () => {
 });
 
 describe("libraryPattern", () => {
+  // Audiobookshelf is commonly reached through a reverse proxy that puts it
+  // under a path. The browser URL then carries that prefix whether or not the
+  // server itself is configured with a base path - and dropping it here
+  // registered the content script for a URL that never matches, so the whole
+  // in-page UI was silently absent with no error anywhere.
+  it("keeps the path the server is reached under", () => {
+    expect(ABSH.libraryPattern("https://h/audiobookshelf"))
+      .toBe("https://h/audiobookshelf/library/*");
+  });
+
+  it("keeps it with a trailing slash too", () => {
+    expect(ABSH.libraryPattern("https://h/audiobookshelf/"))
+      .toBe("https://h/audiobookshelf/library/*");
+  });
+
+  it("handles more than one path segment", () => {
+    expect(ABSH.libraryPattern("https://h/media/abs")).toBe("https://h/media/abs/library/*");
+  });
+
+  it("adds nothing when the server is at the root", () => {
+    expect(ABSH.libraryPattern("http://h:13378")).toBe("http://h:13378/library/*");
+  });
+
+
   it("scopes the content script to that server's library pages", () => {
     expect(ABSH.libraryPattern("http://media.local:13378/")).toBe("http://media.local:13378/library/*");
   });

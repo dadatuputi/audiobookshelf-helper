@@ -41,10 +41,19 @@
     return `${u.protocol}//${u.host}/*`;
   }
 
-  /** Where the toolbar button belongs: the library pages of that one server. */
+  /** Where the toolbar button belongs: the library pages of that one server.
+   *
+   *  The path matters. Audiobookshelf is very often reverse-proxied under a
+   *  subpath - https://host/audiobookshelf - and dropping it here produced a
+   *  pattern for https://host/library/*, which never matches
+   *  https://host/audiobookshelf/library/... The content script then simply
+   *  never ran, with no error anywhere: no badges, no toolbar button, and a
+   *  page that looks untouched. Keep whatever path the server is served
+   *  under. */
   function libraryPattern(absUrl) {
     const u = new URL(baseUrl(absUrl));
-    return `${u.protocol}//${u.host}/library/*`;
+    const base = u.pathname.replace(/\/+$/, "");
+    return `${u.protocol}//${u.host}${base}/library/*`;
   }
 
   function formatBytes(n) {
