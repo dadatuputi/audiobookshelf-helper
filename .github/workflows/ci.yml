@@ -227,10 +227,73 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The stub in tests/e2e is written from our own assumptions, so it can only
+  # confirm them - and it did, twice: the in-page UI was broken on every stock
+  # install because the library page fetches /personalized (a bare array of
+  # shelves, not {results}) and because card ids repeat once a page has more
+  # than one shelf. Neither is expressible in a stub we wrote. So build the
+  # real server and drive the extension against it.
+  real-server:
+    name: real audiobookshelf
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build bundles
+        run: python extension/build.py
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      # Pinned in setup.mjs, so an upstream release cannot turn unrelated work
+      # red. upstream.yml is what notices new versions.
+      - name: Cache the Audiobookshelf build
+        uses: actions/cache@v4
+        with:
+          path: .abs-real/abs
+          key: abs-${{ runner.os }}-v2.36.0-${{ hashFiles('tests/real/setup.mjs') }}
+
+      - name: Build and seed a real Audiobookshelf
+        run: node tests/real/setup.mjs
+
+      - name: Run the real-server suite
+        run: |
+          set +e
+          npx playwright test --project=real --reporter=list > pw.log 2>&1
+          code=$?
+          echo "----- playwright output -----"
+          cat pw.log
+          if [ $code -ne 0 ]; then
+            msg=$(head -c 3000 pw.log | sed 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=real-server::${msg}"
+          fi
+          exit $code
+
+      - name: Audiobookshelf server log
+        if: failure()
+        run: tail -100 .abs-real/server.log || true
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: playwright-real
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
   package:
     name: package artefacts
     runs-on: ubuntu-latest
-    needs: [native, native-smoke, extension-lint, extension-unit, e2e]
+    needs: [native, native-smoke, extension-lint, extension-unit, e2e, real-server]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6

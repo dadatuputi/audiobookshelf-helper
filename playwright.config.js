@@ -17,6 +17,15 @@ export default defineConfig({
   reporter: [["list"]],
   projects: [
     { name: "chromium", use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") } },
-    { name: "firefox", use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") } }
+    { name: "firefox", use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") } },
+    /* Against a real Audiobookshelf, built and run by tests/real/setup.mjs.
+     * Skips itself when that has not been run, so the default suite needs no
+     * build. Longer timeout: the real app is a Nuxt SPA, not a stub. */
+    {
+      name: "real",
+      testDir: "tests/real",
+      timeout: 120_000,
+      use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") }
+    }
   ]
 });
