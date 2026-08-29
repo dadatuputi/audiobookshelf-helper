@@ -246,6 +246,15 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
+  test("Detect finds the player so nobody types its path", async () => {
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await page.click("#detect");
+    // The helper lists what the OS has mounted; the temp device is among them.
+    await expect(page.locator("#deviceList option")).not.toHaveCount(0, { timeout: 20_000 });
+    await page.close();
+  });
+
   test("saved settings survive a reload", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);

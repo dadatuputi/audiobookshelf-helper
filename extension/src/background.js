@@ -148,6 +148,7 @@ async function route(msg, onProgress) {
   switch (msg && msg.type) {
     case "libraries": return { ok: true, data: (await call("libraries")).libraries };
     case "folders":   return { ok: true, data: (await call("folders", { libraryId: msg.libraryId })).folders };
+    case "devices":   return { ok: true, data: (await call("devices")).devices };
     case "status":    return { ok: true, data: await call("status", { libraryId: msg.libraryId, readTags: msg.readTags !== false }) };
     case "pull":      return { ok: true, data: await call("pull", { ids: msg.ids, libraryId: msg.libraryId }, onProgress) };
     case "push":      return { ok: true, data: await call("push", { names: msg.names, libraryId: msg.libraryId, folderId: msg.folderId }, onProgress) };

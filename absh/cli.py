@@ -14,6 +14,7 @@ from pathlib import Path
 
 from . import config as config_mod
 from . import device as device_mod
+from . import devices as devices_mod
 from . import sync as sync_mod
 from . import tags as tags_mod
 from .abs_api import AbsError, Client
@@ -139,6 +140,16 @@ def show_report(rep, verb):
 # ------------------------------------------------------------- commands
 def cmd_config(args, cfg):
     changed = {}
+    if getattr(args, "device", None):
+        # "CLIP" is easier to remember than /Volumes/CLIP, and on Linux nobody
+        # remembers whether it is /media/you or /run/media/you.
+        found = devices_mod.resolve(args.device, cfg.get("subdir", "AUDIOBOOKS"))
+        if found:
+            args.device = found
+        elif not Path(args.device).is_absolute():
+            die(f"no mounted volume called {args.device!r}. "
+                f"Run `absh devices` to see what is plugged in.")
+
     for flag, key in (("url", "absUrl"), ("key", "apiKey"), ("device", "devicePath"),
                       ("subdir", "subdir"), ("template", "folderTemplate"),
                       ("library", "libraryId"), ("folder", "folderId")):
@@ -156,6 +167,30 @@ def cmd_config(args, cfg):
         print(f"  {k:16s} {v}")
     if not changed:
         print(f"\n({config_mod.config_path()})")
+    return 0
+
+
+def cmd_devices(args, cfg):
+    """List what is plugged in, so nobody has to guess the path."""
+    found = devices_mod.candidates(cfg.get("subdir", "AUDIOBOOKS"))
+    if not found:
+        print("no removable volumes are mounted.")
+        print("Plug the player in - on a Sansa Clip, Settings -> USB Mode -> MSC.")
+        return 1
+
+    current = cfg.get("devicePath")
+    print(f"{'':2}{'VOLUME':<22}{'SIZE':>9}{'FREE':>9}  PATH")
+    for d in found:
+        mark = "*" if current and Path(current) == Path(d["path"]) else " "
+        note = ""
+        if d["hasSubdir"]:
+            note = paint(f"  {cfg.get('subdir', 'AUDIOBOOKS')}/ ({d['books']} items)", GREEN)
+        print(f"{mark} {d['name'][:21]:<22}{human(d['total']):>9}{human(d['free']):>9}  "
+              f"{d['path']}{note}")
+
+    if not current:
+        best = found[0]
+        print(f"\nSet one with:  absh config --device {best['name']}")
     return 0
 
 
@@ -319,10 +354,14 @@ def cmd_doctor(args, cfg):
 
     if cfg.get("devicePath"):
         mounted = Path(cfg["devicePath"]).is_dir()
-        print(f"device      {cfg['devicePath']}  {paint('mounted', GREEN) if mounted else paint('NOT MOUNTED', RED)}")
+        print(f"device      {cfg['devicePath']}  "
+              f"{paint('mounted', GREEN) if mounted else paint('NOT MOUNTED', RED)}")
+        if not mounted:
+            print(paint("            run `absh devices` to see what is plugged in", DIM))
         ok = ok and mounted
     else:
-        print(paint("device      not set", YELLOW))
+        print(paint("device      not set - run `absh devices`, then "
+                    "`absh config --device <name>`", YELLOW))
         ok = False
 
     if cfg.get("absUrl") and cfg.get("apiKey"):
@@ -395,6 +434,9 @@ def build_parser():
     common(r)
     r.add_argument("-y", "--yes", action="store_true", help="do not ask")
     r.set_defaults(fn=cmd_rm)
+
+    dv = sub.add_parser("devices", help="list plugged-in volumes and their paths")
+    dv.set_defaults(fn=cmd_devices)
 
     d = sub.add_parser("doctor", help="check the configuration and connections")
     d.set_defaults(fn=cmd_doctor)

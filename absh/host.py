@@ -4,6 +4,7 @@ Protocol: 4-byte little-endian length prefix + UTF-8 JSON, on stdin/stdout.
 
     ping     -> version, which tag reader is in play, whether config is usable
     config   -> the stored settings (never the API key)
+    devices  -> plugged-in volumes that could be the player
     status   -> the three-way diff: on both, server only, device only
     libraries/folders -> for choosing an upload target
     pull     -> server to device        (streams progress)
@@ -24,6 +25,7 @@ import traceback
 
 from . import config as config_mod
 from . import device as device_mod
+from . import devices as devices_mod
 from . import sync as sync_mod
 from . import tags as tags_mod
 from .abs_api import AbsError, Client
@@ -138,6 +140,12 @@ def cmd_folders(msg, emit):
     return {"ok": True, "folders": client.library_folders(msg.get("libraryId") or library_id(client, cfg))}
 
 
+def cmd_devices(msg, emit):
+    """What is plugged in, so the options page can offer a choice."""
+    cfg = settings(msg)
+    return {"ok": True, "devices": devices_mod.candidates(cfg.get("subdir") or "AUDIOBOOKS")}
+
+
 def cmd_status(msg, emit):
     cfg = settings(msg)
     require_device(cfg)
@@ -192,6 +200,7 @@ def cmd_remove(msg, emit):
 
 COMMANDS = {
     "ping": cmd_ping, "config": cmd_config, "libraries": cmd_libraries,
+    "devices": cmd_devices,
     "folders": cmd_folders, "status": cmd_status, "pull": cmd_pull,
     "push": cmd_push, "remove": cmd_remove,
 }

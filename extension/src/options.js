@@ -68,6 +68,49 @@ $("grant").addEventListener("click", async () => {
 
 $("absUrl").addEventListener("input", refreshPermissionState);
 
+/* The player's path is the one setting nobody can type from memory, so ask
+   the helper what is actually plugged in. */
+$("detect").addEventListener("click", async () => {
+  const list = $("deviceList");
+  const btn = $("detect");
+  btn.disabled = true;
+  btn.textContent = "Looking…";
+  try {
+    const found = await browser.runtime.sendMessage({ type: "devices" });
+    if (!found || !found.ok) throw new Error((found && found.error) || "no response");
+    const devices = found.data || [];
+    list.innerHTML = "";
+    if (!devices.length) {
+      note($("permState"), "Nothing removable is mounted. On a Sansa Clip, " +
+                           "Settings → USB Mode → MSC.", "warn");
+      list.classList.add("hidden");
+      return;
+    }
+    for (const d of devices) {
+      const o = document.createElement("option");
+      o.value = d.path;
+      const free = d.free ? ` — ${Math.round(d.free / 1073741824)}GB free` : "";
+      const has = d.hasSubdir ? "  ✓ has your books folder" : "";
+      o.textContent = `${d.name}${free}${has}`;
+      list.appendChild(o);
+    }
+    list.classList.remove("hidden");
+    list.size = Math.min(6, devices.length + 1);
+    // The most player-like one is first; offer it straight away.
+    list.selectedIndex = 0;
+    $("devicePath").value = devices[0].path;
+  } catch (e) {
+    note($("permState"), "Could not reach the helper: " + (e.message || e), "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Detect";
+  }
+});
+
+$("deviceList").addEventListener("change", () => {
+  $("devicePath").value = $("deviceList").value;
+});
+
 $("save").addEventListener("click", async () => {
   const o = {};
   for (const k of FIELDS) o[k] = $(k).value.trim();

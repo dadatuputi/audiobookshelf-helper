@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT))
 from absh import config as config_mod          # noqa: E402
 from absh import device as device_mod          # noqa: E402
 from absh import index as index_mod            # noqa: E402
+from absh import devices as devices_mod        # noqa: E402
 from absh import naming, sync, tags            # noqa: E402
 from absh.abs_api import (AbsError, Client, _encode_multipart,   # noqa: E402
                           normalize_item)
@@ -530,6 +531,89 @@ class TestConfig(unittest.TestCase):
     def test_unreadable_file_falls_back_to_defaults(self):
         self.path.write_text("{ not json")
         self.assertEqual(config_mod.load(path=self.path)["subdir"], "AUDIOBOOKS")
+
+
+# ------------------------------------------------------------- devices
+class TestDeviceDiscovery(unittest.TestCase):
+    """Finding the player, so nobody has to remember its path."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.clip = self.tmp / "CLIP"
+        (self.clip / "AUDIOBOOKS").mkdir(parents=True)
+        self.backup = self.tmp / "BACKUP"
+        self.backup.mkdir()
+        self.patch = mock.patch.object(devices_mod, "roots",
+                                       lambda system=None: [self.clip, self.backup])
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_the_one_with_an_audiobooks_folder_sorts_first(self):
+        found = devices_mod.candidates()
+        self.assertEqual([d["name"] for d in found], ["CLIP", "BACKUP"])
+        self.assertTrue(found[0]["hasSubdir"])
+        self.assertFalse(found[1]["hasSubdir"])
+
+    def test_a_device_we_have_synced_to_before_scores_higher(self):
+        plain = devices_mod.describe(self.backup)["score"]
+        (self.backup / ".absh").mkdir()
+        self.assertGreater(devices_mod.describe(self.backup)["score"], plain)
+
+    def test_the_subdir_being_looked_for_is_the_configured_one(self):
+        """Someone using a different folder must still be recognised."""
+        odd = self.tmp / "ODD"
+        (odd / "BOOKS").mkdir(parents=True)
+        with mock.patch.object(devices_mod, "roots", lambda system=None: [odd]):
+            self.assertFalse(devices_mod.candidates()[0]["hasSubdir"])
+            self.assertTrue(devices_mod.candidates(subdir="BOOKS")[0]["hasSubdir"])
+
+    def test_resolve_accepts_a_bare_volume_name(self):
+        self.assertEqual(devices_mod.resolve("CLIP"), str(self.clip))
+        self.assertEqual(devices_mod.resolve("clip"), str(self.clip), "case insensitive")
+
+    def test_resolve_passes_an_existing_path_through(self):
+        self.assertEqual(devices_mod.resolve(str(self.backup)), str(self.backup))
+
+    def test_resolve_returns_nothing_for_a_name_that_is_not_mounted(self):
+        self.assertIsNone(devices_mod.resolve("NOT_PLUGGED_IN"))
+        self.assertIsNone(devices_mod.resolve(""))
+
+    def test_reports_free_space(self):
+        self.assertGreater(devices_mod.describe(self.clip)["free"], 0)
+
+    def test_probing_a_vanished_volume_does_not_raise(self):
+        gone = devices_mod.describe(self.tmp / "unplugged")
+        self.assertEqual(gone["total"], 0)
+        self.assertEqual(gone["score"], 0)
+
+
+class TestPlatformRoots(unittest.TestCase):
+    """Each OS keeps mounted volumes somewhere different."""
+
+    def test_mac_skips_the_boot_volume(self):
+        """/Volumes carries a symlink to / - offering that as a "device" would
+        point sync and, worse, remove at the whole filesystem."""
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            vols = tmp / "Volumes"
+            (vols / "CLIP").mkdir(parents=True)
+            try:
+                (vols / "Macintosh HD").symlink_to("/")
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks not permitted here")
+            self.assertEqual([p.name for p in devices_mod._mac_roots(vols)], ["CLIP"])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_mac_handles_no_volumes_directory(self):
+        self.assertEqual(devices_mod._mac_roots("/definitely/not/here"), [])
+
+    def test_unknown_platform_falls_back_to_the_linux_layout(self):
+        with mock.patch.object(devices_mod, "_linux_roots", lambda: ["sentinel"]):
+            self.assertEqual(devices_mod.roots("freebsd13"), ["sentinel"])
 
 
 # ----------------------------------------------------------------- tui

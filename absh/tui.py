@@ -6,13 +6,14 @@ tested without a terminal.
 
     up/down j/k  move          space  select        a  select all shown
     /            filter        enter  act on the selection
-    p pull   u push   d delete   r refresh   q quit
+    p pull   u push   d delete   r refresh   s settings   q quit
 """
 import curses
-import threading
+from pathlib import Path
 
 from . import config as config_mod
 from . import device as device_mod
+from . import devices as devices_mod
 from . import sync as sync_mod
 from .abs_api import AbsError, Client
 from .naming import human
@@ -96,7 +97,19 @@ class App:
                 lib = libs[0]["id"]
                 self.cfg["libraryId"] = lib
             items = self.client.items(lib)
-            self.status = device_mod.status(self.cfg["devicePath"], self.cfg["subdir"],
+
+            # No device yet, or it is unplugged: still show the library, and
+            # say what to press. Pressing "s" is how you set it.
+            path = self.cfg.get("devicePath")
+            if not path or not Path(path).is_dir():
+                self.status = {"both": [], "serverOnly": items, "deviceOnly": [], "free": {}}
+                self.rows = build_rows(self.status)
+                self.message = (("no device set" if not path
+                                 else f"device not mounted at {path}")
+                                + " - press s to choose one")
+                return
+
+            self.status = device_mod.status(path, self.cfg["subdir"],
                                             items, self.cfg["folderTemplate"])
             self.rows = build_rows(self.status)
             free = self.status.get("free", {}).get("free")
@@ -241,6 +254,8 @@ def _loop(stdscr, app):
             app.cursor = app.top = 0
         elif ch == ord("r"):
             app.refresh()
+        elif ch == ord("s"):
+            _settings(stdscr, app)
         elif ch == ord("p"):
             app.act({SERVER})
         elif ch == ord("u"):
@@ -267,6 +282,100 @@ def _prompt(stdscr, label, initial=""):
     return s.strip()
 
 
+def _settings(stdscr, app):
+    """Change the device and the folder on it, without leaving the picker.
+
+    The device path is the one setting nobody can type from memory, so it is
+    offered as a list of what is actually plugged in.
+    """
+    while True:
+        stdscr.erase()
+        h, w = stdscr.getmaxyx()
+        cfg = app.cfg
+        stdscr.addnstr(0, 0, " absh settings".ljust(w - 1), w - 1, curses.A_REVERSE)
+        lines = [
+            ("d", "device", cfg.get("devicePath") or "(not set)"),
+            ("f", "folder on device", cfg.get("subdir") or "AUDIOBOOKS"),
+            ("t", "folder template", cfg.get("folderTemplate") or ""),
+            ("", "server", cfg.get("absUrl") or "(not set)"),
+        ]
+        for i, (key, label, value) in enumerate(lines):
+            prefix = f" [{key}] " if key else "     "
+            stdscr.addnstr(i + 2, 0, f"{prefix}{label:<18} {value}"[:w - 1], w - 1)
+        stdscr.addnstr(h - 2, 0,
+                       " d device   f folder   t template   q back".ljust(w - 1),
+                       w - 1, curses.A_REVERSE)
+        stdscr.addnstr(h - 1, 0, (" " + app.message)[:w - 1], w - 1)
+        stdscr.refresh()
+
+        ch = stdscr.getch()
+        if ch in (ord("q"), 27, 10, 13):
+            return
+        if ch == ord("d"):
+            _pick_device(stdscr, app)
+        elif ch == ord("f"):
+            v = _prompt(stdscr, "folder on device: ", app.cfg.get("subdir") or "")
+            if v:
+                app.cfg["subdir"] = v
+                _save(app, f"folder set to {v}")
+        elif ch == ord("t"):
+            v = _prompt(stdscr, "folder template: ", app.cfg.get("folderTemplate") or "")
+            if v:
+                app.cfg["folderTemplate"] = v
+                _save(app, "template updated - already-synced books may look absent")
+
+
+def _save(app, note):
+    config_mod.save(app.cfg)
+    app.message = note
+    app.refresh()
+
+
+def _pick_device(stdscr, app):
+    """Choose from what is actually mounted, or type a path."""
+    found = devices_mod.candidates(app.cfg.get("subdir") or "AUDIOBOOKS")
+    h, w = stdscr.getmaxyx()
+    cursor = 0
+    while True:
+        stdscr.erase()
+        stdscr.addnstr(0, 0, " choose a device".ljust(w - 1), w - 1, curses.A_REVERSE)
+        if not found:
+            stdscr.addnstr(2, 0, " nothing removable is mounted."[:w - 1], w - 1)
+            stdscr.addnstr(3, 0, " On a Sansa Clip: Settings -> USB Mode -> MSC."[:w - 1], w - 1)
+        for i, d in enumerate(found[:max(1, h - 6)]):
+            mark = "*" if app.cfg.get("devicePath") == d["path"] else " "
+            note = f"  {app.cfg.get('subdir', 'AUDIOBOOKS')}/" if d["hasSubdir"] else ""
+            line = (f"{mark} {d['name'][:20]:<21} {human(d['free']):>8} free  "
+                    f"{d['path']}{note}")
+            attr = curses.A_REVERSE if i == cursor else curses.A_NORMAL
+            stdscr.addnstr(i + 2, 0, line.ljust(w - 1), w - 1, attr)
+        stdscr.addnstr(h - 2, 0,
+                       " enter choose   t type a path   q cancel".ljust(w - 1),
+                       w - 1, curses.A_REVERSE)
+        stdscr.refresh()
+
+        ch = stdscr.getch()
+        if ch in (ord("q"), 27):
+            return
+        if ch in (curses.KEY_DOWN, ord("j")):
+            cursor = min(cursor + 1, max(0, len(found) - 1))
+        elif ch in (curses.KEY_UP, ord("k")):
+            cursor = max(cursor - 1, 0)
+        elif ch == ord("t"):
+            v = _prompt(stdscr, "device path: ", app.cfg.get("devicePath") or "")
+            resolved = devices_mod.resolve(v, app.cfg.get("subdir") or "AUDIOBOOKS")
+            if resolved:
+                app.cfg["devicePath"] = resolved
+                _save(app, f"device set to {resolved}")
+                return
+            app.message = f"no volume called {v!r} - is it plugged in?"
+            return
+        elif ch in (10, 13, curses.KEY_ENTER) and found:
+            app.cfg["devicePath"] = found[cursor]["path"]
+            _save(app, f"device set to {found[cursor]['path']}")
+            return
+
+
 def _confirm(stdscr, app):
     """Deleting from the device is the one irreversible key, so it asks."""
     n = len([r for r in app.rows if _key(r) in app.selected and r["kind"] == BOTH])
@@ -277,10 +386,12 @@ def _confirm(stdscr, app):
 
 
 def run(cfg):
-    gaps = config_mod.missing(cfg)
+    # The server is required to show anything at all; the device is not,
+    # because pressing "s" is how you set it.
+    gaps = config_mod.missing(cfg, need_device=False)
     if gaps:
         print("not configured yet - missing " + ", ".join(gaps))
-        print("run:  absh config --url ... --key ... --device ...")
+        print("run:  absh config --url ... --key ...")
         return 1
     app = App(cfg)
     try:

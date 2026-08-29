@@ -10,6 +10,11 @@ input[type=text],input[type=password],select{width:100%;box-sizing:border-box;ba
 button{margin-top:1.2rem;padding:8px 16px;background:#2563eb;color:#fff;border:0;border-radius:4px;font:inherit;cursor:pointer}
 button:disabled{opacity:.45;cursor:default}
 button.secondary{background:none;border:1px solid #374151;color:#e5e7eb}
+button.inline{margin-top:0;white-space:nowrap}
+.row{display:flex;gap:.5rem;align-items:center}
+.hidden{display:none}
+select[size]{margin-top:.4rem}
+option{padding:2px 4px}
 #msg{margin-left:.8rem;color:#86efac}
 code{background:#111827;padding:1px 4px;border-radius:3px}
 .note{font-size:12px;margin-top:.5rem;color:#9ca3af}
@@ -36,7 +41,9 @@ code{background:#111827;padding:1px 4px;border-radius:3px}
 
 <h2>Device</h2>
 <label for="devicePath">Player mount path</label>
-<input type="text" id="devicePath" placeholder="/Volumes/CLIP">
+<div class="row"><input type="text" id="devicePath" placeholder="/Volumes/CLIP">
+  <button id="detect" class="secondary inline">Detect</button></div>
+<select id="deviceList" class="hidden" size="4"></select>
 <div class="hint">Absolute path to the mounted player. The helper writes here.
   Books are fetched from your Audiobookshelf server - nothing else needs to be
   mounted.</div>

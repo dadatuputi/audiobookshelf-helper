@@ -91,11 +91,17 @@ Nothing to install — Python 3.9+ and the repository is enough:
 ```bash
 git clone https://github.com/dadatuputi/audiobookshelf-helper.git
 cd audiobookshelf-helper
+
+python3 -m absh.cli devices    # what is plugged in, and where
 python3 -m absh.cli config --url http://media.local:13378 --key <api key> \
-                           --device /Volumes/CLIP
+                           --device CLIP
 python3 -m absh.cli doctor     # checks every moving part
 python3 -m absh.cli status
 ```
+
+`--device` takes either a full path or just the volume name — `CLIP` is easier
+to remember than `/Volumes/CLIP`, and on Linux nobody remembers whether it is
+`/media/you` or `/run/media/you`.
 
 `pip install mutagen` is optional and improves tag reading on unusual files;
 everything works without it.
@@ -213,7 +219,7 @@ Toolbar icon → ⚙.
 | Audiobookshelf URL | e.g. `http://media.local:13378` |
 | **Grant access** | Required. See below. |
 | API key | Settings → API Keys |
-| Player mount path | Absolute, e.g. `/Volumes/CLIP` or `E:\` |
+| Player mount path | Absolute, e.g. `/Volumes/CLIP` or `E:\`. **Detect** lists what is plugged in |
 | Folder on device | `AUDIOBOOKS` — SanDisk players give this folder resume + bookmarks |
 | Folder template | `{author}` `{title}` `{series}`. Also how a book is recognised on the device, so changing it makes synced books look absent |
 | Rename m4b → m4a | Leave on unless your player handles `.m4b` |
@@ -237,6 +243,7 @@ never requests it as written.
 ### From the command line
 
 ```bash
+absh devices             # find the player
 absh status              # the three-way picture
 absh ls                  # what is on the player
 absh pull redwall holes  # match on title, author or series
@@ -252,7 +259,9 @@ Every command takes `--dry-run`. `pull` skips books already on the device
 `--force` to fetch them again anyway.
 
 In the TUI: `space` selects, `/` filters, `p` pulls, `u` pushes, `d` deletes,
-`r` refreshes, `q` quits.
+`r` refreshes, `s` opens settings, `q` quits. Settings is also where you pick
+the device, from a list of what is mounted — so the TUI is usable before
+anything is configured beyond the server.
 
 ### In Audiobookshelf
 
@@ -270,6 +279,27 @@ the page is left alone rather than showing badges that might be wrong.
 
 Three tabs over the same status: **To pull**, **On device**, **To push**. Tick
 and act. Progress streams per file.
+
+## Finding the player
+
+There is no reliable, dependency-free way to ask an OS "which of these is a USB
+audio player", so nothing here pretends to. What it does instead is list the
+removable volumes that *are* mounted and rank them by how player-like they look
+— a volume that already has your books folder wins outright, one this tool has
+synced to before is next, and a small volume beats a large one. You pick.
+
+All three front-ends offer it: `absh devices`, <kbd>s</kbd> in the TUI, and the
+**Detect** button on the extension's options page.
+
+```
+  VOLUME                     SIZE     FREE  PATH
+* CLIP                      7.4GB    2.1GB  /Volumes/CLIP  AUDIOBOOKS/ (12 items)
+  Time Machine              2.0TB    412GB  /Volumes/Time Machine
+```
+
+On macOS the boot volume is deliberately skipped: it appears under `/Volumes`
+as a symlink to `/`, and offering it as a "device" would point `remove` at your
+whole filesystem.
 
 ## How books are matched
 
