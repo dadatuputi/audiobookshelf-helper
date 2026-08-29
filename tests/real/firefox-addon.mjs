@@ -16,7 +16,7 @@
  * Framing is `<byte length>:<JSON>`, length in bytes and not characters.
  */
 import net from "node:net";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 /** Grant optional permissions up front. Headless Firefox draws no doorhanger,
@@ -26,7 +26,11 @@ import { join } from "node:path";
 export function seedGrantedPermissions(profileDir, addonId, { origins = [], permissions = [] }) {
   writeFileSync(
     join(profileDir, "extension-preferences.json"),
-    JSON.stringify({ [addonId]: { permissions, origins } }, null, 2)
+    // The shape Firefox's own migration expects: extension id at the top
+    // level, and an entry keeping both arrays. On a fresh profile the store
+    // imports this file once and then deletes it. data_collection is carried
+    // because newer builds store it alongside; it is empty for this add-on.
+    JSON.stringify({ [addonId]: { permissions, origins, data_collection: [] } }, null, 2)
   );
 }
 
@@ -47,9 +51,30 @@ export function seedGrantedPermissions(profileDir, addonId, { origins = [], perm
  *  through the same API.
  */
 export function seedLocalStorage(profileDir, addonId, data) {
+  writeFileSync(storageFile(profileDir, addonId, true), JSON.stringify(data, null, 2));
+}
+
+/** Read that same file back.
+ *
+ *  It is how the add-on's own writes become visible from outside: the
+ *  background records what it registered a content script for, and with the
+ *  JSON backend that lands here. It is the only way this suite can see the
+ *  registration table at all - browser.scripting is reachable only from an
+ *  extension page, and Playwright cannot open one. Returns {} until the
+ *  add-on has written anything; the file is flushed a beat after each set().
+ */
+export function readLocalStorage(profileDir, addonId) {
+  try {
+    return JSON.parse(readFileSync(storageFile(profileDir, addonId), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function storageFile(profileDir, addonId, create = false) {
   const dir = join(profileDir, "browser-extension-data", addonId);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "storage.js"), JSON.stringify(data, null, 2));
+  if (create) mkdirSync(dir, { recursive: true });
+  return join(dir, "storage.js");
 }
 
 export const FIREFOX_PREFS = {

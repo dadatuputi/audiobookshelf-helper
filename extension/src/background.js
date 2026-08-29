@@ -116,7 +116,24 @@ async function syncContentScript() {
     await browser.scripting.unregisterContentScripts(
       { ids: existing.map((s) => s.id) }).catch(() => {});
   }
-  if (!wanted) return;
+
+  // Say why there is nothing to register, rather than returning in silence.
+  // Silence here is indistinguishable, from the page and from the options
+  // page alike, from the extension not being installed at all - which is
+  // exactly how it looked on a real machine, twice.
+  if (!wanted) {
+    let why;
+    if (!c.absUrl) why = "no server URL is set";
+    else if (!pattern) why = `${c.absUrl} is not a usable server URL`;
+    else {
+      let origin = c.absUrl;
+      try { origin = ABSH.originPattern(c.absUrl); } catch { /* keep the raw URL */ }
+      why = `access has not been granted for ${origin}`;
+    }
+    await browser.storage.local.set(
+      { registrationError: why, registeredPattern: "" }).catch(() => {});
+    return;
+  }
 
   // Registered one at a time, deliberately. A single call is atomic: if the
   // browser rejects the MAIN-world hook - an older engine, a tightened policy -

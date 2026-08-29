@@ -7,22 +7,35 @@
  * engine, the Audiobookshelf API - and then checks the file that landed on
  * disk. That is the claim worth making.
  */
-import { readdirSync, existsSync, statSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
-/** Every file the device holds, relative to the books folder. */
+/** Every file the device holds, relative to the books folder.
+ *
+ *  Called from a polling loop while the native host is adding and deleting
+ *  under the same tree, so entries can disappear between listing a directory
+ *  and reading it. A directory that is gone by then simply holds nothing:
+ *  throwing ENOENT out of the poll instead failed a run outright, in the one
+ *  test whose whole point is watching a folder be removed. withFileTypes
+ *  closes the other half of the same race - a separate statSync on a name
+ *  that has since been unlinked.
+ */
 export function deviceFiles(device, subdir = "AUDIOBOOKS") {
-  const root = join(device, subdir);
-  if (!existsSync(root)) return [];
   const out = [];
   const walk = (dir, prefix) => {
-    for (const name of readdirSync(dir)) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) walk(full, `${prefix}${name}/`);
-      else out.push(`${prefix}${name}`);
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch (e) {
+      if (e.code === "ENOENT" || e.code === "ENOTDIR") return;
+      throw e;
+    }
+    for (const ent of entries) {
+      if (ent.isDirectory()) walk(join(dir, ent.name), `${prefix}${ent.name}/`);
+      else out.push(`${prefix}${ent.name}`);
     }
   };
-  walk(root, "");
+  walk(join(device, subdir), "");
   return out.sort();
 }
 

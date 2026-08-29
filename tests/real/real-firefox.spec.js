@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
 import { installTemporaryAddon, seedGrantedPermissions, seedLocalStorage,
-         FIREFOX_PREFS } from "./firefox-addon.mjs";
+         readLocalStorage, FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -55,10 +55,11 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   /** @type {import('@playwright/test').BrowserContext} */
   let ctx;
   let home;
+  let profile;
   let disconnect;
 
   test.beforeAll(async () => {
-    const profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
+    profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
 
     // Firefox reads native-messaging manifests only from fixed per-user paths -
     // there is no per-profile location, unlike Chromium's user-data-dir - so
@@ -203,17 +204,28 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   }
 
   test("the content script registers for the path the server is served under", async () => {
-    // Read as an effect rather than from the registration table: that table
-    // is behind browser.scripting, reachable only from an extension page,
-    // which Playwright cannot open. What it proves is the same either way -
-    // the pattern has to carry Audiobookshelf's own base path
-    // (/audiobookshelf by default), and one that drops it matches nothing, so
-    // nothing is injected at all. Both halves are checked: the content
-    // script, which draws the button, and the MAIN-world hook, which is the
-    // only thing that can give a badge its library item id.
+    // Audiobookshelf's own default is /audiobookshelf, so the pattern must
+    // carry the path. Dropping it registered a pattern nothing ever matched -
+    // no button, no badges, no error, and nothing on the page to say why.
     expect(new URL(state.absUrl).pathname.replace(/\/+$/, ""),
            "fixture must serve under a base path or this proves nothing")
       .not.toBe("");
+
+    // The registration table itself is behind browser.scripting, reachable
+    // only from an extension page, and Playwright cannot open one. The
+    // background writes what it registered into storage.local, though, and
+    // that is a file - so read what the add-on itself recorded.
+    const recorded = await until(() => {
+      const s = readLocalStorage(profile, GECKO_ID);
+      return s.registeredPattern || s.registrationError ? s : null;
+    }, { timeout: 30_000 });
+    expect(recorded, "the add-on never recorded a registration").toBeTruthy();
+    expect(recorded.registrationError || "").toBe("");
+    expect(recorded.registeredPattern).toBe(`${state.absUrl}/library/*`);
+
+    // And then the effect, which is what the user sees: the content script,
+    // which draws the button, and the MAIN-world hook, which is the only
+    // thing that can give a badge its library item id.
     const page = await libraryPage();
     await expect(page.locator("#absh-sync-btn")).toBeVisible({ timeout: 30_000 });
     const withIds = await page.locator(".absh-badge[data-absh-id]").count();
