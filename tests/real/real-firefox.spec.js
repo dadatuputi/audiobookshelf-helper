@@ -32,6 +32,13 @@ const GECKO_ID = identity.gecko;
 const HOST_NAME = identity.host;
 const distFirefox = resolve(root, "extension/dist/firefox");
 
+/* moz-extension:// is addressed by a per-profile UUID, not the add-on id, so
+ * the options page is normally unreachable from a test. Pinning the UUID up
+ * front through extensions.webextensions.uuids makes it addressable - which is
+ * what lets this suite configure the add-on the way a user does, and inspect
+ * what it registered when something goes wrong. */
+const EXT_UUID = "8f2a1c34-5b6d-4e7f-9a0b-1c2d3e4f5a6b";
+
 /** A free port for the debugger server, so parallel runs cannot collide. */
 const freePort = () => new Promise((res, rej) => {
   const s = net.createServer();
@@ -75,14 +82,27 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       ...(process.env.ABSH_FIREFOX_PATH
         ? { executablePath: process.env.ABSH_FIREFOX_PATH } : {}),
       args: ["-start-debugger-server", String(port)],
-      firefoxUserPrefs: FIREFOX_PREFS,
+      firefoxUserPrefs: {
+        ...FIREFOX_PREFS,
+        "extensions.webextensions.uuids": JSON.stringify({ [GECKO_ID]: EXT_UUID }),
+      },
       env: { ...process.env, HOME: home },
     });
 
     await installTemporaryAddon(port, distFirefox);
-    // The background script registers the content script on startup; give it
-    // the moment it needs before any page is opened.
-    await ctx.pages()[0]?.waitForTimeout(2000);
+
+    // Configure it exactly as a user would. Omitting this was the whole
+    // failure the first time: with no server URL there is nothing to register
+    // a content script for, so the add-on installed and then did nothing, and
+    // every test timed out looking for a button that was never going to exist.
+    const opt = await ctx.newPage();
+    await opt.goto(`moz-extension://${EXT_UUID}/options.html`);
+    await opt.fill("#absUrl", state.absUrl);
+    await opt.fill("#apiKey", state.token);
+    await opt.fill("#devicePath", state.device);
+    await opt.click("#save");
+    await opt.waitForTimeout(2000);
+    await opt.close();
   });
 
   test.afterAll(async () => { await ctx?.close(); });
@@ -103,6 +123,21 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       .waitFor({ state: "attached", timeout: 30_000 });
     return page;
   }
+
+  test("the content script registers for the path the server is served under", async () => {
+    // Checked before the UI tests so a failure here is unambiguous: if this
+    // passes and the badges do not appear, the problem is in the page, not in
+    // the add-on failing to load or being unconfigured.
+    const page = await ctx.newPage();
+    await page.goto(`moz-extension://${EXT_UUID}/options.html`);
+    const scripts = await page.evaluate(() =>
+      browser.scripting.getRegisteredContentScripts());
+    expect(scripts.length).toBe(2);
+    for (const sc of scripts) {
+      expect(sc.matches).toEqual([`${state.absUrl}/library/*`]);
+    }
+    await page.close();
+  });
 
   test("the toolbar button appears on the real library page", async () => {
     const page = await libraryPage();

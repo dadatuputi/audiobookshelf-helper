@@ -24,6 +24,7 @@ export default defineConfig({
     {
       name: "real",
       testDir: "tests/real",
+      testMatch: "real-server.spec.js",
       timeout: 120_000,
       use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") }
     },
@@ -34,6 +35,7 @@ export default defineConfig({
     {
       name: "real-firefox",
       testDir: "tests/real",
+      testMatch: "real-firefox.spec.js",
       timeout: 180_000,
       use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") }
     }

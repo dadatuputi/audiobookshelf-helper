@@ -68,8 +68,13 @@ test.describe("against a real Audiobookshelf", () => {
 
     ctx = await chromium.launchPersistentContext(profile, {
       headless: true,
+      // `playwright install chromium` also brings a headless shell, and that
+      // shell cannot load MV3 extensions - the service worker never appears
+      // and every test times out waiting for it. Ask for the full build by
+      // channel, exactly as tests/e2e does.
       ...(process.env.ABSH_CHROMIUM_PATH
-        ? { executablePath: process.env.ABSH_CHROMIUM_PATH } : {}),
+        ? { executablePath: process.env.ABSH_CHROMIUM_PATH }
+        : { channel: "chromium" }),
       args: [`--disable-extensions-except=${distChrome}`,
              `--load-extension=${distChrome}`],
     });

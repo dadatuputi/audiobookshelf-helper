@@ -111,7 +111,14 @@ export async function installTemporaryAddon(port, addonPath) {
     if (!actor) throw new Error(`no addonsActor in ${JSON.stringify(root).slice(0, 200)}`);
     const res = await rdp.send({ to: actor, type: "installTemporaryAddon", addonPath });
     if (res.error) throw new Error(`installTemporaryAddon: ${res.error} ${res.message || ""}`);
-    return res.addon || res;
+    // Insist on an id. A reply that is merely not an error is not proof the
+    // add-on loaded, and a silent non-install shows up much later as every
+    // test timing out on a button that was never going to appear.
+    const addon = res.addon || res;
+    if (!addon || !addon.id) {
+      throw new Error(`installTemporaryAddon returned no addon: ${JSON.stringify(res).slice(0, 300)}`);
+    }
+    return addon;
   } finally {
     socket.end();
   }
