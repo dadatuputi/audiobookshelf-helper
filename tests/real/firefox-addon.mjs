@@ -81,12 +81,18 @@ export function readLocalStorage(profileDir, addonId) {
  */
 export function grantInStore(profileDir, origin) {
   const dir = join(profileDir, "extension-store-permissions");
+  let names;
   try {
-    for (const name of readdirSync(dir)) {
-      if (readFileSync(join(dir, name), "latin1").includes(origin)) return true;
-    }
-  } catch { /* no store yet */ }
-  return false;
+    names = readdirSync(dir);
+  } catch {
+    // Distinct from "granted nothing": no store at all means Firefox never
+    // got as far as writing permissions, which is a different failure.
+    return "no-store";
+  }
+  for (const name of names) {
+    if (readFileSync(join(dir, name), "latin1").includes(origin)) return "present";
+  }
+  return "absent";
 }
 
 function storageFile(profileDir, addonId, create = false) {
@@ -106,6 +112,13 @@ export const FIREFOX_PREFS = {
   // write the add-on's settings into the profile before launch - see
   // seedLocalStorage. Only the backend changes; the storage API does not.
   "extensions.webextensions.ExtensionStorageIDB.enabled": false,
+  // Stand in for the user allowing the add-on on the site. Seeding the file
+  // Firefox migrates grants from does not work - a run proved the origin never
+  // reaches Firefox's own permission store - and the click that would grant it
+  // is in an extension page Playwright cannot open. These are Firefox's own
+  // switches for granting a manifest's host permissions without asking.
+  "extensions.originControls.grantByDefault": true,
+  "extensions.webextOptionalPermissionPrompts": false,
 };
 
 class RDP {
