@@ -57,6 +57,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   let home;
   let profile;
   let disconnect;
+  let imported = null;
 
   test.beforeAll(async () => {
     profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
@@ -94,6 +95,31 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       folderTemplate: "{author} - {title}",
       subdir: "AUDIOBOOKS",
     });
+
+    // Launch twice, deliberately. The seeded grant is in the file Firefox
+    // migrates from, and that migration happens while the browser is running -
+    // by which time the add-on has already started and computed what it is
+    // allowed to touch. The first run exists only to let the import happen;
+    // the second starts with the grant already in Firefox's own store. Without
+    // it the add-on registered its content script for exactly the right
+    // pattern and Firefox then injected nothing at all - no stylesheet, no
+    // script, no error anywhere.
+    const warm = await firefox.launchPersistentContext(profile, {
+      headless: true,
+      ...(process.env.ABSH_FIREFOX_PATH
+        ? { executablePath: process.env.ABSH_FIREFOX_PATH } : {}),
+      args: ["-start-debugger-server", String(await freePort())],
+      firefoxUserPrefs: FIREFOX_PREFS,
+      env: { ...process.env, HOME: home },
+    });
+    // Give it a moment to touch the permission store, then note whether the
+    // file was consumed. Firefox deletes it once it has imported it, so its
+    // absence is the proof that the grant landed - and its presence says the
+    // grant never reached the browser at all, which is worth saying out loud
+    // rather than watching seven tests time out.
+    await new Promise((r) => setTimeout(r, 5000));
+    await warm.close();
+    imported = !existsSync(join(profile, "extension-preferences.json"));
 
     const port = await freePort();
     ctx = await firefox.launchPersistentContext(profile, {
@@ -231,7 +257,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
         `; add-on recorded: ${JSON.stringify({
           registeredPattern: recorded.registeredPattern,
           registrationError: recorded.registrationError,
-          injectError: recorded.injectError,
+          injectError: recorded.injectError || null,
+          grantImportedByFirefox: imported,
         })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;
