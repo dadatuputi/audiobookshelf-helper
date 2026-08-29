@@ -64,7 +64,13 @@
     return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)}${u[i]}`;
   }
 
-  const lib = { DEFAULTS, baseUrl, originPattern, libraryPattern, formatBytes };
+  /** The pattern without its trailing star, for a plain prefix test on a URL. */
+  function libraryPrefix(absUrl) {
+    return libraryPattern(absUrl).replace(/\*$/, "");
+  }
+
+  const lib = { DEFAULTS, baseUrl, originPattern, libraryPattern, libraryPrefix,
+                formatBytes };
   root.ABSH = lib;
   if (typeof module !== "undefined" && module.exports) module.exports = lib;
 })(typeof globalThis !== "undefined" ? globalThis : self);

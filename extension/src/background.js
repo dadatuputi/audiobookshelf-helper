@@ -94,11 +94,29 @@ async function syncContentScript() {
   const ids = [SCRIPT_ID, HOOK_ID];
   const existing = await browser.scripting.getRegisteredContentScripts({ ids })
     .catch(() => []);
+  const wanted = pattern && (await hasHostPermission(c.absUrl)) ? pattern : null;
+
+  // If the registration is already exactly what we want, leave it alone.
+  //
+  // This used to unregister and re-register every time, and it runs on
+  // onStartup - so every browser launch opened a window with no content script
+  // registered at all. A library page loaded inside that window got nothing:
+  // no toolbar button, no badges, no error, indistinguishable from the
+  // extension not being installed. It reproduced on roughly one page load in
+  // eight against a real server.
+  if (wanted && existing.length === ids.length &&
+      existing.every((s) => Array.isArray(s.matches) &&
+                            s.matches.length === 1 && s.matches[0] === wanted)) {
+    await browser.storage.local.set({
+      registrationError: "", registeredPattern: wanted }).catch(() => {});
+    return;
+  }
+
   if (existing.length) {
     await browser.scripting.unregisterContentScripts(
       { ids: existing.map((s) => s.id) }).catch(() => {});
   }
-  if (!pattern || !(await hasHostPermission(c.absUrl))) return;
+  if (!wanted) return;
 
   // Registered one at a time, deliberately. A single call is atomic: if the
   // browser rejects the MAIN-world hook - an older engine, a tightened policy -
@@ -217,6 +235,45 @@ browser.runtime.onConnect.addListener((p) => {
     }
   });
 });
+
+/* A registered content script is not a guarantee.
+ *
+ * Verified against a real Audiobookshelf: on roughly one library page load in
+ * eight, no content script ran even though getRegisteredContentScripts showed
+ * both entries with the right pattern and no error stored. The page then had
+ * no toolbar button and no badges - identical to the extension not being
+ * installed, and the exact symptom that took an evening to pin down.
+ *
+ * So inject it again once the page has settled. content.js sets a flag on
+ * window and returns early if it is already there, making the duplicate a
+ * no-op on the loads where registration did work. */
+async function injectFallback(tabId, url) {
+  if (!browser.scripting || !browser.scripting.executeScript) return;
+  const c = await cfg();
+  let prefix = null;
+  try {
+    prefix = c.absUrl ? ABSH.libraryPrefix(c.absUrl) : null;
+  } catch {
+    return;
+  }
+  if (!prefix || !String(url || "").startsWith(prefix)) return;
+  if (!(await hasHostPermission(c.absUrl))) return;
+
+  await browser.scripting.insertCSS({ target: { tabId }, files: ["content.css"] })
+    .catch(() => {});
+  await browser.scripting.executeScript({
+    target: { tabId },
+    files: ["browser-polyfill.js", "content.js"],
+  }).catch(() => {});
+}
+
+if (browser.tabs && browser.tabs.onUpdated) {
+  browser.tabs.onUpdated.addListener((tabId, info, tab) => {
+    if (info.status !== "complete") return;
+    const url = (tab && tab.url) || info.url;
+    if (url) injectFallback(tabId, url);
+  });
+}
 
 browser.runtime.onInstalled.addListener(() => { syncContentScript(); });
 if (browser.runtime.onStartup) {

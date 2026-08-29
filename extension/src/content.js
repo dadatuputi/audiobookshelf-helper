@@ -13,6 +13,12 @@
  * exactly as it was, rather than showing badges that might be wrong.
  */
 (function () {
+  // The background also injects this as a fallback (see syncContentScript):
+  // a registered content script does not always run, so a second copy may
+  // arrive. Running twice would double the observers and the badges.
+  if (window.__abshLoaded) return;
+  window.__abshLoaded = true;
+
   "use strict";
 
   const BTN_ID = "absh-sync-btn";
@@ -304,8 +310,6 @@
     bar.appendChild(b);
   }
 
-  let renderObserver = null;
-
   function render() {
     toolbarButton();
     for (const card of document.querySelectorAll('[id^="book-card-"], [id^="item-card-"]')) {
@@ -314,9 +318,21 @@
       } catch { /* one bad card must not stop the rest */ }
     }
     renderPanel();
-    // Discard the mutations we just made, so they cannot schedule another
-    // render. Without this the observer feeds itself forever.
-    if (renderObserver) renderObserver.takeRecords();
+  }
+
+  /* Did this mutation come from us? Draining the queue after a render was the
+     obvious way to stop the observer feeding itself, and it was wrong: it also
+     threw away Audiobookshelf's own mutations that landed mid-render, so about
+     half of all page loads never learned the cards had appeared and sat with
+     no badges at all. Judge each record instead. */
+  function ownMutation(rec) {
+    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note`;
+    const el = rec.target && rec.target.nodeType === 1
+      ? rec.target : rec.target && rec.target.parentElement;
+    if (el && el.closest && el.closest(own)) return true;
+    const touched = [...rec.addedNodes, ...rec.removedNodes];
+    return touched.length > 0 && touched.every((n) =>
+      n.nodeType === 1 && n.matches && n.matches(own));
   }
 
   /* Vue re-renders the shelf constantly; watch rather than run once.
@@ -325,9 +341,10 @@
    * observer sees its own work and schedules another render - a loop that ran
    * every 120ms for as long as the page was open. It burned CPU and left the
    * badges permanently "not stable", which is how a click could never land. */
-  const observer = new MutationObserver(scheduleRender);
+  const observer = new MutationObserver((records) => {
+    if (records.some((r) => !ownMutation(r))) scheduleRender();
+  });
   observer.observe(document.documentElement, { childList: true, subtree: true });
-  renderObserver = observer;
 
   render();
   loadStatus();
