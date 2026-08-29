@@ -364,7 +364,6 @@ tools/
   release_version.py    tag -> per-store versions
   publish_cws.py        Chrome Web Store upload
   check_upstream.py     Audiobookshelf release watch
-  clipsync.py           the original standalone script, kept for reference
 store/            privacy policy and store listing copy
 tests/            python (engine, protocol, build, packaging) | js | e2e
 ```
