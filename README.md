@@ -1,16 +1,48 @@
 # Audiobookshelf Helper
 
-Pick books in [Audiobookshelf](https://audiobookshelf.org) and sync them to a
-USB audio player — renaming `.m4b` to `.m4a` on the way, because SanDisk Sansa
-Clip/Fuze players ignore the `.m4b` extension but play the AAC inside it
-perfectly well.
+Sync books between [Audiobookshelf](https://audiobookshelf.org) and a USB audio
+player — renaming `.m4b` to `.m4a` on the way, because SanDisk Sansa Clip/Fuze
+players ignore the `.m4b` extension but play the AAC inside it perfectly well.
 
-An **On device** shelf shows what is already on the player, how much space it
-uses, and lets you delete a book from it without going through the filesystem.
+Two-way. Books on the server can be copied to the player; books that are only on
+the player — ripped, side-loaded, whatever — are identified from their own tags
+and can be uploaded into your library.
 
-Firefox and Chrome. Native helper runs on macOS, Linux and Windows.
+**`absh` is the whole tool.** It is a Python program with a command line and a
+full-screen picker, and it needs no browser at all:
+
+```bash
+absh status          # what is on the server, the player, or both
+absh pull redwall    # server -> player
+absh push --all      # player -> server
+absh tui             # pick interactively
+```
+
+The browser extension is a front-end for exactly that engine — the same code,
+not a second implementation. It adds the things a browser is good at: badges on
+the book cards in Audiobookshelf itself, showing what is already on your player,
+with buttons to copy, upload or delete without leaving the page.
+
+Firefox and Chrome. The Python side runs on macOS, Linux and Windows.
 
 ---
+
+## How it fits together
+
+```
+        absh (Python)                        one engine
+   ┌──────────────────────┐
+   │ abs_api  device      │  ◄── CLI          absh pull / push / status
+   │ tags     sync        │  ◄── TUI          absh tui
+   │ index    naming      │  ◄── native host  ◄── browser extension
+   └──────────────────────┘
+        │            │
+   Audiobookshelf   the player
+```
+
+The extension never talks to Audiobookshelf itself. It asks the helper, which
+uses the same client the command line does — so the two can never disagree
+about what is on your device.
 
 ## Why there is a native helper
 
@@ -27,8 +59,8 @@ away:
    alone you *could* drop the native helper; keeping one code path was a
    deliberate trade.)
 
-So the extension is the UI, and a small Python helper does the filesystem work.
-The helper is the part that can destroy data, so it carries the heavier tests.
+So the extension is a UI and the Python engine does the work. The engine is the
+part that can destroy data, so it carries the heavier tests.
 
 ## Why the m4b → m4a rename works
 
@@ -47,9 +79,27 @@ download without setting headers.
 
 ## Install
 
+### Just the command line
+
+Nothing to install — Python 3.9+ and the repository is enough:
+
+```bash
+git clone https://github.com/dadatuputi/audiobookshelf-helper.git
+cd audiobookshelf-helper
+python3 -m absh.cli config --url http://media.local:13378 --key <api key> \
+                           --device /Volumes/CLIP
+python3 -m absh.cli doctor     # checks every moving part
+python3 -m absh.cli status
+```
+
+`pip install mutagen` is optional and improves tag reading on unusual files;
+everything works without it.
+
+### Plus the extension
+
 Grab the [latest release](https://github.com/dadatuputi/audiobookshelf-helper/releases),
-or build it yourself — see [Building locally](#building-locally). Either way you
-also need the native helper:
+or build it yourself — see [Building locally](#building-locally). Either way the
+browser needs to be told where the helper is:
 
 ```bash
 python3 native/install.py               # register the native helper
@@ -180,22 +230,59 @@ never requests it as written.
 
 ## Use
 
-A **⤓ Sync to device** button appears in the Audiobookshelf library toolbar, and
-opens the picker. Or just click the toolbar icon.
+### From the command line
 
-- **Library** — filter, tick books, **Sync selected**. Books already on the
-  device carry an *on device* chip. Progress streams per file while it copies.
-- **On device** — what is actually on the player, with sizes and free space.
-  **Remove** takes two clicks; deleting from a device shouldn't be one stray
-  click. Anything on the device that isn't in this library is listed separately
-  under *Not in this library*.
+```bash
+absh status              # the three-way picture
+absh ls                  # what is on the player
+absh pull redwall holes  # match on title, author or series
+absh pull --all
+absh push --all          # upload everything the server does not have
+absh rm redwall          # asks first; -y to skip
+absh tui                 # full-screen picker
+absh doctor              # why isn't it working
+```
 
-Re-running is cheap: files already present with a matching size are skipped.
+Every command takes `--dry-run`. `pull` skips files already present with a
+matching size, so re-running is cheap.
 
-The button deliberately does **not** read Audiobookshelf's own multi-select
-state. Book cards render as `#book-card-{index}` — the library item id never
-appears in the DOM, and selection lives in Vue component state. Scraping it
-would break on any ABS update, so the picker queries the API instead.
+In the TUI: `space` selects, `/` filters, `p` pulls, `u` pushes, `d` deletes,
+`r` refreshes, `q` quits.
+
+### In Audiobookshelf
+
+Each book card gets a badge showing whether it is on your player, with a button
+to copy it there or take it off. Books that are on the player but *not* in your
+library appear in a panel with an **Upload** button.
+
+The card-to-book mapping comes from the API responses Audiobookshelf itself
+fetched, captured by a small page-world script. The DOM never carries the id —
+cards render as `#book-card-{index}` and the id lives in Vue component state, so
+scraping it would break on any upstream release. If the mapping is unavailable
+the page is left alone rather than showing badges that might be wrong.
+
+### In the popup
+
+Three tabs over the same status: **To pull**, **On device**, **To push**. Tick
+and act. Progress streams per file.
+
+## How books are matched
+
+The hard part of two-way sync is deciding that a folder on a USB stick *is* a
+given library item. Three steps, in order:
+
+1. **The sidecar index.** Whenever this tool puts a book on a device it records
+   the item id in `<device>/.absh/index.json`. Exact and instant.
+2. **The expected name.** A folder matching what the template would have
+   produced.
+3. **Embedded tags.** Title and author read from the file itself, normalised so
+   "The Hobbit"/"J.R.R. Tolkien" and "Hobbit, The"/"JRR Tolkien" agree.
+
+A book is only reported as *device only* — and offered for upload — once all
+three have failed to find it on the server. That is what stops a hand-copied
+file with a scruffy name being uploaded when your library already has it.
+
+Deleting the index is harmless; matching just falls back to tags.
 
 ## Releasing
 
@@ -241,28 +328,40 @@ and fix `lib.js` until they pass — don't loosen the assertions.
 ## Layout
 
 ```
+absh/             THE ENGINE - stdlib only, so the browser can always launch it
+  abs_api.py      Audiobookshelf client: libraries, items, download, upload
+  device.py       scans the player; produces the three-way diff
+  tags.py         embedded metadata; mutagen if present, MP4/ID3 parsers if not
+  index.py        the sidecar .absh/index.json written on the device
+  naming.py       on-device naming, shared by every operation
+  sync.py         pull, push, remove
+  config.py       defaults < file < environment < arguments
+  cli.py          absh status/ls/pull/push/rm/doctor/config/tui
+  tui.py          curses picker
+  host.py         the native-messaging protocol
 extension/
   identity.json   the add-on id, host name and Chrome key - one source of truth
   identity.py     reads it; derives the Chrome id from the key
   icons/          make_icons.py generates the PNG set with no dependencies
-  src/            single source tree
+  src/
     manifest.base.json   shared manifest; build.py adds the per-browser bits
-    lib.js               pure logic (unit tested, no browser needed)
-    background.js        API client + native-messaging bridge
-    content.js           injects the toolbar button
+    background.js        bridge between the popup/page and the helper
+    page-hook.js         page-world; captures item ids from ABS's own traffic
+    content.js           badges and buttons on the Audiobookshelf cards
+    lib.js               the little that is still JavaScript
     popup.*  options.*
   build.py        emits dist/firefox and dist/chrome
 native/
-  absh_host.py    stdio native messaging host
+  absh_host.py    thin shim: finds the absh package and runs absh.host
   install.py      registers the helper (6 OS x browser combinations)
 tools/
   package.py            release artefacts
   release_version.py    tag -> per-store versions
   publish_cws.py        Chrome Web Store upload
   check_upstream.py     Audiobookshelf release watch
-  clipsync.py           standalone CLI, no browser involved
+  clipsync.py           the original standalone script, kept for reference
 store/            privacy policy and store listing copy
-tests/            python (host, build, installer, packaging) | js | e2e
+tests/            python (engine, protocol, build, packaging) | js | e2e
 ```
 
 Firefox and Chrome disagree on exactly two manifest keys, so `build.py` emits
@@ -284,8 +383,9 @@ npx playwright test                                              # e2e
 
 `tests/e2e/extension.spec.js` is the one that matters: a real Chromium loads the
 built extension, spawns the real native helper, lists a stand-in Audiobookshelf,
-syncs a book to a temp "device", sees it on the shelf and deletes it — all
-asserted against files on disk.
+pulls a book to a temp "device", sees it move between tabs, side-loads a tagged
+file the server has never heard of, uploads it, and deletes — all asserted
+against files on disk and the bytes the server received.
 
 Headless Chromium draws no permission bubble, so `permissions.request()` never
 resolves there. The granted state is seeded into the test profile instead, and
@@ -297,7 +397,7 @@ browser at a fixed path rather than the revision Playwright downloads.
 | CI job | Coverage |
 |---|---|
 | `native` | ubuntu × macos × windows, Python 3.9 / 3.11 / 3.13 |
-| `native-smoke` | real stdio round-trip of sync → list → remove, per OS |
+| `native-smoke` | the engine (pull → status → remove) and the host protocol, per OS |
 | `extension-lint` | `web-ext lint` (zero errors, warnings and notices) + `addons-linter` |
 | `extension-unit` | vitest on node 20 / 22 |
 | `e2e` | Playwright, chromium (full loop) + firefox (DOM contract) |

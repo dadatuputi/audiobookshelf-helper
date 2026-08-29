@@ -41,7 +41,7 @@ FIREFOX_MIN = "128.0"
 
 SHARED_FILES = [
     "background.js", "browser-polyfill.js", "lib.js", "content.js", "content.css",
-    "popup.html", "popup.css", "popup.js", "options.html", "options.js",
+    "page-hook.js", "popup.html", "popup.css", "popup.js", "options.html", "options.js",
 ]
 
 ICON_FILES = ["icon-16.png", "icon-32.png", "icon-48.png", "icon-96.png", "icon-128.png"]
@@ -49,6 +49,9 @@ ICON_FILES = ["icon-16.png", "icon-32.png", "icon-48.png", "icon-96.png", "icon-
 
 def manifest_for(target: str, version: str = None) -> dict:
     m = json.loads((SRC / "manifest.base.json").read_text())
+    # page-hook.js is injected into the page's own world, so the page must be
+    # allowed to load it.
+    m["web_accessible_resources"] = [{"resources": ["page-hook.js"], "matches": ["<all_urls>"]}]
     if version:
         m["version"] = version
     if target == "firefox":

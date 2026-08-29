@@ -72,14 +72,38 @@ class TestBundles(PackageBase):
 
 
 class TestNativeArchive(PackageBase):
-    def test_contains_host_installer_and_identity(self):
+    def test_contains_the_host_the_installer_and_the_engine(self):
         with zipfile.ZipFile(self.find("native")) as z:
             names = set(z.namelist())
-        self.assertEqual(names, {"absh_host.py", "install.py", "identity.json"})
+        for f in ("absh_host.py", "install.py", "identity.json", "identity.py"):
+            self.assertIn(f, names)
+        # The host is a shim over the package now; without it the browser
+        # launches a helper that cannot import itself.
+        for mod in ("absh/host.py", "absh/sync.py", "absh/abs_api.py", "absh/tags.py"):
+            self.assertIn(mod, names)
 
-    def test_files_sit_at_the_root_so_install_is_one_command(self):
+    def test_entry_points_sit_at_the_root_so_install_is_one_command(self):
         with zipfile.ZipFile(self.find("native")) as z:
-            self.assertFalse([n for n in z.namelist() if "/" in n])
+            top = [n for n in z.namelist() if "/" not in n]
+        self.assertIn("install.py", top)
+        self.assertIn("absh_host.py", top)
+
+    def test_the_unpacked_archive_can_actually_run_the_host(self):
+        """The layout differs from the checkout, which has broken this before."""
+        import subprocess, sys, struct, json, tempfile
+        out = Path(tempfile.mkdtemp())
+        try:
+            with zipfile.ZipFile(self.find("native")) as z:
+                z.extractall(out)
+            body = json.dumps({"cmd": "ping"}).encode()
+            p = subprocess.run([sys.executable, str(out / "absh_host.py")],
+                               input=struct.pack("<I", len(body)) + body,
+                               capture_output=True, timeout=60)
+            self.assertEqual(p.returncode, 0, p.stderr.decode()[:400])
+            n = struct.unpack("<I", p.stdout[:4])[0]
+            self.assertTrue(json.loads(p.stdout[4:4 + n])["ok"])
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
 
 
 class TestSourceArchive(PackageBase):

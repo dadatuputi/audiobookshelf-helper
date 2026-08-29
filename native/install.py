@@ -15,10 +15,24 @@ import argparse, json, os, platform, sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "extension"))
-import identity as IDENT  # noqa: E402  (path set immediately above)
 
-IDENTITY = IDENT.load()
+# identity.json sits under extension/ in a checkout and beside this file in the
+# released archive; the installer has to work from either.
+for _candidate in (HERE.parent / "extension", HERE):
+    if (_candidate / "identity.json").is_file():
+        sys.path.insert(0, str(_candidate))
+        _IDENTITY_DIR = _candidate
+        break
+else:  # pragma: no cover
+    raise SystemExit("cannot find identity.json next to " + str(HERE))
+
+try:
+    import identity as IDENT  # noqa: E402  (path set immediately above)
+    IDENTITY = IDENT.load()
+except ImportError:
+    # The archive ships identity.json without the helper module.
+    IDENT = None
+    IDENTITY = json.loads((_IDENTITY_DIR / "identity.json").read_text())
 HOST_NAME = IDENTITY["hostName"]
 GECKO_ID = IDENTITY["geckoId"]
 HOST_PY = HERE / "absh_host.py"
@@ -26,7 +40,8 @@ HOST_PY = HERE / "absh_host.py"
 # Chrome identifies callers by extension id. The manifest pins a public key, so
 # the id is knowable in advance rather than changing on every unpacked load -
 # which is what used to make --chrome-id mandatory.
-DEFAULT_CHROME_IDS = IDENT.chrome_ids(IDENTITY)
+DEFAULT_CHROME_IDS = (IDENT.chrome_ids(IDENTITY) if IDENT
+                      else list(IDENTITY.get("chromeIds") or []))
 
 # Windows cannot exec a .py from CreateProcess the way the browsers do on
 # macOS and Linux, so the manifest points at a .bat that calls the interpreter.

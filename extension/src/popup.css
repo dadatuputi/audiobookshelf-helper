@@ -66,8 +66,8 @@ button {
 }
 button:disabled { opacity: .45; cursor: default; }
 button.ghost { background: none; border: 1px solid var(--line); color: var(--muted); padding: 6px 10px; }
-button.danger { background: none; border: 1px solid #7f1d1d; color: var(--err); padding: 2px 8px; font-size: 11px; }
-button.danger.confirm { background: #7f1d1d; color: #fff; }
+#act.danger { background: #b91c1c; }
+#act.danger:hover:not(:disabled) { background: #991b1b; }
 
 footer { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); }
 footer #sync { flex: 1 1 auto; }
