@@ -17,7 +17,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
-import { installTemporaryAddon, seedGrantedPermissions, FIREFOX_PREFS } from "./firefox-addon.mjs";
+import { installTemporaryAddon, seedGrantedPermissions, extensionUuid,
+         FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -34,12 +35,10 @@ const GECKO_ID = identity.gecko;
 const HOST_NAME = identity.host;
 const distFirefox = resolve(root, "extension/dist/firefox");
 
-/* moz-extension:// is addressed by a per-profile UUID, not the add-on id, so
- * the options page is normally unreachable from a test. Pinning the UUID up
- * front through extensions.webextensions.uuids makes it addressable - which is
- * what lets this suite configure the add-on the way a user does, and inspect
- * what it registered when something goes wrong. */
-const EXT_UUID = "8f2a1c34-5b6d-4e7f-9a0b-1c2d3e4f5a6b";
+/* moz-extension:// is addressed by a per-profile UUID, not the add-on id.
+ * Firefox assigns it at install time, so it is discovered from the profile
+ * rather than guessed - see extensionUuid. */
+let EXT_UUID = null;
 
 /** A free port for the debugger server, so parallel runs cannot collide. */
 const freePort = () => new Promise((res, rej) => {
@@ -84,14 +83,12 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       ...(process.env.ABSH_FIREFOX_PATH
         ? { executablePath: process.env.ABSH_FIREFOX_PATH } : {}),
       args: ["-start-debugger-server", String(port)],
-      firefoxUserPrefs: {
-        ...FIREFOX_PREFS,
-        "extensions.webextensions.uuids": JSON.stringify({ [GECKO_ID]: EXT_UUID }),
-      },
+      firefoxUserPrefs: FIREFOX_PREFS,
       env: { ...process.env, HOME: home },
     });
 
     await installTemporaryAddon(port, distFirefox);
+    EXT_UUID = await extensionUuid(profile, GECKO_ID);
 
     // Configure it exactly as a user would. Omitting this was the whole
     // failure the first time: with no server URL there is nothing to register

@@ -16,7 +16,7 @@
  * Framing is `<byte length>:<JSON>`, length in bytes and not characters.
  */
 import net from "node:net";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Grant optional permissions up front. Headless Firefox draws no doorhanger,
@@ -28,6 +28,31 @@ export function seedGrantedPermissions(profileDir, addonId, { origins = [], perm
     join(profileDir, "extension-preferences.json"),
     JSON.stringify({ [addonId]: { permissions, origins } }, null, 2)
   );
+}
+
+/** The moz-extension UUID Firefox actually assigned to an add-on.
+ *
+ *  Pinning extensions.webextensions.uuids through firefoxUserPrefs does not
+ *  reliably hold - Firefox rewrites the map when it installs a temporary
+ *  add-on, so a guessed UUID leaves moz-extension:// unroutable and every
+ *  navigation to the options page hangs until the hook times out. Read the
+ *  map back out of the profile instead, once the add-on is in.
+ */
+export async function extensionUuid(profileDir, addonId, tries = 40) {
+  const prefsFile = join(profileDir, "prefs.js");
+  for (let i = 0; i < tries; i++) {
+    try {
+      const text = readFileSync(prefsFile, "utf8");
+      // user_pref("extensions.webextensions.uuids", "{\"id\":\"uuid\",...}");
+      const m = /user_pref\("extensions\.webextensions\.uuids",\s*"(.*?)"\);/.exec(text);
+      if (m) {
+        const map = JSON.parse(m[1].replace(/\\"/g, '"'));
+        if (map[addonId]) return map[addonId];
+      }
+    } catch { /* prefs.js is written lazily; keep looking */ }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`no moz-extension UUID for ${addonId} in ${prefsFile}`);
 }
 
 export const FIREFOX_PREFS = {
