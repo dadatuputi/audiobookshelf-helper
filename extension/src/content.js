@@ -62,12 +62,14 @@
       statusRetry = 0;
     } catch (e) {
       STATUS = { error: String(e.message || e), both: [], serverOnly: [], deviceOnly: [] };
-      const wait = [2000, 5000, 15000][statusRetry] || 0;
-      if (wait) {
-        statusRetry += 1;
-        clearTimeout(loadStatus.__t);
-        loadStatus.__t = setTimeout(loadStatus, wait);
-      }
+      // Keep trying rather than giving up after a few goes. The status is the
+      // card-to-book mapping, so while it is failing the page has no badges at
+      // all; stopping meant one hiccup left it dead until the next minute
+      // tick. Back off, then settle at every 30s for as long as it is broken.
+      const wait = [2000, 5000, 15000][statusRetry] || 30000;
+      statusRetry += 1;
+      clearTimeout(loadStatus.__t);
+      loadStatus.__t = setTimeout(loadStatus, wait);
     }
     TITLES = null;                       // status feeds the mapping as well
     render();

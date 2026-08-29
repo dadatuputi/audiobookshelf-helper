@@ -111,22 +111,30 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   async function libraryPage() {
     const page = await ctx.newPage();
     const url = `${state.absUrl}/library/${state.libraryId}`;
-    await page.goto(url, { waitUntil: "networkidle" });
-    const pw = page.locator('input[type="password"]');
-    if (await pw.count()) {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    // The app may redirect to /login and render the form a moment later.
+    // Sampling once for a password field raced that: on a slow load the field
+    // was not there yet, login was skipped, and the run then waited out its
+    // timeout for book cards on the login page. Wait for whichever arrives.
+    await page.locator('input[type="password"], [id^="book-card-"]').first()
+      .waitFor({ state: "attached", timeout: 45_000 });
+
+    if (await page.locator('input[type="password"]').count()) {
       await page.fill('input[type="text"]', state.username);
-      await pw.fill(state.password);
-      await pw.press("Enter");
-      await page.waitForURL(/\/library\//, { timeout: 30_000 }).catch(() => {});
-      await page.goto(url, { waitUntil: "networkidle" });
+      await page.fill('input[type="password"]', state.password);
+      await page.press('input[type="password"]', "Enter");
+      await page.waitForURL(/\/library\//, { timeout: 45_000 }).catch(() => {});
+      await page.goto(url, { waitUntil: "domcontentloaded" });
     }
+
     await page.locator('[id^="book-card-"]').first()
-      .waitFor({ state: "attached", timeout: 30_000 });
+      .waitFor({ state: "attached", timeout: 45_000 });
     // An actionable badge, not merely a badge: a card whose book is not yet
-    // identified now carries a quiet "?" placeholder, and waiting on that
-    // would return before the mapping has landed.
+    // identified carries a quiet "?" placeholder, and waiting on that would
+    // return before the mapping has landed.
     await page.locator(".absh-badge .absh-mini").first()
-      .waitFor({ state: "attached", timeout: 30_000 });
+      .waitFor({ state: "attached", timeout: 45_000 });
     return page;
   }
 
