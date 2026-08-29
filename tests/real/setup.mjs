@@ -91,6 +91,21 @@ const book = (dir, title, author) => {
 book("Brian Jacques/Redwall", "Redwall", "Brian Jacques");
 book("Louis Sachar/Holes", "Holes", "Louis Sachar");
 
+// A third book the library never sees. The upload test copies it onto the
+// device so there is genuinely something present on the device and absent from
+// the server - the only state in which the Upload button appears.
+const stage = join(work, "device-only");
+mkdirSync(stage, { recursive: true });
+const ONLY = { title: "Sand", author: "Hugh Howey" };
+const onlyFile = join(stage, `${ONLY.title}.m4a`);
+if (!existsSync(onlyFile)) {
+  execFileSync(FFMPEG, ["-f", "lavfi", "-i", "sine=frequency=330:duration=2",
+    "-c:a", "aac", "-b:a", "32k",
+    "-metadata", `title=${ONLY.title}`, "-metadata", `artist=${ONLY.author}`,
+    "-metadata", `album=${ONLY.title}`, "-metadata", `album_artist=${ONLY.author}`,
+    "-y", onlyFile], { stdio: "ignore" });
+}
+
 console.log("> starting server");
 // Log to a file rather than pipes: an inherited pipe keeps this process's
 // event loop alive, so the script would seed the server and then hang forever
@@ -173,6 +188,9 @@ if (!items.length) { server.kill(); throw new Error("scan produced no items"); }
 
 const state = {
   absUrl: abs, token, libraryId, device, pid: server.pid,
+  deviceOnly: { ...ONLY, source: onlyFile,
+                folder: `${ONLY.author} - ${ONLY.title}`,
+                file: `${ONLY.title}.m4a` },
   username: USER, password: PASS, serverVersion: status.serverVersion,
   titles: items.map((i) => i.media?.metadata?.title).filter(Boolean).sort(),
 };

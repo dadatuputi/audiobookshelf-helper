@@ -3,7 +3,14 @@
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIzNzEzMmQ1Yy05NWRmLTQ3NzYtYTY2MC04ZjgxNGE2ZWE3N2IiLCJ1c2VybmFtZSI6InJvb3QiLCJpYXQiOjE3ODc5ODQ5NTV9.AspGORS66gAJHH5oZw3zehcwsOkZ98V-LEudkVToehc",
   "libraryId": "4fa2fc8c-0aff-4d15-9cbc-6461c914a2f1",
   "device": "/tmp/claude-0/-home-user-audiobookshelf-helper/5dc909eb-8bbf-5170-930b-9a5b114d4231/scratchpad/realwork/device",
-  "pid": 5877,
+  "pid": 18933,
+  "deviceOnly": {
+    "title": "Sand",
+    "author": "Hugh Howey",
+    "source": "/tmp/claude-0/-home-user-audiobookshelf-helper/5dc909eb-8bbf-5170-930b-9a5b114d4231/scratchpad/realwork/device-only/Sand.m4a",
+    "folder": "Hugh Howey - Sand",
+    "file": "Sand.m4a"
+  },
   "username": "root",
   "password": "testpass123",
   "serverVersion": "2.36.0",

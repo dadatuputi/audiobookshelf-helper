@@ -11,6 +11,7 @@
  */
 import { test, expect, firefox } from "@playwright/test";
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -256,6 +257,46 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     await expect(card.locator(".absh-badge .absh-mini"))
       .toHaveAttribute("title", /copy to the device/i, { timeout: 45_000 });
     await page.close();
+  });
+
+
+  test("a book only on the device is offered for upload, and really uploads", async () => {
+    // Put a book on the device that the library has never seen. That is the
+    // only state in which the panel and its Upload button exist, and it is the
+    // one direction of the tool nothing had exercised end to end.
+    const only = state.deviceOnly;
+    const dst = join(state.device, "AUDIOBOOKS", only.folder);
+    mkdirSync(dst, { recursive: true });
+    copyFileSync(only.source, join(dst, only.file));
+
+    const page = await libraryPage();
+    const panel = page.locator("#absh-panel");
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    await expect(panel).toContainText(only.title);
+
+    await panel.locator("button.absh-primary").first().click();
+
+    // The assertion is the server's own library, not the page.
+    const items = async () => {
+      const r = await fetch(
+        `${state.absUrl}/api/libraries/${state.libraryId}/items?limit=0&minified=1`,
+        { headers: { Authorization: `Bearer ${state.token}` } });
+      return (await r.json()).results || [];
+    };
+    const arrived = await until(async () => {
+      const got = await items().catch(() => []);
+      return got.find((i) => (i.media?.metadata?.title || "") === only.title) || null;
+    }, { timeout: 60_000 });
+    expect(arrived, `${only.title} never reached the server`).toBeTruthy();
+
+    await page.close();
+
+    // Put the server back, so the run is repeatable: with the book in the
+    // library it is no longer device-only and the panel would never appear.
+    await fetch(`${state.absUrl}/api/items/${arrived.id}`, {
+      method: "DELETE", headers: { Authorization: `Bearer ${state.token}` },
+    }).catch(() => {});
+    rmSync(dst, { recursive: true, force: true });
   });
 
 });
