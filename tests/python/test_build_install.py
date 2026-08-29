@@ -285,23 +285,30 @@ class TestLauncherIsInterpreterPinned(unittest.TestCase):
         self.home = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.home, ignore_errors=True)
 
-    def _install(self, system):
+    def _install(self):
+        """Install into a throwaway HOME and find what landed.
+
+        The manifest directory differs per OS - ~/.mozilla on Linux,
+        ~/Library/Application Support/Mozilla on macOS - so search for it
+        rather than naming one and failing everywhere else.
+        """
         env = dict(os.environ, HOME=str(self.home))
         subprocess.run([sys.executable, str(ROOT / "native" / "install.py"),
                         "--browser", "firefox"],
                        env=env, check=True, capture_output=True)
-        d = self.home / ".mozilla" / "native-messaging-hosts"
-        return json.loads((d / "io.github.abshelper.json").read_text()), d
+        found = list(self.home.rglob("io.github.abshelper.json"))
+        self.assertEqual(len(found), 1, f"expected one manifest, got {found}")
+        return json.loads(found[0].read_text()), found[0].parent
 
     @unittest.skipIf(sys.platform.startswith("win"), "POSIX launcher")
     def test_the_manifest_points_at_a_launcher_not_the_py(self):
-        manifest, _ = self._install(sys.platform)
+        manifest, _ = self._install()
         self.assertTrue(manifest["path"].endswith(".sh"),
                         f"manifest points at {manifest['path']!r}")
 
     @unittest.skipIf(sys.platform.startswith("win"), "POSIX launcher")
     def test_the_launcher_names_an_absolute_interpreter(self):
-        manifest, _ = self._install(sys.platform)
+        manifest, _ = self._install()
         body = Path(manifest["path"]).read_text()
         self.assertIn(sys.executable, body)
         self.assertNotIn("env python", body, "must not depend on PATH")
@@ -310,7 +317,7 @@ class TestLauncherIsInterpreterPinned(unittest.TestCase):
     @unittest.skipIf(sys.platform.startswith("win"), "POSIX launcher")
     def test_it_answers_a_ping_with_no_python_on_PATH(self):
         """The actual regression: a stripped PATH is what the browser gives."""
-        manifest, _ = self._install(sys.platform)
+        manifest, _ = self._install()
         body = json.dumps({"cmd": "ping"}).encode()
         p = subprocess.run([manifest["path"]],
                            input=struct.pack("<I", len(body)) + body,
