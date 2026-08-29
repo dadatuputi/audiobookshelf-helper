@@ -228,6 +228,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
         `; add-on recorded: ${JSON.stringify({
           registeredPattern: recorded.registeredPattern,
           registrationError: recorded.registrationError,
+          injectError: recorded.injectError,
         })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;

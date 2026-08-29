@@ -264,6 +264,8 @@ browser.runtime.onConnect.addListener((p) => {
  * So inject it again once the page has settled. content.js sets a flag on
  * window and returns early if it is already there, making the duplicate a
  * no-op on the loads where registration did work. */
+let LAST_INJECT_ERROR = "";
+
 async function injectFallback(tabId, url) {
   if (!browser.scripting || !browser.scripting.executeScript) return;
   const c = await cfg();
@@ -278,10 +280,26 @@ async function injectFallback(tabId, url) {
 
   await browser.scripting.insertCSS({ target: { tabId }, files: ["content.css"] })
     .catch(() => {});
-  await browser.scripting.executeScript({
-    target: { tabId },
-    files: ["browser-polyfill.js", "content.js"],
-  }).catch(() => {});
+  try {
+    await browser.scripting.executeScript({
+      target: { tabId },
+      files: ["browser-polyfill.js", "content.js"],
+    });
+    if (LAST_INJECT_ERROR) {
+      LAST_INJECT_ERROR = "";
+      await browser.storage.local.set({ injectError: "" }).catch(() => {});
+    }
+  } catch (e) {
+    // Swallowed until now, which left the same hole the registration had: a
+    // page with no UI on it and nothing anywhere saying why. Recorded once
+    // per distinct message, so a page that fails on every load does not
+    // rewrite storage on every load.
+    const msg = (e && e.message) || String(e);
+    if (msg !== LAST_INJECT_ERROR) {
+      LAST_INJECT_ERROR = msg;
+      await browser.storage.local.set({ injectError: msg }).catch(() => {});
+    }
+  }
 }
 
 if (browser.tabs && browser.tabs.onUpdated) {
