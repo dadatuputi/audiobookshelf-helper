@@ -288,7 +288,16 @@ jobs:
 
       - name: Audiobookshelf server log
         if: failure()
-        run: tail -100 .abs-real/server.log || true
+        run: tail -40 .abs-real/server.log || true
+
+      # Last, deliberately. These suites say what broke in one line, and that
+      # line was landing above a hundred lines of server log, out of reach of
+      # anything reading the end of the job.
+      - name: What actually failed
+        if: failure()
+        run: |
+          grep -aE "no actionable badge|add-on recorded|no book cards|Error:|✘" pw.log \
+            | head -30 || true
 
       - uses: actions/upload-artifact@v5
         if: always()
