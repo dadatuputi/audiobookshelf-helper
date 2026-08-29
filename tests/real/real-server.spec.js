@@ -87,6 +87,11 @@ test.describe("against a real Audiobookshelf", () => {
     // Configure exactly as a user would.
     const opt = await ctx.newPage();
     await opt.goto(`chrome-extension://${EXT_ID}/options.html`);
+    // See tests/e2e: the page fills its own fields from storage a moment
+    // after load, and typing before that lands is thrown away.
+    await opt.waitForFunction(
+      () => (document.getElementById("permState")?.textContent || "") !== "",
+      null, { timeout: 15_000 });
     await opt.fill("#absUrl", state.absUrl);
     await opt.fill("#apiKey", state.token);
     await opt.fill("#devicePath", state.device);

@@ -199,6 +199,13 @@ async function launch(profile) {
 async function configure(ctx, { absUrl, dev, lib }) {
   const page = await ctx.newPage();
   await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+  // The options page fills its fields from storage asynchronously; typing
+  // before that resolves used to have the values overwritten, and Save then
+  // stored an empty server URL. permState carries text in every branch once
+  // that pass is done, so it is the signal that the page is ready.
+  await page.waitForFunction(
+    () => (document.getElementById("permState")?.textContent || "") !== "",
+    null, { timeout: 15_000 });
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
   await page.fill("#devicePath", dev);

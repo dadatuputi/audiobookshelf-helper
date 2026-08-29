@@ -118,6 +118,9 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       try {
         await opt.goto(`moz-extension://${EXT_UUID}/options.html`,
                        { waitUntil: "commit", timeout: 15_000 });
+        await opt.waitForFunction(
+          () => (document.getElementById("permState")?.textContent || "") !== "",
+          null, { timeout: 5_000 });
         await opt.fill("#absUrl", state.absUrl, { timeout: 5_000 });
         await opt.fill("#apiKey", state.token, { timeout: 5_000 });
         await opt.fill("#devicePath", state.device, { timeout: 5_000 });
