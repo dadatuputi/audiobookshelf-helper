@@ -27,7 +27,13 @@ _spec = importlib.util.spec_from_file_location("relver", ROOT / "tools" / "relea
 RV = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(RV)
 
-NATIVE_FILES = ["native/absh_host.py", "native/install.py", "extension/identity.json"]
+NATIVE_FILES = ["native/absh_host.py", "native/install.py",
+                # identity.py derives the Chrome extension id from the pinned
+                # key; without it the archive cannot register the Chrome host.
+                "extension/identity.json", "extension/identity.py"]
+# The host is a thin shim over the absh package now, so the package has to
+# travel with it or the browser launches a helper that cannot import itself.
+NATIVE_PACKAGE = "absh"
 
 SOURCE_INCLUDE = ["extension", "native", "tools", "tests",
                   "README.md", "LICENSE", "package.json", "package-lock.json",
@@ -70,7 +76,7 @@ def zip_source(dest: Path):
 
 def build(target: str, version: str):
     subprocess.run([sys.executable, str(ROOT / "extension" / "build.py"),
-                    "--target", target, "--version", version], check=True)
+                    "--target", target, "--version", version, "--quiet"], check=True)
     return ROOT / "extension" / "dist" / target
 
 
@@ -95,18 +101,26 @@ def main():
         made.append(zip_dir_contents(
             dist, out / f"audiobookshelf-helper-{target}-{info['semver']}.zip"))
 
+    native_pairs = [(ROOT / f, Path(f).name) for f in NATIVE_FILES]
+    for f in sorted((ROOT / NATIVE_PACKAGE).glob("*.py")):
+        native_pairs.append((f, f"{NATIVE_PACKAGE}/{f.name}"))
     made.append(zip_files(
-        [(ROOT / f, Path(f).name) for f in NATIVE_FILES],
+        native_pairs,
         out / f"audiobookshelf-helper-native-{info['semver']}.zip"))
 
     made.append(zip_source(out / f"audiobookshelf-helper-source-{info['semver']}.zip"))
 
     (out / "release-info.json").write_text(json.dumps(info, indent=2) + "\n")
 
+    try:
+        where = out.resolve().relative_to(Path.cwd())
+    except ValueError:
+        where = out.resolve()
+    print(f"\nWrote {len(made)} archives to {where}/ "
+          f"(firefox={info['firefox']} chrome={info['chrome']} "
+          f"prerelease={info['prerelease']}):")
     for p in made:
-        print(f"  {p.name}  ({p.stat().st_size:,} bytes)")
-    print(f"  version: firefox={info['firefox']} chrome={info['chrome']} "
-          f"prerelease={info['prerelease']}")
+        print(f"  {p.stat().st_size:>9,} bytes  {p.name}")
 
 
 if __name__ == "__main__":

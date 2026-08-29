@@ -1,13 +1,13 @@
-/* Popup: the library picker and the on-device shelf.
+/* Popup: one list, three views, over the same status the CLI shows.
  *
- * Talks to the background over a long-lived port rather than sendMessage,
- * because a sync streams progress back while it runs. */
+ * The helper does the work and owns the Audiobookshelf client; this only picks
+ * things and renders what came back. */
 const $ = (s) => document.querySelector(s);
 
-let BOOKS = [];            // library items, annotated with .onDevice
-let SEL = new Set();       // selected library item ids
-let DEVICE = { onDevice: [], orphans: [], free: "" };
-let PROGRESS = null;       // {id, done, total, file} while a sync runs
+let TAB = "server";                    // server | device | only
+let ST = { both: [], serverOnly: [], deviceOnly: [] };
+let SEL = new Set();
+let PROGRESS = null;
 let BUSY = false;
 
 /* ----------------------------------------------------------- transport */
@@ -15,39 +15,31 @@ const PORT = browser.runtime.connect({ name: "absh" });
 let RID = 0;
 const WAITING = new Map();
 
-PORT.onMessage.addListener((msg) => {
-  const w = WAITING.get(msg && msg.rid);
+PORT.onMessage.addListener((m) => {
+  const w = WAITING.get(m && m.rid);
   if (!w) return;
-  if (msg.progress) { if (w.onProgress) w.onProgress(msg.progress); return; }
-  WAITING.delete(msg.rid);
-  msg.ok ? w.resolve(msg.data) : w.reject(new Error(msg.error || "no response"));
+  if (m.progress) { if (w.onProgress) w.onProgress(m.progress); return; }
+  WAITING.delete(m.rid);
+  m.ok ? w.resolve(m.data) : w.reject(new Error(m.error || "no response"));
 });
 PORT.onDisconnect.addListener(() => {
   for (const [, w] of WAITING) w.reject(new Error("background disconnected"));
   WAITING.clear();
 });
 
-function send(m, onProgress) {
+function send(msg, onProgress) {
   return new Promise((resolve, reject) => {
     const rid = ++RID;
     WAITING.set(rid, { resolve, reject, onProgress });
-    PORT.postMessage({ ...m, rid });
+    PORT.postMessage({ ...msg, rid });
   });
 }
 
-/* --------------------------------------------------------------- chrome */
+/* -------------------------------------------------------------- helpers */
 function status(msg, cls = "") {
   const el = $("#status");
   el.textContent = msg || "";
   el.className = "status " + cls;
-}
-
-function setTab(name) {
-  for (const b of document.querySelectorAll(".tab")) {
-    b.classList.toggle("active", b.dataset.tab === name);
-  }
-  $("#pane-library").classList.toggle("hidden", name !== "library");
-  $("#pane-device").classList.toggle("hidden", name !== "device");
 }
 
 function el(tag, cls, text) {
@@ -57,232 +49,178 @@ function el(tag, cls, text) {
   return n;
 }
 
-/* ---------------------------------------------------------- library pane */
-function renderLibrary() {
+const rowsFor = {
+  server: () => ST.serverOnly.map((i) => ({ key: i.id, id: i.id, title: i.title,
+    sub: [i.author, ABSH.formatBytes(i.size)].filter(Boolean).join(" · "), bytes: i.size })),
+  device: () => ST.both.map((b) => ({ key: b.name, name: b.name, id: b.itemId, title: b.title,
+    sub: [b.author, ABSH.formatBytes(b.bytes), b.matchedBy && b.matchedBy !== "id"
+      ? `matched by ${b.matchedBy}` : ""].filter(Boolean).join(" · "), bytes: b.bytes })),
+  only: () => ST.deviceOnly.map((e) => ({ key: e.name, name: e.name, title: e.title || e.name,
+    sub: [e.author || "unknown author", ABSH.formatBytes(e.bytes)].join(" · "), bytes: e.bytes })),
+};
+
+const ACTION = {
+  server: { label: (n) => `Copy ${n} to device`, run: (rows) =>
+    send({ type: "pull", ids: rows.map((r) => r.id) }, onProgress) },
+  device: { label: (n) => `Remove ${n} from device`, run: (rows) =>
+    send({ type: "remove", names: rows.map((r) => r.name) }) },
+  only: { label: (n) => `Upload ${n} to server`, run: (rows) =>
+    send({ type: "push", names: rows.map((r) => r.name) }, onProgress) },
+};
+
+function onProgress(ev) {
+  if (ev.event === "item") {
+    status(`${ev.op || "working"} ${ev.index}/${ev.count} — ${ev.title}`);
+  }
+  PROGRESS = { title: ev.title, done: ev.done || 0, total: ev.total || 0 };
+  render();
+}
+
+/* --------------------------------------------------------------- render */
+function visible() {
   const q = $("#filter").value.trim().toLowerCase();
-  const shown = ABSH.filterBooks(BOOKS, q);
+  const rows = rowsFor[TAB]();
+  return q ? rows.filter((r) => `${r.title} ${r.sub}`.toLowerCase().includes(q)) : rows;
+}
+
+function render() {
+  for (const b of document.querySelectorAll(".tab")) {
+    b.classList.toggle("active", b.dataset.tab === TAB);
+  }
+  for (const [tab, n] of [["server", ST.serverOnly.length], ["device", ST.both.length],
+                          ["only", ST.deviceOnly.length]]) {
+    const badge = $("#n-" + tab);
+    badge.textContent = n || "";
+    badge.classList.toggle("show", n > 0);
+  }
+  $("#free").textContent = ST.free && ST.free.free ? `${ABSH.formatBytes(ST.free.free)} free` : "";
+
+  const rows = visible();
   const ul = $("#list");
   ul.innerHTML = "";
-
-  if (!shown.length) {
-    ul.appendChild(el("li", "empty", BOOKS.length ? "Nothing matches that filter." : "No books in this library."));
+  if (!rows.length) {
+    ul.appendChild(el("li", "empty", {
+      server: "Everything on the server is already on the device.",
+      device: "Nothing from this library is on the device yet.",
+      only: "Nothing on the device that the server does not have.",
+    }[TAB]));
   }
-
-  for (const b of shown) {
+  for (const r of rows) {
     const li = el("li");
     const cb = document.createElement("input");
     cb.type = "checkbox";
-    cb.checked = SEL.has(b.id);
+    cb.checked = SEL.has(r.key);
     cb.disabled = BUSY;
     cb.addEventListener("change", () => {
-      cb.checked ? SEL.add(b.id) : SEL.delete(b.id);
-      updateCount();
+      cb.checked ? SEL.add(r.key) : SEL.delete(r.key);
+      updateAction();
     });
-
     const meta = el("div", "meta");
-    const t = el("span", "t", b.title);
-    if (b.onDevice) t.appendChild(el("span", "chip on", "on device"));
-    if (PROGRESS && PROGRESS.id === b.id) {
-      t.appendChild(el("span", "chip working", "copying"));
-    }
-    const bits = [b.author, b.series].filter(Boolean).join(" · ");
-    const size = b.size ? ` · ${ABSH.formatBytes(b.size)}` : "";
-    const tracks = b.numTracks > 1 ? ` · ${b.numTracks} files` : "";
-    meta.append(t, el("span", "a", bits + size + tracks));
-
-    if (PROGRESS && PROGRESS.id === b.id && PROGRESS.total) {
+    const t = el("span", "t", r.title);
+    if (PROGRESS && PROGRESS.title === r.title) t.appendChild(el("span", "chip working", "…"));
+    meta.append(t, el("span", "a", r.sub));
+    if (PROGRESS && PROGRESS.title === r.title && PROGRESS.total > 1) {
       const bar = el("div", "bar");
       const i = document.createElement("i");
       i.style.width = `${Math.round(100 * PROGRESS.done / PROGRESS.total)}%`;
       bar.appendChild(i);
       meta.appendChild(bar);
     }
-
     li.append(cb, meta);
     ul.appendChild(li);
   }
-
   const all = $("#all");
-  all.checked = shown.length > 0 && shown.every(b => SEL.has(b.id));
-  all.disabled = BUSY || !shown.length;
-  all.onchange = () => {
-    shown.forEach(b => all.checked ? SEL.add(b.id) : SEL.delete(b.id));
-    renderLibrary();
-  };
-  updateCount();
+  all.checked = rows.length > 0 && rows.every((r) => SEL.has(r.key));
+  all.disabled = BUSY || !rows.length;
+  updateAction();
 }
 
-function updateCount() {
-  $("#count").textContent = SEL.size ? `${SEL.size} selected` : "";
-  $("#sync").disabled = BUSY || SEL.size === 0;
+function updateAction() {
+  const rows = visible().filter((r) => SEL.has(r.key));
+  const btn = $("#act");
+  btn.disabled = BUSY || !rows.length;
+  btn.textContent = rows.length ? ACTION[TAB].label(rows.length) : "Select books";
+  btn.classList.toggle("danger", TAB === "device" && rows.length > 0);
 }
 
-/* ----------------------------------------------------------- device pane */
-function deviceRow(entry, label) {
-  const li = el("li");
-  const meta = el("div", "meta");
-  meta.append(el("span", "t", label));
-  const bits = [ABSH.formatBytes(entry.bytes)];
-  if (entry.files > 1) bits.push(`${entry.files} files`);
-  meta.append(el("span", "a", bits.join(" · ")));
-
-  const del = el("button", "danger", "Remove");
-  // Two-step instead of confirm(): dialogs in an extension popup are
-  // unreliable, and deleting from a device should never be one stray click.
-  let armed = false;
-  del.addEventListener("click", async () => {
-    if (!armed) {
-      armed = true;
-      del.textContent = "Confirm?";
-      del.classList.add("confirm");
-      setTimeout(() => {
-        if (!armed) return;
-        armed = false; del.textContent = "Remove"; del.classList.remove("confirm");
-      }, 4000);
-      return;
-    }
-    del.disabled = true;
-    try {
-      const r = await send({ type: "remove", names: [entry.name] });
-      if (r.errors && r.errors.length) status(r.errors.join("\n"), "err");
-      else status(`removed ${label} · freed ${r.freed}`, "ok");
-      await refreshDevice();
-    } catch (e) {
-      status(String(e.message || e), "err");
-      del.disabled = false;
-    }
-  });
-
-  li.append(meta, del);
-  return li;
-}
-
-function renderDevice() {
-  const ul = $("#device-list");
-  ul.innerHTML = "";
-  const items = DEVICE.onDevice || [];
-  if (!items.length) {
-    ul.appendChild(el("li", "empty", "No books from this library are on the device yet."));
-  }
-  for (const e of items) ul.appendChild(deviceRow(e, e.title || e.name));
-
-  const orphans = DEVICE.orphans || [];
-  $("#orphans-wrap").classList.toggle("hidden", !orphans.length);
-  const ol = $("#orphan-list");
-  ol.innerHTML = "";
-  for (const e of orphans) ol.appendChild(deviceRow(e, e.name));
-
-  const badge = $("#device-count");
-  badge.textContent = items.length || "";
-  badge.classList.toggle("show", items.length > 0);
-
-  const total = items.reduce((n, e) => n + (e.bytes || 0), 0);
-  $("#device-summary").textContent = items.length
-    ? `${items.length} book(s) · ${ABSH.formatBytes(total)}`
-    : "";
-  $("#free").textContent = DEVICE.free ? `${DEVICE.free} free` : "";
-}
-
-async function refreshDevice() {
-  let problem = "";
+/* ------------------------------------------------------------ lifecycle */
+async function refresh() {
   try {
-    DEVICE = await send({ type: "listDevice", items: BOOKS });
-    BOOKS = ABSH.annotateOnDevice(BOOKS, DEVICE);
+    ST = await send({ type: "status" });
+    SEL.clear();
+    render();
+    if (!ST.both.length && !ST.serverOnly.length && !ST.deviceOnly.length) {
+      status("Nothing on either side yet.");
+    }
   } catch (e) {
-    // A missing device is normal (nothing plugged in), not an error worth
-    // shouting about in the status line - but the shelf must say why it is
-    // empty rather than implying the player is empty.
-    DEVICE = { onDevice: [], orphans: [], free: "" };
-    BOOKS = ABSH.annotateOnDevice(BOOKS, null);
-    problem = String(e.message || e);
+    status(String(e.message || e), "err");
+    ST = { both: [], serverOnly: [], deviceOnly: [] };
+    render();
   }
-  // Always render both panes: an unreachable device must not take the library
-  // list down with it.
-  renderDevice();
-  renderLibrary();
-  if (problem) $("#device-summary").textContent = problem;
-}
-
-/* ------------------------------------------------------------- lifecycle */
-async function loadBooks(libraryId) {
-  BOOKS = await send({ type: "books", libraryId });
-  SEL.clear();
-  await refreshDevice();
 }
 
 async function load() {
+  status("checking helper…");
+  let p;
   try {
-    status("checking helper…");
-    const p = await send({ type: "ping" });
+    p = await send({ type: "ping" });
     if (!p.ok) {
-      status("Native helper not reachable.\nRun native/install.py, then restart the browser.\n" +
-             (p.error || ""), "err");
-    } else {
-      status(`helper ok (${p.version || "?"})`, "ok");
+      status("Native helper not reachable.\nRun native/install.py, then restart the browser.\n"
+             + (p.error || ""), "err");
+      return;
     }
-
-    const libs = await send({ type: "libraries" });
-    const sel = $("#library");
-    sel.innerHTML = "";
-    for (const l of libs) {
-      const o = document.createElement("option");
-      o.value = l.id; o.textContent = l.name;
-      sel.appendChild(o);
+    if (!p.configured) {
+      status("Not configured yet: " + (p.missing || []).join(", ")
+             + "\nOpen options, or run `absh config`.", "err");
+      return;
     }
-    const stored = await browser.storage.local.get({ libraryId: "" });
-    if (stored.libraryId && libs.some(l => l.id === stored.libraryId)) sel.value = stored.libraryId;
-    sel.onchange = async () => {
-      await browser.storage.local.set({ libraryId: sel.value });
-      await loadBooks(sel.value);
-    };
-    await loadBooks(sel.value);
   } catch (e) {
     status(String(e.message || e), "err");
+    return;
+  }
+  await refresh();
+  // Set last: refresh() reports its own outcome, and this should be what
+  // remains on screen when everything is fine.
+  if (!$("#status").classList.contains("err")) {
+    status(`helper ok (${p.version}, tags: ${p.tags})`, "ok");
   }
 }
 
 /* ---------------------------------------------------------------- wiring */
-$("#filter").addEventListener("input", renderLibrary);
-$("#opts").addEventListener("click", (e) => {
-  e.preventDefault();
-  browser.runtime.openOptionsPage();
+$("#filter").addEventListener("input", render);
+$("#opts").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
+$("#refresh").addEventListener("click", refresh);
+$("#all").addEventListener("change", () => {
+  const rows = visible();
+  rows.forEach((r) => $("#all").checked ? SEL.add(r.key) : SEL.delete(r.key));
+  render();
 });
 for (const b of document.querySelectorAll(".tab")) {
-  b.addEventListener("click", () => setTab(b.dataset.tab));
+  b.addEventListener("click", () => { TAB = b.dataset.tab; SEL.clear(); render(); });
 }
-$("#refresh").addEventListener("click", refreshDevice);
-
-$("#sync").addEventListener("click", async () => {
-  const items = BOOKS.filter(b => SEL.has(b.id));
+$("#act").addEventListener("click", async () => {
+  const rows = visible().filter((r) => SEL.has(r.key));
+  if (!rows.length) return;
   BUSY = true;
-  updateCount();
-  status(`syncing ${items.length} book(s)…`);
+  render();
   try {
-    const r = await send({ type: "sync", items }, (ev) => {
-      if (ev.event === "item") {
-        status(`syncing ${ev.index}/${ev.count} — ${ev.title}`);
-      }
-      PROGRESS = { id: ev.id, done: ev.done || 0, total: ev.total || 0 };
-      renderLibrary();
-    });
+    const r = await ACTION[TAB].run(rows);
     PROGRESS = null;
-    const lines = [];
-    if (r.copied != null) lines.push(`copied ${r.copied} file(s)`);
-    if (r.skipped) lines.push(`skipped ${r.skipped} already present`);
-    if (r.freeAfter) lines.push(`free: ${r.freeAfter}`);
-    status(lines.join(" · ") || "done", r.errors && r.errors.length ? "err" : "ok");
+    const bits = [];
+    if (r.copied) bits.push(`copied ${r.copied} file(s)`);
+    if (r.uploaded) bits.push(`uploaded ${r.uploaded}`);
+    if (r.removed && r.removed.length) bits.push(`removed ${r.removed.length}`);
+    if (r.skipped) bits.push(`skipped ${r.skipped}`);
+    status(bits.join(" · ") || "done", r.errors && r.errors.length ? "err" : "ok");
     if (r.errors && r.errors.length) {
-      status(lines.join(" · ") + "\n" + r.errors.join("\n"), "err");
+      status((bits.join(" · ") + "\n" + r.errors.join("\n")).trim(), "err");
     }
-    SEL.clear();
-    await refreshDevice();
   } catch (e) {
     PROGRESS = null;
     status(String(e.message || e), "err");
   } finally {
     BUSY = false;
-    updateCount();
-    renderLibrary();
+    await refresh();
   }
 });
 

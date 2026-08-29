@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Firefox/Chrome extension + native host to sync Audiobookshelf books to a USB player",
   "scripts": {
+    "absh": "python3 -m absh.cli",
     "icons": "python3 extension/icons/make_icons.py",
     "build": "python3 extension/build.py",
     "package": "python3 tools/package.py",

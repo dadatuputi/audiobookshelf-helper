@@ -41,7 +41,7 @@ FIREFOX_MIN = "128.0"
 
 SHARED_FILES = [
     "background.js", "browser-polyfill.js", "lib.js", "content.js", "content.css",
-    "popup.html", "popup.css", "popup.js", "options.html", "options.js",
+    "page-hook.js", "popup.html", "popup.css", "popup.js", "options.html", "options.js",
 ]
 
 ICON_FILES = ["icon-16.png", "icon-32.png", "icon-48.png", "icon-96.png", "icon-128.png"]
@@ -49,6 +49,9 @@ ICON_FILES = ["icon-16.png", "icon-32.png", "icon-48.png", "icon-96.png", "icon-
 
 def manifest_for(target: str, version: str = None) -> dict:
     m = json.loads((SRC / "manifest.base.json").read_text())
+    # page-hook.js is injected into the page's own world, so the page must be
+    # allowed to load it.
+    m["web_accessible_resources"] = [{"resources": ["page-hook.js"], "matches": ["<all_urls>"]}]
     if version:
         m["version"] = version
     if target == "firefox":
@@ -119,16 +122,47 @@ def build(target: str, version: str = None) -> Path:
     return out
 
 
+def show(p: Path) -> str:
+    """A path the reader can actually paste.
+
+    This used to print the path relative to extension/, so running the script
+    from the repo root reported "dist/firefox" for something that is really at
+    "extension/dist/firefox" - and `cd dist` then failed. Print it relative to
+    where the caller actually is.
+    """
+    try:
+        return str(p.relative_to(Path.cwd()))
+    except ValueError:
+        return str(p)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", choices=["firefox", "chrome", "all"], default="all")
     ap.add_argument("--version", help="override the manifest version (e.g. from a git tag)")
+    ap.add_argument("--quiet", action="store_true",
+                    help="omit the load instructions (used when another script calls this)")
     a = ap.parse_args()
     targets = ["firefox", "chrome"] if a.target == "all" else [a.target]
+    built = {}
     for t in targets:
-        p = build(t, a.version)
-        n = sum(1 for _ in p.rglob("*") if _.is_file())
-        print(f"  built {t:8s} -> {p.relative_to(HERE)}  ({n} files)")
+        out = build(t, a.version)
+        n = sum(1 for _ in out.rglob("*") if _.is_file())
+        built[t] = out
+        print(f"  built {t:8s} -> {show(out)}  ({n} files)")
+
+    if a.quiet:
+        return
+    # The build output is gitignored, so it will not show up in `ls` at the
+    # repo root. Say where it went and what to do with it.
+    print("\nLoad the unpacked extension:")
+    if "firefox" in built:
+        print(f"  Firefox  about:debugging#/runtime/this-firefox -> Load Temporary Add-on")
+        print(f"           {show(built['firefox'] / 'manifest.json')}")
+    if "chrome" in built:
+        print(f"  Chrome   chrome://extensions -> Developer mode -> Load unpacked")
+        print(f"           {show(built['chrome'])}")
+    print("\nThe native helper is separate and required:  python3 native/install.py")
 
 
 if __name__ == "__main__":

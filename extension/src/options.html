@@ -10,6 +10,11 @@ input[type=text],input[type=password],select{width:100%;box-sizing:border-box;ba
 button{margin-top:1.2rem;padding:8px 16px;background:#2563eb;color:#fff;border:0;border-radius:4px;font:inherit;cursor:pointer}
 button:disabled{opacity:.45;cursor:default}
 button.secondary{background:none;border:1px solid #374151;color:#e5e7eb}
+button.inline{margin-top:0;white-space:nowrap}
+.row{display:flex;gap:.5rem;align-items:center}
+.hidden{display:none}
+select[size]{margin-top:.4rem}
+option{padding:2px 4px}
 #msg{margin-left:.8rem;color:#86efac}
 code{background:#111827;padding:1px 4px;border-radius:3px}
 .note{font-size:12px;margin-top:.5rem;color:#9ca3af}
@@ -36,11 +41,15 @@ code{background:#111827;padding:1px 4px;border-radius:3px}
 
 <h2>Device</h2>
 <label for="devicePath">Player mount path</label>
-<input type="text" id="devicePath" placeholder="/Volumes/CLIP">
-<div class="hint">Absolute path to the mounted player. The native helper writes here.</div>
+<div class="row"><input type="text" id="devicePath" placeholder="/Volumes/PLAYER">
+  <button id="detect" class="secondary inline">Detect</button></div>
+<select id="deviceList" class="hidden" size="4"></select>
+<div class="hint">Absolute path to the mounted player. The helper writes here.
+  Books are fetched from your Audiobookshelf server - nothing else needs to be
+  mounted.</div>
 <label for="subdir">Folder on the device</label>
 <input type="text" id="subdir" value="AUDIOBOOKS">
-<div class="hint">SanDisk players treat <code>AUDIOBOOKS</code> specially (resume + bookmarks).</div>
+<div class="hint">Some players give a named folder resume and bookmarks - check your manual.</div>
 
 <h2>Naming</h2>
 <label for="folderTemplate">Folder template</label>
@@ -49,18 +58,7 @@ code{background:#111827;padding:1px 4px;border-radius:3px}
   This also decides how a book is recognised on the device, so changing it makes
   already-synced books look absent.</div>
 <div class="chk"><input type="checkbox" id="renameM4b" checked><label for="renameM4b" style="margin:0">
-  Rename <code>.m4b</code> → <code>.m4a</code> (required — the Clip ignores .m4b; same container, no re-encode)</label></div>
-
-<h2>Source</h2>
-<label for="sourceMode">How to fetch files</label>
-<select id="sourceMode">
-  <option value="auto">Auto — use the local share if mounted, else download over HTTP</option>
-  <option value="local">Local share only</option>
-  <option value="http">HTTP download only</option>
-</select>
-<label for="localRoot">Local library root (optional)</label>
-<input type="text" id="localRoot" placeholder="/Volumes/media/audio/audiobooks">
-<div class="hint">Copying from a mounted SMB share is much faster than downloading.</div>
+  Rename <code>.m4b</code> → <code>.m4a</code> (leave on unless your player handles .m4b; same container, no re-encode)</label></div>
 
 <button id="save">Save</button><span id="msg"></span>
 <script src="browser-polyfill.js"></script>

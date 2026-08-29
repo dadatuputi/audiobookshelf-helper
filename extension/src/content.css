@@ -1,6 +1,71 @@
-#absh-sync-btn{display:inline-flex;align-items:center;gap:.4em;margin-left:1rem;padding:.25rem .7rem;
-  font:inherit;font-size:.8rem;line-height:1.6;color:#e5e7eb;background:#2e2e2e;border:1px solid #4b5563;
-  border-radius:.25rem;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
-#absh-sync-btn:hover{background:#3b3b3b;border-color:#6b7280}
-#absh-sync-btn .absh-ico{font-size:1rem;line-height:1}
-#absh-sync-btn.absh-hint::after{content:"open the toolbar icon →";margin-left:.5em;opacity:.75;font-size:.75rem}
+/* Injected into Audiobookshelf. Everything is namespaced and additive so an
+   upstream restyle cannot collide with it. */
+.absh-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-left: 8px; padding: 5px 10px;
+  background: #4f46e5; color: #fff; border: 0; border-radius: 6px;
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.absh-btn:hover { background: #4338ca; }
+.absh-ico { font-size: 15px; line-height: 1; }
+
+/* Per-card badge */
+.absh-badge {
+  position: absolute; top: 4px; right: 4px; z-index: 5;
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px; border-radius: 6px;
+  background: rgba(17, 24, 39, .82);
+  opacity: .55; transition: opacity .12s ease;
+}
+.absh-badge:hover, .absh-badge.absh-on { opacity: 1; }
+.absh-badge.absh-quiet { background: transparent; }
+.absh-dot {
+  font-size: 10px; color: #86efac; padding: 0 4px; white-space: nowrap;
+}
+.absh-mini {
+  min-width: 20px; height: 20px; padding: 0 5px;
+  background: rgba(255, 255, 255, .12); color: #e5e7eb;
+  border: 0; border-radius: 4px; font: inherit; font-size: 12px;
+  line-height: 20px; cursor: pointer;
+}
+.absh-mini:hover { background: rgba(255, 255, 255, .25); }
+.absh-mini:disabled { opacity: .6; cursor: default; }
+.absh-mini.absh-danger:hover { background: #b91c1c; color: #fff; }
+.absh-mini.absh-primary { background: #4f46e5; color: #fff; padding: 0 10px; }
+.absh-mini.absh-primary:hover { background: #4338ca; }
+
+/* Device-only panel */
+#absh-panel {
+  position: fixed; right: 16px; bottom: 16px; z-index: 9999;
+  width: 330px; max-height: 46vh; overflow-y: auto;
+  background: #111827; color: #e5e7eb;
+  border: 1px solid #374151; border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  font: 13px/1.4 system-ui, sans-serif;
+}
+.absh-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; padding: 8px 10px; border-bottom: 1px solid #374151;
+  font-weight: 600; font-size: 12px; color: #fcd34d;
+  position: sticky; top: 0; background: #111827;
+}
+.absh-panel-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-top: 1px solid #1f2937;
+}
+.absh-panel-meta { flex: 1 1 auto; min-width: 0; }
+.absh-panel-title {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.absh-panel-sub { display: block; font-size: 11px; color: #9ca3af; }
+.absh-quiet-btn { background: none; }
+
+#absh-note {
+  position: fixed; right: 16px; bottom: 16px; z-index: 10000;
+  max-width: 380px; padding: 9px 12px;
+  background: #111827; color: #e5e7eb;
+  border: 1px solid #374151; border-left: 3px solid #4f46e5; border-radius: 6px;
+  font: 12px/1.4 system-ui, sans-serif;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+}
+#absh-note.absh-bad { border-left-color: #dc2626; color: #fca5a5; }

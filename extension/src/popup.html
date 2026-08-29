@@ -7,36 +7,21 @@
 <div id="status" class="status"></div>
 
 <nav class="tabs">
-  <button id="tab-library" class="tab active" data-tab="library">Library</button>
-  <button id="tab-device" class="tab" data-tab="device">On device <span id="device-count" class="badge"></span></button>
+  <button class="tab active" data-tab="server">To pull <span id="n-server" class="badge"></span></button>
+  <button class="tab" data-tab="device">On device <span id="n-device" class="badge"></span></button>
+  <button class="tab" data-tab="only">To push <span id="n-only" class="badge"></span></button>
   <span id="free" class="free"></span>
 </nav>
 
-<section id="pane-library" class="pane">
-  <div class="row">
-    <select id="library"></select>
-    <input id="filter" type="search" placeholder="filter…">
-  </div>
-  <div class="row small">
-    <label><input type="checkbox" id="all"> select all shown</label>
-    <span id="count"></span>
-  </div>
-  <ul id="list"></ul>
-</section>
+<div class="row">
+  <input id="filter" type="search" placeholder="filter…">
+  <label class="small"><input type="checkbox" id="all"> all</label>
+</div>
 
-<section id="pane-device" class="pane hidden">
-  <div class="row small"><span id="device-summary" class="muted"></span></div>
-  <ul id="device-list"></ul>
-  <div id="orphans-wrap" class="hidden">
-    <div class="row small orphan-head">
-      <span class="muted">Not in this library</span>
-    </div>
-    <ul id="orphan-list"></ul>
-  </div>
-</section>
+<ul id="list"></ul>
 
 <footer>
-  <button id="sync" disabled>Sync selected</button>
+  <button id="act" disabled>Select books</button>
   <button id="refresh" class="ghost" title="Re-read the device">↻</button>
 </footer>
 <script src="browser-polyfill.js"></script>

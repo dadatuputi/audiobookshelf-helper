@@ -46,7 +46,10 @@ const BOOKS = [
   { id: "bk2", title: "Holes", author: "Louis Sachar", relPath: "Louis Sachar/Holes" }
 ];
 
-/** A stand-in Audiobookshelf: just the two endpoints the extension calls. */
+/** A stand-in Audiobookshelf. The helper now talks to this directly - the
+ *  same client the CLI uses - so it needs the real endpoint surface. */
+const UPLOADS = [];
+
 function startAbs() {
   return new Promise((res) => {
     const srv = createServer((req, rep) => {
@@ -54,7 +57,33 @@ function startAbs() {
         rep.writeHead(200, { "Content-Type": "application/json" });
         rep.end(JSON.stringify(obj));
       };
-      if (req.url.startsWith("/api/libraries/")) {
+      if (req.method === "POST" && req.url.startsWith("/api/upload")) {
+        const chunks = [];
+        req.on("data", (c) => chunks.push(c));
+        req.on("end", () => {
+          const raw = Buffer.concat(chunks).toString("binary");
+          const names = [...raw.matchAll(/filename="([^"]+)"/g)].map((m) => m[1]);
+          const title = /name="title"\r\n\r\n([^\r]*)/.exec(raw);
+          UPLOADS.push({ names, title: title && title[1] });
+          send({ id: "li_new", ok: true });
+        });
+        return;
+      }
+      if (req.url.startsWith("/api/me")) return send({ username: "tester" });
+      if (/\/api\/items\/[^/]+\/download/.test(req.url)) {
+        const id = /\/api\/items\/([^/]+)\/download/.exec(req.url)[1];
+        const book = BOOKS.find((b) => b.id === id);
+        if (!book) { rep.writeHead(404); return rep.end("no"); }
+        const tagged = m4aWithTags(book.title, book.author);
+        const body = Buffer.concat([tagged, Buffer.alloc(2048 - tagged.length, 7)]);
+        rep.writeHead(200, {
+          "Content-Type": "audio/mp4",
+          "Content-Disposition": `attachment; filename="${book.title}.m4b"`,
+          "Content-Length": String(body.length),
+        });
+        return rep.end(body);
+      }
+      if (req.url.includes("/items")) {
         return send({
           results: BOOKS.map((b) => ({
             id: b.id, relPath: b.relPath, size: 2048,
@@ -62,13 +91,19 @@ function startAbs() {
           }))
         });
       }
+      if (req.url.startsWith("/api/libraries/")) {
+        return send({ library: { id: "lib1", name: "Audiobooks",
+                                 folders: [{ id: "fol1", fullPath: "/audiobooks" }] } });
+      }
       if (req.url.startsWith("/api/libraries")) {
         return send({ libraries: [{ id: "lib1", name: "Audiobooks", mediaType: "book" }] });
       }
       if (req.url.startsWith("/library/")) {
         rep.writeHead(200, { "Content-Type": "text/html" });
         return rep.end('<!doctype html><html><body><div id="app">' +
-                       '<div id="toolbar" role="toolbar"></div></div></body></html>');
+                       '<div id="toolbar" role="toolbar"></div>' +
+                       '<div id="book-card-0"></div><div id="book-card-1"></div>' +
+                       '</div></body></html>');
       }
       rep.writeHead(404); rep.end("no");
     });
@@ -129,11 +164,29 @@ async function configure(ctx, { absUrl, dev, lib }) {
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
   await page.fill("#devicePath", dev);
-  await page.fill("#localRoot", lib);
-  await page.selectOption("#sourceMode", "local");
   await page.click("#save");
   await expect(page.locator("#msg")).toHaveText("saved");
   return page;
+}
+
+/** A real MP4 atom tree with a metadata block, so the helper can read tags. */
+function m4aWithTags(title, author) {
+  const atom = (name, payload) => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(payload.length + 8, 0);
+    head.write(name, 4, "latin1");
+    return Buffer.concat([head, payload]);
+  };
+  const data = (text) => {
+    const b = Buffer.from(text, "utf8");
+    const pre = Buffer.alloc(8);
+    pre.writeUInt32BE(1, 0);
+    return atom("data", Buffer.concat([pre, b]));
+  };
+  const ilst = Buffer.concat([atom("\xa9nam", data(title)), atom("aART", data(author))]);
+  const meta = atom("meta", Buffer.concat([Buffer.alloc(4), atom("ilst", ilst)]));
+  return Buffer.concat([atom("ftyp", Buffer.from("M4A ")),
+                        atom("moov", atom("udta", meta))]);
 }
 
 function makeLibrary() {
@@ -144,7 +197,10 @@ function makeLibrary() {
   for (const b of BOOKS) {
     const d = join(lib, b.relPath);
     mkdirSync(d, { recursive: true });
-    writeFileSync(join(d, `${b.title}.m4b`), Buffer.alloc(2048, 7));
+    // Padded so the size assertion stays meaningful.
+    const tagged = m4aWithTags(b.title, b.author);
+    writeFileSync(join(d, `${b.title}.m4b`),
+                  Buffer.concat([tagged, Buffer.alloc(2048 - tagged.length, 7)]));
   }
   return { lib, dev };
 }
@@ -165,6 +221,10 @@ test.describe("full loop in a real browser", () => {
     const { srv, port } = await startAbs();
     const { lib, dev } = makeLibrary();
     const absUrl = `http://127.0.0.1:${port}`;
+    // The runner has nothing removable mounted, so name the temp device as the
+    // volume to consider. Chromium inherits this and passes it to the native
+    // host it spawns.
+    process.env.ABSH_DEVICE_ROOTS = dev;
     const ctx = await launch(makeProfile(`${absUrl}/*`));
     env = { ctx, srv, lib, dev, absUrl };
     const page = await configure(ctx, env);
@@ -190,41 +250,51 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
+  test("Detect finds the player so nobody types its path", async () => {
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await page.click("#detect");
+    // Assert the device itself is offered, by path. "at least one option" passed
+    // on any machine with a stray directory under /mnt while never once finding
+    // the device it claimed to - which is how this read green locally and red
+    // on a runner where /mnt is empty.
+    await expect(page.locator(`#deviceList option[value="${env.dev}"]`))
+      .toHaveCount(1, { timeout: 20_000 });
+    await page.close();
+  });
+
   test("saved settings survive a reload", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
     await expect(page.locator("#absUrl")).toHaveValue(env.absUrl);
     await expect(page.locator("#devicePath")).toHaveValue(env.dev);
-    await expect(page.locator("#sourceMode")).toHaveValue("local");
     await expect(page.locator("#renameM4b")).toBeChecked();
     await page.close();
   });
 
-  test("popup reaches the native host and lists the library", async () => {
+  test("popup reaches the native host and lists what can be pulled", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
 
     // Proves the host was spawned by the browser and answered over stdio.
     await expect(page.locator("#status")).toContainText("helper ok", { timeout: 20_000 });
-
-    await expect(page.locator("#library option")).toHaveCount(1);
-    await expect(page.locator("#list li")).toHaveCount(BOOKS.length);
-    await expect(page.locator("#list li").first()).toContainText("Redwall");
+    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
+    await expect(page.locator("#n-server")).toHaveText(String(BOOKS.length));
     await page.close();
   });
 
-  test("syncing a book writes it to the device, renamed", async () => {
+  test("pulling a book writes it to the device, renamed", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
     await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
 
     expect(deviceFiles(env.dev)).toEqual([]);
 
-    // Tick Redwall only.
-    const redwall = page.locator("#list li", { hasText: "Redwall" });
-    await redwall.locator("input[type=checkbox]").check();
-    await expect(page.locator("#sync")).toBeEnabled();
-    await page.click("#sync");
+    await page.locator("#list li", { hasText: "Redwall" })
+      .locator("input[type=checkbox]").check();
+    await expect(page.locator("#act")).toBeEnabled();
+    await expect(page.locator("#act")).toContainText("Copy 1 to device");
+    await page.click("#act");
 
     await expect(page.locator("#status")).toContainText("copied 1 file", { timeout: 30_000 });
 
@@ -234,22 +304,45 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
-  test("the on-device shelf shows what is there, and the library marks it", async () => {
+  test("the pulled book moves from To pull to On device", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
-    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
+    await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
+    await expect(page.locator("#n-server")).toHaveText(String(BOOKS.length - 1));
 
-    // Library row carries the annotation.
-    await expect(page.locator("#list li", { hasText: "Redwall" }).locator(".chip.on"))
-      .toHaveText("on device");
-    await expect(page.locator("#list li", { hasText: "Holes" }).locator(".chip.on"))
-      .toHaveCount(0);
+    // The one still on the server only.
+    await expect(page.locator("#list li")).toContainText("Holes");
 
-    await page.click("#tab-device");
-    await expect(page.locator("#device-list li")).toHaveCount(1);
-    await expect(page.locator("#device-list li").first()).toContainText("Redwall");
-    await expect(page.locator("#device-summary")).toContainText("1 book");
-    await expect(page.locator("#device-count")).toHaveText("1");
+    await page.locator('.tab[data-tab="device"]').click();
+    await expect(page.locator("#list li")).toHaveCount(1);
+    await expect(page.locator("#list li").first()).toContainText("Redwall");
+    await page.close();
+  });
+
+  test("a book only on the device is offered for upload, and uploads", async () => {
+    // Something the server has never heard of, with its own tags.
+    writeFileSync(join(env.dev, "AUDIOBOOKS", "scruffy_rip.m4a"),
+                  m4aWithTags("The Silmarillion", "J.R.R. Tolkien"));
+
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(page.locator("#n-only")).toHaveText("1", { timeout: 20_000 });
+
+    await page.locator('.tab[data-tab="only"]').click();
+    const row = page.locator("#list li").first();
+    // Identified from its tags, not its filename.
+    await expect(row).toContainText("The Silmarillion");
+    await expect(row).toContainText("J.R.R. Tolkien");
+
+    await row.locator("input[type=checkbox]").check();
+    await expect(page.locator("#act")).toContainText("Upload 1 to server");
+    await page.click("#act");
+    await expect(page.locator("#status")).toContainText("uploaded 1", { timeout: 30_000 });
+
+    // The rename is undone on the way back to the server.
+    expect(UPLOADS.length).toBe(1);
+    expect(UPLOADS[0].names).toEqual(["scruffy_rip.m4b"]);
+    expect(UPLOADS[0].title).toBe("The Silmarillion");
     await page.close();
   });
 
@@ -258,8 +351,12 @@ test.describe("full loop in a real browser", () => {
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
 
     const scripts = await page.evaluate(() => chrome.scripting.getRegisteredContentScripts());
-    expect(scripts).toHaveLength(1);
-    expect(scripts[0].matches).toEqual([`${env.absUrl}/library/*`]);
+    // Two: the page-world hook that captures item ids, and the content script.
+    expect(scripts).toHaveLength(2);
+    for (const sc of scripts) {
+      expect(sc.matches).toEqual([`${env.absUrl}/library/*`]);
+    }
+    expect(scripts.find((sc) => sc.world === "MAIN").js).toEqual(["page-hook.js"]);
     await page.close();
 
     // And it actually injects on a real page from that origin.
@@ -272,29 +369,21 @@ test.describe("full loop in a real browser", () => {
     await lib.close();
   });
 
-  test("removing from the shelf deletes it from the device but not the library", async () => {
+  test("removing deletes from the device but never from the library", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
-    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
-    await page.click("#tab-device");
+    await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
+    await page.locator('.tab[data-tab="device"]').click();
 
-    const row = page.locator("#device-list li").first();
-    const del = row.locator("button.danger");
-
-    // First click arms, second confirms - one stray click must not delete.
-    await del.click();
-    await expect(del).toHaveText("Confirm?");
-    expect(deviceFiles(env.dev)).toEqual(["Brian Jacques - Redwall.m4a"]);
-
-    await del.click();
+    await page.locator("#list li", { hasText: "Redwall" })
+      .locator("input[type=checkbox]").check();
+    await expect(page.locator("#act")).toContainText("Remove 1 from device");
+    await page.click("#act");
     await expect(page.locator("#status")).toContainText("removed", { timeout: 20_000 });
 
-    expect(deviceFiles(env.dev)).toEqual([]);
+    expect(deviceFiles(env.dev)).not.toContain("Brian Jacques - Redwall.m4a");
     // The source library is untouched.
     expect(existsSync(join(env.lib, "Brian Jacques/Redwall/Redwall.m4b"))).toBe(true);
-
-    await expect(page.locator("#device-list li")).toHaveCount(1);
-    await expect(page.locator("#device-list li")).toContainText("No books");
     await page.close();
   });
 });
@@ -321,24 +410,13 @@ test.describe("when the device is not mounted", () => {
 
   test.afterAll(async () => { await ctx?.close(); srv?.close(); });
 
-  test("the shelf explains why it is empty", async () => {
+  test("the popup says the device is missing rather than showing it empty", async () => {
     const page = await ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
-    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
-    await page.click("#tab-device");
-    await expect(page.locator("#device-summary")).toContainText("not mounted");
-    await page.close();
-  });
-
-  test("a sync reports the failure rather than claiming success", async () => {
-    const page = await ctx.newPage();
-    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
-    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
-    await page.locator("#list li", { hasText: "Redwall" })
-      .locator("input[type=checkbox]").check();
-    await page.click("#sync");
     await expect(page.locator("#status")).toContainText("not mounted", { timeout: 20_000 });
     await expect(page.locator("#status")).toHaveClass(/err/);
+    // And it must not claim an empty player.
+    await expect(page.locator("#n-device")).toHaveText("");
     await page.close();
   });
 });
@@ -370,10 +448,13 @@ test.describe("before access is granted", () => {
     await page.close();
   });
 
-  test("the popup explains what to do instead of failing obscurely", async () => {
+  test("the popup still works: the helper talks to the server, not the page", async () => {
+    // Reading the library needs no browser permission at all now - the helper
+    // holds the Audiobookshelf client. The grant is only for the in-page UI.
     const page = await ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
-    await expect(page.locator("#status")).toContainText("Grant access", { timeout: 20_000 });
+    await expect(page.locator("#status")).toContainText("helper ok", { timeout: 20_000 });
+    await expect(page.locator("#list li")).toHaveCount(BOOKS.length);
     await page.close();
   });
 

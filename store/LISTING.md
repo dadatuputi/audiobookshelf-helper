@@ -31,9 +31,8 @@ Audiobookshelf Helper
 > is already there, how much space it uses, and lets you delete a book from the
 > player without hunting through folders.
 >
-> It exists because SanDisk Sansa Clip and Fuze players — and many other simple
-> devices — refuse to play a file called .m4b, while playing the AAC inside it
-> perfectly well. An .m4b *is* an MP4/AAC container; only the extension is
+> It exists because many simple players refuse to play a file called .m4b,
+> while playing the AAC inside it perfectly well. An .m4b *is* an MP4/AAC container; only the extension is
 > unfamiliar. This add-on renames as it copies, which is lossless and instant.
 > Nothing is transcoded and no quality is lost.
 >

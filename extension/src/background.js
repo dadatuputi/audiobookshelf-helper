@@ -13,6 +13,7 @@
 
 const HOST = (globalThis.ABSH_CONFIG || {}).hostName;
 const SCRIPT_ID = "absh-content";
+const HOOK_ID = "absh-page-hook";
 
 /* ------------------------------------------------------------------ native
  *
@@ -90,73 +91,53 @@ async function syncContentScript() {
     pattern = null;
   }
 
-  const existing = await browser.scripting.getRegisteredContentScripts({ ids: [SCRIPT_ID] })
+  const ids = [SCRIPT_ID, HOOK_ID];
+  const existing = await browser.scripting.getRegisteredContentScripts({ ids })
     .catch(() => []);
   if (existing.length) {
-    await browser.scripting.unregisterContentScripts({ ids: [SCRIPT_ID] }).catch(() => {});
+    await browser.scripting.unregisterContentScripts(
+      { ids: existing.map((s) => s.id) }).catch(() => {});
   }
   if (!pattern || !(await hasHostPermission(c.absUrl))) return;
 
-  await browser.scripting.registerContentScripts([{
-    id: SCRIPT_ID,
-    matches: [pattern],
-    js: ["browser-polyfill.js", "content.js"],
-    css: ["content.css"],
-    runAt: "document_idle",
-    persistAcrossSessions: true
-  }]).catch((e) => console.warn("content script registration failed", e));
+  await browser.scripting.registerContentScripts([
+    {
+      // Runs in the page's own world so it can see the API responses
+      // Audiobookshelf fetched - the only reliable source of the library item
+      // id for a rendered card. document_start, or the app has already made
+      // its first request before we are watching.
+      id: HOOK_ID,
+      matches: [pattern],
+      js: ["page-hook.js"],
+      runAt: "document_start",
+      world: "MAIN",
+      persistAcrossSessions: true
+    },
+    {
+      id: SCRIPT_ID,
+      matches: [pattern],
+      js: ["browser-polyfill.js", "content.js"],
+      css: ["content.css"],
+      runAt: "document_idle",
+      persistAcrossSessions: true
+    }
+  ]).catch((e) => console.warn("content script registration failed", e));
 }
 
-/* ------------------------------------------------------------------- API */
-async function api(path) {
+/* ------------------------------------------------------------------- API
+ *
+ * The helper talks to Audiobookshelf itself now - the same code path `absh` on
+ * the command line uses. The extension passes its settings down and gets an
+ * answer, rather than reimplementing the client in JavaScript.
+ */
+async function call(cmd, extra, onProgress) {
   const c = await cfg();
-  if (!c.absUrl || !c.apiKey) {
-    throw new Error("Set the server URL and API key in the extension options.");
-  }
-  if (!(await hasHostPermission(c.absUrl))) {
-    throw new Error("Access to your Audiobookshelf server has not been granted yet. " +
-                    "Open the options page and press Grant access.");
-  }
-  const r = await fetch(ABSH.baseUrl(c.absUrl) + path, {
-    headers: { Authorization: "Bearer " + c.apiKey }
-  });
-  if (!r.ok) throw new Error(`Audiobookshelf ${path} responded ${r.status}`);
-  return r.json();
-}
-
-async function listLibraries() {
-  const d = await api("/api/libraries");
-  const libs = Array.isArray(d) ? d : (d.libraries || []);
-  return libs.filter(l => l.mediaType === "book").map(l => ({ id: l.id, name: l.name }));
-}
-
-async function listBooks(libraryId) {
-  const c = await cfg();
-  const id = libraryId || c.libraryId;
-  if (!id) throw new Error("No library selected.");
-  const d = await api(`/api/libraries/${encodeURIComponent(id)}/items?limit=0`);
-  return ABSH.sortBooks((d.results || []).map(ABSH.normalizeBook));
-}
-
-async function sync(items, onProgress) {
-  const c = await cfg();
-  return native(ABSH.buildSyncPayload(c, items), onProgress);
-}
-
-async function listDevice(items) {
-  const c = await cfg();
-  return native(ABSH.buildListPayload(c, items));
-}
-
-async function removeFromDevice(names) {
-  const c = await cfg();
-  return native(ABSH.buildRemovePayload(c, names));
+  return native({ cmd, ...c, ...(extra || {}) }, onProgress);
 }
 
 async function ping() {
   try {
-    const r = await native({ cmd: "ping" });
-    return { ok: true, ...r };
+    return { ok: true, ...(await call("ping")) };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
   }
@@ -165,11 +146,13 @@ async function ping() {
 /* --------------------------------------------------------------- routing */
 async function route(msg, onProgress) {
   switch (msg && msg.type) {
-    case "libraries": return { ok: true, data: await listLibraries() };
-    case "books":     return { ok: true, data: await listBooks(msg.libraryId) };
-    case "sync":      return { ok: true, data: await sync(msg.items, onProgress) };
-    case "listDevice": return { ok: true, data: await listDevice(msg.items) };
-    case "remove":    return { ok: true, data: await removeFromDevice(msg.names) };
+    case "libraries": return { ok: true, data: (await call("libraries")).libraries };
+    case "folders":   return { ok: true, data: (await call("folders", { libraryId: msg.libraryId })).folders };
+    case "devices":   return { ok: true, data: (await call("devices")).devices };
+    case "status":    return { ok: true, data: await call("status", { libraryId: msg.libraryId, readTags: msg.readTags !== false }) };
+    case "pull":      return { ok: true, data: await call("pull", { ids: msg.ids, libraryId: msg.libraryId }, onProgress) };
+    case "push":      return { ok: true, data: await call("push", { names: msg.names, libraryId: msg.libraryId, folderId: msg.folderId }, onProgress) };
+    case "remove":    return { ok: true, data: await call("remove", { names: msg.names }) };
     case "ping":      return { ok: true, data: await ping() };
     case "permissionChanged":
       await syncContentScript();
@@ -202,9 +185,8 @@ browser.runtime.onConnect.addListener((p) => {
     const reply = (body) => {
       try { p.postMessage({ ...body, rid: msg && msg.rid }); } catch { /* popup closed */ }
     };
-    const onProgress = msg && msg.type === "sync"
-      ? (ev) => reply({ ok: true, progress: ev })
-      : null;
+    const streams = msg && (msg.type === "pull" || msg.type === "push");
+    const onProgress = streams ? (ev) => reply({ ok: true, progress: ev }) : null;
     try {
       reply(await route(msg, onProgress));
     } catch (e) {
