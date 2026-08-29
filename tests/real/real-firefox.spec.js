@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
 import { installTemporaryAddon, seedGrantedPermissions, FIREFOX_PREFS } from "./firefox-addon.mjs";
+import { cardFor, deviceFiles, until } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -121,6 +122,11 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     }
     await page.locator('[id^="book-card-"]').first()
       .waitFor({ state: "attached", timeout: 30_000 });
+    // An actionable badge, not merely a badge: a card whose book is not yet
+    // identified now carries a quiet "?" placeholder, and waiting on that
+    // would return before the mapping has landed.
+    await page.locator(".absh-badge .absh-mini").first()
+      .waitFor({ state: "attached", timeout: 30_000 });
     return page;
   }
 
@@ -174,4 +180,59 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       .toBe(new Set(pairs.map((p) => p.title)).size);
     await page.close();
   });
+
+  /* ------------------------------------------------------------------ *
+   * The tests above prove the content script ran. These prove the thing *
+   * actually works: each click drives the page, the content script, the *
+   * background, the native host, the absh engine and the Audiobookshelf *
+   * API, and is checked against the bytes that land on disk.            *
+   * ------------------------------------------------------------------ */
+
+  test("copying a book from its card really puts it on the device", async () => {
+    const title = state.titles[0];
+    const page = await libraryPage();
+    const card = cardFor(page, title);
+    await expect(card).toBeVisible({ timeout: 30_000 });
+
+    expect(deviceFiles(state.device), "device should start empty").toEqual([]);
+
+    const copy = card.locator(".absh-badge .absh-mini");
+    await expect(copy).toHaveAttribute("title", /copy to the device/i, { timeout: 30_000 });
+    await copy.click();
+
+    // The real assertion: a file on disk, put there through the native host.
+    const files = await until(() => {
+      const f = deviceFiles(state.device);
+      return f.length ? f : null;
+    });
+    expect(files, "nothing reached the device").not.toBeNull();
+    expect(files.join(" ")).toContain(title);
+    // .m4b becomes .m4a on the way. That rename is the whole point of the tool,
+    // so assert it here rather than trusting the unit test alone.
+    expect(files.some((f) => f.endsWith(".m4a")), `no .m4a in ${files}`).toBe(true);
+
+    // And the page catches up on its own, without a reload.
+    await expect(card.locator(".absh-badge .absh-dot"))
+      .toHaveText(/on device/i, { timeout: 45_000 });
+    await page.close();
+  });
+
+  test("removing it from the card really takes it off the device", async () => {
+    const title = state.titles[0];
+    const page = await libraryPage();
+    const card = cardFor(page, title);
+    await expect(card.locator(".absh-badge .absh-dot"))
+      .toHaveText(/on device/i, { timeout: 45_000 });
+
+    await card.locator(".absh-badge .absh-danger").click();
+
+    const gone = await until(() => (deviceFiles(state.device).length === 0 ? true : null));
+    expect(gone, `still on the device: ${deviceFiles(state.device)}`).toBe(true);
+
+    // The badge offers to copy it again, so the page reflects the new state.
+    await expect(card.locator(".absh-badge .absh-mini"))
+      .toHaveAttribute("title", /copy to the device/i, { timeout: 45_000 });
+    await page.close();
+  });
+
 });

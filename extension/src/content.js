@@ -51,12 +51,23 @@
   }
 
   /* ----------------------------------------------------------- device state */
+  /* The status is where the card-to-book mapping comes from, so a failed call
+     is not a cosmetic problem: it means no badges at all. Retry soon rather
+     than waiting out the whole refresh interval - a transient failure used to
+     leave the page bare for a full minute. */
+  let statusRetry = 0;
   async function loadStatus() {
     try {
       STATUS = await send({ type: "status", readTags: true });
-      TITLES = null;
+      statusRetry = 0;
     } catch (e) {
       STATUS = { error: String(e.message || e), both: [], serverOnly: [], deviceOnly: [] };
+      const wait = [2000, 5000, 15000][statusRetry] || 0;
+      if (wait) {
+        statusRetry += 1;
+        clearTimeout(loadStatus.__t);
+        loadStatus.__t = setTimeout(loadStatus, wait);
+      }
     }
     TITLES = null;                       // status feeds the mapping as well
     render();
@@ -137,9 +148,8 @@
 
   function decorate(card) {
     const id = idForCard(card);
-    if (!id) return;
-    const known = KNOWN.get(id);
-    const here = onDevice(id);
+    const known = id ? KNOWN.get(id) : null;
+    const here = id ? onDevice(id) : null;
 
     let badge = card.querySelector("." + BADGE);
     if (!badge) {
@@ -150,7 +160,22 @@
       card.appendChild(badge);
     }
     badge.innerHTML = "";
-    badge.dataset.abshId = id;
+    if (id) badge.dataset.abshId = id;
+    else delete badge.dataset.abshId;
+
+    // No id means the library has not been read yet, or this card's title
+    // matches two books and guessing would badge the wrong one. Say so quietly
+    // instead of leaving the card bare - an absent badge is indistinguishable
+    // from the extension not being installed, which cost a lot of time.
+    if (!id) {
+      badge.classList.add("absh-quiet");
+      badge.classList.remove("absh-on");
+      badge.textContent = "?";
+      badge.title = (STATUS && STATUS.error)
+        ? `Audiobookshelf Helper: ${STATUS.error}`
+        : "Audiobookshelf Helper: still identifying this book";
+      return;
+    }
 
     if (!STATUS || STATUS.error) {
       badge.classList.add("absh-quiet");
