@@ -133,8 +133,23 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     // An actionable badge, not merely a badge: a card whose book is not yet
     // identified carries a quiet "?" placeholder, and waiting on that would
     // return before the mapping has landed.
-    await page.locator(".absh-badge .absh-mini").first()
-      .waitFor({ state: "attached", timeout: 45_000 });
+    try {
+      await page.locator(".absh-badge .absh-mini").first()
+        .waitFor({ state: "attached", timeout: 45_000 });
+    } catch (e) {
+      // Say which half broke. A missing toolbar button means no content script
+      // ran at all; a badge with no button means it ran but never got the
+      // library. Guessing between those cost several rounds.
+      const d = await page.evaluate(() => ({
+        url: location.pathname,
+        cards: document.querySelectorAll('[id^="book-card-"]').length,
+        script: !!document.getElementById("absh-sync-btn"),
+        badges: document.querySelectorAll(".absh-badge").length,
+        quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
+        note: document.getElementById("absh-note")?.textContent || "",
+      })).catch(() => null);
+      throw new Error(`no actionable badge; page state: ${JSON.stringify(d)}`);
+    }
     return page;
   }
 
