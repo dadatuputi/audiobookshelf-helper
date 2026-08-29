@@ -1,14 +1,19 @@
 """Full-screen picker over the three-way status.
 
-curses, from the standard library, so `absh tui` works everywhere the CLI does
-and needs no install. The row model is separated from the drawing so it can be
-tested without a terminal.
+curses, from the standard library, so `absh tui` needs no install anywhere the
+standard library ships it - which is everywhere except Windows, where the fix
+is one `pip install windows-curses`. The import is guarded rather than assumed,
+so the rest of `absh` keeps working there and the row model stays importable
+and testable without a terminal.
 
     up/down j/k  move          space  select        a  select all shown
     /            filter        enter  act on the selection
     p pull   u push   d delete   r refresh   s settings   q quit
 """
-import curses
+try:
+    import curses
+except ImportError:                     # Windows ships Python without _curses
+    curses = None
 from pathlib import Path
 
 from . import config as config_mod
@@ -392,6 +397,12 @@ def run(cfg):
     if gaps:
         print("not configured yet - missing " + ", ".join(gaps))
         print("run:  absh config --url ... --key ...")
+        return 1
+    if curses is None:
+        print("the full-screen picker needs curses, which Python does not ship "
+              "on Windows.")
+        print("run:  pip install windows-curses")
+        print("everything else works without it - try:  absh status")
         return 1
     app = App(cfg)
     try:

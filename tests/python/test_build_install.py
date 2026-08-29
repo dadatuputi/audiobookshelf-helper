@@ -126,7 +126,11 @@ class TestPathReporting(unittest.TestCase):
         self.assertFalse(Path(shown).is_absolute())
 
     def test_path_outside_the_cwd_is_printed_absolute(self):
-        shown = BUILD.show(Path("/somewhere/else/dist/firefox"))
+        # Built from the current anchor ("/" or "D:\\") so it is genuinely
+        # absolute on this OS: a bare "/somewhere" has a root but no drive on
+        # Windows, and is_absolute() is False for it.
+        outside = Path(Path.cwd().anchor) / "somewhere" / "else" / "dist"
+        shown = BUILD.show(outside)
         self.assertTrue(Path(shown).is_absolute())
 
     def test_the_shown_path_actually_resolves_to_the_build(self):

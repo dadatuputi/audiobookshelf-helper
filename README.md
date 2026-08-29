@@ -57,7 +57,9 @@ works without anyone remembering whether this OS mounts it under `/Volumes`,
 `/media/you` or `/run/media/you`.
 
 `pip install mutagen` is optional and improves tag reading on unusual files;
-everything works without it.
+everything works without it. On Windows, `absh tui` additionally needs
+`pip install windows-curses` — Python does not ship curses there. Every other
+command works without it.
 
 ### Plus the extension
 

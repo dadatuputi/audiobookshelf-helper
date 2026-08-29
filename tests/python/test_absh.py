@@ -3,6 +3,9 @@
 These replace the JavaScript tests for the same logic, which moved into Python
 when the script became the product.
 """
+import builtins
+import contextlib
+import importlib
 import io
 import json
 import struct
@@ -617,6 +620,51 @@ class TestPlatformRoots(unittest.TestCase):
 
 
 # ----------------------------------------------------------------- tui
+class TestTuiWithoutCurses(unittest.TestCase):
+    """Windows Python ships no _curses. That must cost you the picker and
+    nothing else - importing absh.tui, and so the whole CLI, has to survive
+    it, and `absh tui` has to say what to install instead of tracebacking."""
+
+    def _import_without_curses(self):
+        real = builtins.__import__
+
+        def fake(name, *a, **k):
+            if name in ("curses", "_curses") or name.startswith("curses."):
+                raise ImportError("no _curses (simulated Windows)")
+            return real(name, *a, **k)
+
+        saved = {k: v for k, v in sys.modules.items()
+                 if k == "absh.tui" or k.startswith("curses")}
+        for k in saved:
+            del sys.modules[k]
+        builtins.__import__ = fake
+        try:
+            return importlib.import_module("absh.tui")
+        finally:
+            builtins.__import__ = real
+            del sys.modules["absh.tui"]
+            sys.modules.update(saved)
+
+    def test_the_module_still_imports(self):
+        mod = self._import_without_curses()
+        self.assertIsNone(mod.curses)
+
+    def test_the_row_model_still_works(self):
+        mod = self._import_without_curses()
+        rows = mod.build_rows({"both": [], "serverOnly": [
+            {"id": "li_1", "title": "Holes", "author": "Sachar", "size": 1}],
+            "deviceOnly": []})
+        self.assertEqual([r["title"] for r in rows], ["Holes"])
+
+    def test_run_explains_itself_instead_of_tracebacking(self):
+        mod = self._import_without_curses()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = mod.run({"absUrl": "http://x", "apiKey": "k"})
+        self.assertEqual(rc, 1)
+        self.assertIn("windows-curses", buf.getvalue())
+
+
 class TestTuiModel(unittest.TestCase):
     STATUS = {
         "both": [{"itemId": "li_1", "name": "A.m4a", "title": "Redwall",
