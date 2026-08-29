@@ -16,7 +16,7 @@
  * Framing is `<byte length>:<JSON>`, length in bytes and not characters.
  */
 import net from "node:net";
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 /** Grant optional permissions up front. Headless Firefox draws no doorhanger,
@@ -30,29 +30,26 @@ export function seedGrantedPermissions(profileDir, addonId, { origins = [], perm
   );
 }
 
-/** The moz-extension UUID Firefox actually assigned to an add-on.
+/** Put the add-on's settings in the profile before Firefox starts.
  *
- *  Pinning extensions.webextensions.uuids through firefoxUserPrefs does not
- *  reliably hold - Firefox rewrites the map when it installs a temporary
- *  add-on, so a guessed UUID leaves moz-extension:// unroutable and every
- *  navigation to the options page hangs until the hook times out. Read the
- *  map back out of the profile instead, once the add-on is in.
+ *  The obvious route - open moz-extension://<uuid>/options.html and fill the
+ *  form - does not work under Playwright. Its Firefox is stock, and Juggler
+ *  cannot drive moz-extension:// documents: the navigation commits and then
+ *  waits for a load event that never arrives. DuckDuckGo's Firefox extension
+ *  harness has to patch omni.ja to "let Juggler interact with moz-extension://
+ *  pages", which is the same limitation seen from the other side. Three
+ *  rounds were spent blaming the UUID for that hang; the UUID was right.
+ *
+ *  So write storage.local directly. With the IndexedDB backend turned off
+ *  (see FIREFOX_PREFS) storage.local is a single JSON file per add-on, keyed
+ *  by add-on id, and an add-on installed afterwards reads it as its own -
+ *  the same values the options page would have saved, reaching the add-on
+ *  through the same API.
  */
-export async function extensionUuid(profileDir, addonId, tries = 40) {
-  const prefsFile = join(profileDir, "prefs.js");
-  for (let i = 0; i < tries; i++) {
-    try {
-      const text = readFileSync(prefsFile, "utf8");
-      // user_pref("extensions.webextensions.uuids", "{\"id\":\"uuid\",...}");
-      const m = /user_pref\("extensions\.webextensions\.uuids",\s*"(.*?)"\);/.exec(text);
-      if (m) {
-        const map = JSON.parse(m[1].replace(/\\"/g, '"'));
-        if (map[addonId]) return map[addonId];
-      }
-    } catch { /* prefs.js is written lazily; keep looking */ }
-    await new Promise((r) => setTimeout(r, 500));
-  }
-  throw new Error(`no moz-extension UUID for ${addonId} in ${prefsFile}`);
+export function seedLocalStorage(profileDir, addonId, data) {
+  const dir = join(profileDir, "browser-extension-data", addonId);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "storage.js"), JSON.stringify(data, null, 2));
 }
 
 export const FIREFOX_PREFS = {
@@ -62,6 +59,10 @@ export const FIREFOX_PREFS = {
   "xpinstall.whitelist.required": false,
   // Temporary add-ons are removed on shutdown; nothing here should outlive the run.
   "extensions.autoDisableScopes": 0,
+  // Keep storage.local in its JSON file rather than IndexedDB, so the test can
+  // write the add-on's settings into the profile before launch - see
+  // seedLocalStorage. Only the backend changes; the storage API does not.
+  "extensions.webextensions.ExtensionStorageIDB.enabled": false,
 };
 
 class RDP {
@@ -128,6 +129,7 @@ async function connect(port, tries = 60) {
 
 export async function installTemporaryAddon(port, addonPath) {
   const socket = await connect(port);
+  let keep = false;
   try {
     const rdp = new RDP(socket);
     await rdp.greeting;
@@ -144,16 +146,19 @@ export async function installTemporaryAddon(port, addonPath) {
       throw new Error(`installTemporaryAddon returned no addon: ${JSON.stringify(res).slice(0, 300)}`);
     }
     // Firefox hands back the add-on's own manifestURL - moz-extension://<uuid>/
-    // manifest.json - which is the authoritative source for the UUID that
-    // addresses its pages. Two earlier attempts inferred it instead: pinning
-    // extensions.webextensions.uuids (Firefox rewrites that map on install)
-    // and parsing prefs.js (written lazily, and not necessarily ours). Both
-    // produced a plausible UUID that routed nowhere, so every navigation to
-    // the options page hung until the hook timed out.
+    // manifest.json - which is the authoritative UUID for its pages. Only
+    // best-effort use is made of it: see seedLocalStorage for why those pages
+    // are not reliably reachable from Playwright.
     const m = /^moz-extension:\/\/([^/]+)\//.exec(addon.manifestURL || "");
     addon.uuid = m ? m[1] : null;
-    return addon;
+    keep = true;
+    // web-ext holds its connection open for the whole session, and a temporary
+    // add-on's lifetime is not clearly independent of it. Closing the socket
+    // straight after installing is a risk with no upside, so hand the caller
+    // the disconnect instead of taking it here.
+    return { addon, disconnect: () => socket.end() };
   } finally {
-    socket.end();
+    if (!keep) socket.end();
   }
 }
+

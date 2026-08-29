@@ -17,7 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
-import { installTemporaryAddon, seedGrantedPermissions, extensionUuid,
+import { installTemporaryAddon, seedGrantedPermissions, seedLocalStorage,
          FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until } from "./shared.mjs";
 
@@ -35,9 +35,10 @@ const GECKO_ID = identity.gecko;
 const HOST_NAME = identity.host;
 const distFirefox = resolve(root, "extension/dist/firefox");
 
-/* moz-extension:// is addressed by a per-profile UUID, not the add-on id.
- * Firefox assigns it at install time, so it is discovered from the profile
- * rather than guessed - see extensionUuid. */
+/* Playwright's stock Firefox cannot drive moz-extension:// documents, so the
+ * add-on is configured through the profile rather than through its options
+ * page - see seedLocalStorage. The UUID Firefox reports at install time is
+ * kept only for the best-effort pass at that page. */
 let EXT_UUID = null;
 
 /** A free port for the debugger server, so parallel runs cannot collide. */
@@ -54,6 +55,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   /** @type {import('@playwright/test').BrowserContext} */
   let ctx;
   let home;
+  let disconnect;
 
   test.beforeAll(async () => {
     const profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
@@ -77,6 +79,21 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       origins: [`${new URL(state.absUrl).origin}/*`],
     });
 
+    // Configure it before it starts. Omitting this was the whole failure the
+    // first time round: with no server URL there is nothing to register a
+    // content script for, so the add-on installs and then does nothing, and
+    // every test times out looking for a button that was never going to
+    // exist. runtime.onInstalled fires after the temporary install and reads
+    // exactly these values.
+    seedLocalStorage(profile, GECKO_ID, {
+      absUrl: state.absUrl,
+      apiKey: state.token,
+      devicePath: state.device,
+      renameM4b: true,
+      folderTemplate: "{author} - {title}",
+      subdir: "AUDIOBOOKS",
+    });
+
     const port = await freePort();
     ctx = await firefox.launchPersistentContext(profile, {
       headless: true,
@@ -87,52 +104,81 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       env: { ...process.env, HOME: home },
     });
 
-    const addon = await installTemporaryAddon(port, distFirefox);
-    // Prefer what Firefox itself reported; fall back to the profile only if a
-    // future version stops returning manifestURL.
-    EXT_UUID = addon.uuid || (await extensionUuid(profile, GECKO_ID));
-    if (!EXT_UUID) {
-      throw new Error(`no moz-extension UUID; install reply was ${JSON.stringify(addon).slice(0, 300)}`);
-    }
+    const installed = await installTemporaryAddon(port, distFirefox);
+    disconnect = installed.disconnect;
+    EXT_UUID = installed.addon.uuid;
 
-    // Configure it exactly as a user would. Omitting this was the whole
-    // failure the first time: with no server URL there is nothing to register
-    // a content script for, so the add-on installed and then did nothing, and
-    // every test timed out looking for a button that was never going to exist.
-    const opt = await ctx.newPage();
-    await opt.goto(`moz-extension://${EXT_UUID}/options.html`);
-    await opt.fill("#absUrl", state.absUrl);
-    await opt.fill("#apiKey", state.token);
-    await opt.fill("#devicePath", state.device);
-    await opt.click("#save");
-    await opt.waitForTimeout(2000);
-    await opt.close();
+    // Belt and braces: if this build of Firefox does let Playwright reach an
+    // extension page, save the same settings through the options page - the
+    // path a real user takes. It is bounded and its failure is ignored; the
+    // seeded profile above is what the run actually relies on.
+    if (EXT_UUID) {
+      const opt = await ctx.newPage();
+      try {
+        await opt.goto(`moz-extension://${EXT_UUID}/options.html`,
+                       { waitUntil: "commit", timeout: 15_000 });
+        await opt.fill("#absUrl", state.absUrl, { timeout: 5_000 });
+        await opt.fill("#apiKey", state.token, { timeout: 5_000 });
+        await opt.fill("#devicePath", state.device, { timeout: 5_000 });
+        await opt.click("#save", { timeout: 5_000 });
+        await opt.waitForTimeout(1000);
+      } catch (e) {
+        console.log("options page unreachable (expected on stock Firefox): " +
+                    String(e.message).split("\n")[0]);
+      }
+      await opt.close().catch(() => {});
+    }
   });
 
-  test.afterAll(async () => { await ctx?.close(); });
+  test.afterAll(async () => {
+    await ctx?.close();
+    disconnect?.();
+  });
 
   async function libraryPage() {
     const page = await ctx.newPage();
     const url = `${state.absUrl}/library/${state.libraryId}`;
-    await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    // The app may redirect to /login and render the form a moment later.
-    // Sampling once for a password field raced that: on a slow load the field
-    // was not there yet, login was skipped, and the run then waited out its
-    // timeout for book cards on the login page. Wait for whichever arrives.
-    await page.locator('input[type="password"], [id^="book-card-"]').first()
-      .waitFor({ state: "attached", timeout: 45_000 });
-
-    if (await page.locator('input[type="password"]').count()) {
-      await page.fill('input[type="text"]', state.username);
-      await page.fill('input[type="password"]', state.password);
-      await page.press('input[type="password"]', "Enter");
-      await page.waitForURL(/\/library\//, { timeout: 45_000 }).catch(() => {});
+    // Up to three passes, because two different things send this back to
+    // /login: a context with no session yet, and a login whose token has not
+    // been stored by the time we navigate away. The second cost a whole CI
+    // run - the first library page of the job landed back on the login form
+    // and the wait for book cards timed out there 45s later, while every
+    // later test in the same job passed.
+    // Bounded by the clock rather than a pass count, so a page that will
+    // never come good still fails with a useful message inside the test's own
+    // timeout instead of being cut off by it.
+    const deadline = Date.now() + 90_000;
+    const left = () => Math.max(1_000, Math.min(20_000, deadline - Date.now()));
+    let cards = false;
+    while (!cards && Date.now() < deadline) {
       await page.goto(url, { waitUntil: "domcontentloaded" });
-    }
 
-    await page.locator('[id^="book-card-"]').first()
-      .waitFor({ state: "attached", timeout: 45_000 });
+      // The app may redirect to /login and render the form a moment later.
+      // Sampling once for a password field raced that: on a slow load the
+      // field was not there yet, login was skipped, and the run then waited
+      // out its timeout for book cards on the login page.
+      await page.locator('input[type="password"], [id^="book-card-"]').first()
+        .waitFor({ state: "attached", timeout: left() }).catch(() => {});
+
+      if (await page.locator('input[type="password"]').count()) {
+        await page.fill('input[type="text"]', state.username);
+        await page.fill('input[type="password"]', state.password);
+        await page.press('input[type="password"]', "Enter");
+        // Let the app leave the form under its own steam; navigating while it
+        // is still storing the session throws that session away.
+        await page.locator('input[type="password"]').first()
+          .waitFor({ state: "detached", timeout: left() }).catch(() => {});
+        continue;
+      }
+
+      cards = await page.locator('[id^="book-card-"]').first()
+        .waitFor({ state: "attached", timeout: left() })
+        .then(() => true).catch(() => false);
+    }
+    if (!cards) {
+      throw new Error(`no book cards after signing in; ended on ${page.url()}`);
+    }
     // An actionable badge, not merely a badge: a card whose book is not yet
     // identified carries a quiet "?" placeholder, and waiting on that would
     // return before the mapping has landed.
@@ -157,17 +203,21 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   }
 
   test("the content script registers for the path the server is served under", async () => {
-    // Checked before the UI tests so a failure here is unambiguous: if this
-    // passes and the badges do not appear, the problem is in the page, not in
-    // the add-on failing to load or being unconfigured.
-    const page = await ctx.newPage();
-    await page.goto(`moz-extension://${EXT_UUID}/options.html`);
-    const scripts = await page.evaluate(() =>
-      browser.scripting.getRegisteredContentScripts());
-    expect(scripts.length).toBe(2);
-    for (const sc of scripts) {
-      expect(sc.matches).toEqual([`${state.absUrl}/library/*`]);
-    }
+    // Read as an effect rather than from the registration table: that table
+    // is behind browser.scripting, reachable only from an extension page,
+    // which Playwright cannot open. What it proves is the same either way -
+    // the pattern has to carry Audiobookshelf's own base path
+    // (/audiobookshelf by default), and one that drops it matches nothing, so
+    // nothing is injected at all. Both halves are checked: the content
+    // script, which draws the button, and the MAIN-world hook, which is the
+    // only thing that can give a badge its library item id.
+    expect(new URL(state.absUrl).pathname.replace(/\/+$/, ""),
+           "fixture must serve under a base path or this proves nothing")
+      .not.toBe("");
+    const page = await libraryPage();
+    await expect(page.locator("#absh-sync-btn")).toBeVisible({ timeout: 30_000 });
+    const withIds = await page.locator(".absh-badge[data-absh-id]").count();
+    expect(withIds, "the page hook never supplied an item id").toBeGreaterThan(0);
     await page.close();
   });
 

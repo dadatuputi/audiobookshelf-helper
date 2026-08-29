@@ -103,25 +103,47 @@ test.describe("against a real Audiobookshelf", () => {
   async function libraryPage() {
     const page = await ctx.newPage();
     const url = `${state.absUrl}/library/${state.libraryId}`;
-    await page.goto(url, { waitUntil: "domcontentloaded" });
 
-    // The app may redirect to /login and render the form a moment later.
-    // Sampling once for a password field raced that: on a slow load the field
-    // was not there yet, login was skipped, and the run then waited out its
-    // timeout for book cards on the login page. Wait for whichever arrives.
-    await page.locator('input[type="password"], [id^="book-card-"]').first()
-      .waitFor({ state: "attached", timeout: 45_000 });
-
-    if (await page.locator('input[type="password"]').count()) {
-      await page.fill('input[type="text"]', state.username);
-      await page.fill('input[type="password"]', state.password);
-      await page.press('input[type="password"]', "Enter");
-      await page.waitForURL(/\/library\//, { timeout: 45_000 }).catch(() => {});
+    // Up to three passes, because two different things send this back to
+    // /login: a context with no session yet, and a login whose token has not
+    // been stored by the time we navigate away. The second cost a whole CI
+    // run - the first library page of the job landed back on the login form
+    // and the wait for book cards timed out there 45s later, while every
+    // later test in the same job passed.
+    // Bounded by the clock rather than a pass count, so a page that will
+    // never come good still fails with a useful message inside the test's own
+    // timeout instead of being cut off by it.
+    const deadline = Date.now() + 90_000;
+    const left = () => Math.max(1_000, Math.min(20_000, deadline - Date.now()));
+    let cards = false;
+    while (!cards && Date.now() < deadline) {
       await page.goto(url, { waitUntil: "domcontentloaded" });
-    }
 
-    await page.locator('[id^="book-card-"]').first()
-      .waitFor({ state: "attached", timeout: 45_000 });
+      // The app may redirect to /login and render the form a moment later.
+      // Sampling once for a password field raced that: on a slow load the
+      // field was not there yet, login was skipped, and the run then waited
+      // out its timeout for book cards on the login page.
+      await page.locator('input[type="password"], [id^="book-card-"]').first()
+        .waitFor({ state: "attached", timeout: left() }).catch(() => {});
+
+      if (await page.locator('input[type="password"]').count()) {
+        await page.fill('input[type="text"]', state.username);
+        await page.fill('input[type="password"]', state.password);
+        await page.press('input[type="password"]', "Enter");
+        // Let the app leave the form under its own steam; navigating while it
+        // is still storing the session throws that session away.
+        await page.locator('input[type="password"]').first()
+          .waitFor({ state: "detached", timeout: left() }).catch(() => {});
+        continue;
+      }
+
+      cards = await page.locator('[id^="book-card-"]').first()
+        .waitFor({ state: "attached", timeout: left() })
+        .then(() => true).catch(() => false);
+    }
+    if (!cards) {
+      throw new Error(`no book cards after signing in; ended on ${page.url()}`);
+    }
     // An actionable badge, not merely a badge: a card whose book is not yet
     // identified carries a quiet "?" placeholder, and waiting on that would
     // return before the mapping has landed.
