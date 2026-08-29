@@ -87,8 +87,13 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       env: { ...process.env, HOME: home },
     });
 
-    await installTemporaryAddon(port, distFirefox);
-    EXT_UUID = await extensionUuid(profile, GECKO_ID);
+    const addon = await installTemporaryAddon(port, distFirefox);
+    // Prefer what Firefox itself reported; fall back to the profile only if a
+    // future version stops returning manifestURL.
+    EXT_UUID = addon.uuid || (await extensionUuid(profile, GECKO_ID));
+    if (!EXT_UUID) {
+      throw new Error(`no moz-extension UUID; install reply was ${JSON.stringify(addon).slice(0, 300)}`);
+    }
 
     // Configure it exactly as a user would. Omitting this was the whole
     // failure the first time: with no server URL there is nothing to register

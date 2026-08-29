@@ -143,6 +143,15 @@ export async function installTemporaryAddon(port, addonPath) {
     if (!addon || !addon.id) {
       throw new Error(`installTemporaryAddon returned no addon: ${JSON.stringify(res).slice(0, 300)}`);
     }
+    // Firefox hands back the add-on's own manifestURL - moz-extension://<uuid>/
+    // manifest.json - which is the authoritative source for the UUID that
+    // addresses its pages. Two earlier attempts inferred it instead: pinning
+    // extensions.webextensions.uuids (Firefox rewrites that map on install)
+    // and parsing prefs.js (written lazily, and not necessarily ours). Both
+    // produced a plausible UUID that routed nowhere, so every navigation to
+    // the options page hung until the hook timed out.
+    const m = /^moz-extension:\/\/([^/]+)\//.exec(addon.manifestURL || "");
+    addon.uuid = m ? m[1] : null;
     return addon;
   } finally {
     socket.end();
