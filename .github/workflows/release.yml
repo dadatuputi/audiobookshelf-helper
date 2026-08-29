@@ -112,7 +112,13 @@ jobs:
           } > "$NOTES"
           FLAGS=""
           if [ "$PRERELEASE" = "true" ]; then FLAGS="--prerelease"; fi
+          # --target only applies when gh has to create the tag itself, which is
+          # the workflow_dispatch path; it defaults to the *default branch*, so
+          # without this the tag would point at main while the artefacts came
+          # from the dispatched ref. On a tag push the tag already exists and
+          # this is ignored.
           gh release create "$TAG" release/*.zip \
+            --target "$GITHUB_SHA" \
             --title "$TAG" --notes-file "$NOTES" $FLAGS
 
   amo:
