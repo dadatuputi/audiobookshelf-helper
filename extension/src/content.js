@@ -22,8 +22,8 @@
 
   /* id -> {title, author}, learned from the page's own API traffic. */
   const KNOWN = new Map();
-  /* index on screen -> item id, for the current library listing. */
-  let ORDER = [];
+  /* Normalised title -> item id. See idForCard for why not by index. */
+  let TITLES = null;
   let STATUS = null;          // last known device status
   let refreshTimer = null;
   let busy = false;
@@ -41,10 +41,7 @@
     const d = ev.data;
     if (!d || d.source !== TAG || !Array.isArray(d.items)) return;
     for (const it of d.items) KNOWN.set(it.id, it);
-    // A listing response defines the order the cards are rendered in.
-    if (/\/items(\?|$)/.test(d.url) && d.items.length > 1) {
-      ORDER = d.items.map((i) => i.id);
-    }
+    TITLES = null;                       // rebuilt lazily on the next render
     scheduleRender();
   });
 
@@ -69,17 +66,44 @@
   }
 
   /* --------------------------------------------------------------- cards */
-  function cardIndex(el) {
-    const m = /(?:book|item)-card-(\d+)/.exec(el.id || "");
-    return m ? parseInt(m[1], 10) : null;
+  function normTitle(s) {
+    return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  /* Ambiguous titles map to null rather than to one of the candidates: a badge
+     on the wrong book is worse than no badge, and this is the same rule the
+     rest of the file follows when the mapping is unavailable. */
+  function titleIndex() {
+    const byTitle = new Map();
+    for (const [id, it] of KNOWN) {
+      const k = normTitle(it.title);
+      if (!k) continue;
+      byTitle.set(k, byTitle.has(k) ? null : id);
+    }
+    return byTitle;
+  }
+
+  /* Audiobookshelf renders the title as alt="<title>, Cover" on the cover
+     image, and again in the placeholder shown before the cover loads. */
+  function cardTitle(el) {
+    const img = el.querySelector("img[alt]");
+    if (img) return (img.getAttribute("alt") || "").replace(/,\s*cover\s*$/i, "");
+    const p = el.querySelector('[cy-id="placeholderTitleText"]');
+    return p ? p.textContent : "";
   }
 
   function idForCard(el) {
     // Prefer an id the page put in the DOM itself, if a future version does.
     const explicit = el.getAttribute("data-libraryitemid") || el.getAttribute("data-id");
     if (explicit && KNOWN.has(explicit)) return explicit;
-    const i = cardIndex(el);
-    return i != null && i < ORDER.length ? ORDER[i] : null;
+
+    // Not by card index. Card ids are NOT unique - every shelf numbers its own
+    // cards from zero, so a real library page carries several #book-card-0 -
+    // and the index is per shelf, not into any one listing response. Indexing
+    // a flat list was wrong on every page with more than one shelf, which is
+    // the default page.
+    if (!TITLES) TITLES = titleIndex();
+    return TITLES.get(normTitle(cardTitle(el))) || null;
   }
 
   function button(label, title, cls, onClick) {

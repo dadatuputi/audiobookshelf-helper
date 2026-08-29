@@ -93,6 +93,21 @@ function startAbs() {
         });
         return rep.end(body);
       }
+      // What the real library page fetches. Returns a bare ARRAY of shelves,
+      // each {id,label,type,entities,total} - not {results}. Verified against
+      // Audiobookshelf 2.36.0.
+      if (req.url.includes("/personalized")) {
+        const entity = (b) => ({
+          id: b.id, relPath: b.relPath, size: 2048,
+          media: { numTracks: 1, metadata: { title: b.title, authorName: b.author } }
+        });
+        return send([
+          { id: "recently-added", label: "Recently Added", type: "book",
+            entities: [entity(BOOKS[0])], total: 1 },
+          { id: "recent-series", label: "Recent Series", type: "book",
+            entities: [entity(BOOKS[1])], total: 1 }
+        ]);
+      }
       if (req.url.includes("/items")) {
         return send({
           results: BOOKS.map((b) => ({
@@ -114,11 +129,17 @@ function startAbs() {
         // the only source of item ids - the DOM never carries them - so a stub
         // that skipped it could never produce a badge, which is why the badge
         // path went uncovered for so long.
+        const card = (b) =>
+          `<div id="book-card-0"><img alt="${b.title}, Cover" src="${BASE}/placeholder.jpg"></div>`;
         return rep.end('<!doctype html><html><body><div id="app">' +
                        '<div id="toolbar" role="toolbar"></div>' +
-                       '<div id="book-card-0"></div><div id="book-card-1"></div>' +
+                       // Two shelves, each with its own #book-card-0. Card ids
+                       // are not unique on a real page; anything that maps a
+                       // card by index is wrong here, which is the point.
+                       `<div class="shelf">${card(BOOKS[0])}</div>` +
+                       `<div class="shelf">${card(BOOKS[1])}</div>` +
                        '</div><script>' +
-                       `fetch(${JSON.stringify(BASE)} + "/api/libraries/lib1/items?limit=0&minified=1")` +
+                       `fetch(${JSON.stringify(BASE)} + "/api/libraries/lib1/personalized")` +
                        '.then(r => r.json());' +
                        '</script></body></html>');
       }
