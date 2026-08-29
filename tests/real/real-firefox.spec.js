@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import net from "node:net";
 import { installTemporaryAddon, seedGrantedPermissions, seedLocalStorage,
-         readLocalStorage, FIREFOX_PREFS } from "./firefox-addon.mjs";
+         readLocalStorage, grantInStore, FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -58,6 +58,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   let profile;
   let disconnect;
   let imported = null;
+  let inStore = null;
 
   test.beforeAll(async () => {
     profile = mkdtempSync(join(tmpdir(), "absh-ff-"));
@@ -96,6 +97,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       subdir: "AUDIOBOOKS",
     });
 
+    const ports = [await freePort(), await freePort()];
+
     // Launch twice, deliberately. The seeded grant is in the file Firefox
     // migrates from, and that migration happens while the browser is running -
     // by which time the add-on has already started and computed what it is
@@ -108,20 +111,26 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
       headless: true,
       ...(process.env.ABSH_FIREFOX_PATH
         ? { executablePath: process.env.ABSH_FIREFOX_PATH } : {}),
-      args: ["-start-debugger-server", String(await freePort())],
+      args: ["-start-debugger-server", String(ports[0])],
       firefoxUserPrefs: FIREFOX_PREFS,
       env: { ...process.env, HOME: home },
     });
-    // Give it a moment to touch the permission store, then note whether the
-    // file was consumed. Firefox deletes it once it has imported it, so its
-    // absence is the proof that the grant landed - and its presence says the
-    // grant never reached the browser at all, which is worth saying out loud
-    // rather than watching seven tests time out.
+    // The add-on has to be installed here too. Nothing reads the permission
+    // store until an extension asks about its permissions, so a browser that
+    // starts with no add-on imports nothing - which is exactly what the first
+    // attempt measured, and it measured only itself.
+    const warmed = await installTemporaryAddon(ports[0], distFirefox);
     await new Promise((r) => setTimeout(r, 5000));
+    warmed.disconnect();
     await warm.close();
+    // Firefox deletes the file once it has imported it, and writes the granted
+    // origin into its own store as plain text. Between them these say whether
+    // the grant ever reached the browser - which no amount of looking at the
+    // page can tell you.
     imported = !existsSync(join(profile, "extension-preferences.json"));
+    inStore = grantInStore(profile, `${new URL(state.absUrl).origin}/*`);
 
-    const port = await freePort();
+    const port = ports[1];
     ctx = await firefox.launchPersistentContext(profile, {
       headless: true,
       ...(process.env.ABSH_FIREFOX_PATH
@@ -259,6 +268,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           registrationError: recorded.registrationError,
           injectError: recorded.injectError || null,
           grantImportedByFirefox: imported,
+          grantInFirefoxStore: inStore,
         })}; console: ${JSON.stringify(log.slice(-8))}`);
     }
     return page;

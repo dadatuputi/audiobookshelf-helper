@@ -16,7 +16,7 @@
  * Framing is `<byte length>:<JSON>`, length in bytes and not characters.
  */
 import net from "node:net";
-import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 /** Grant optional permissions up front. Headless Firefox draws no doorhanger,
@@ -69,6 +69,24 @@ export function readLocalStorage(profileDir, addonId) {
   } catch {
     return {};
   }
+}
+
+/** Whether Firefox's own permission store holds this origin.
+ *
+ *  The store is a binary key-value file, but a granted origin is written into
+ *  it as plain text, so looking for the string is enough to tell a grant that
+ *  landed from one that never did. Nothing else can answer that from outside
+ *  the browser: permissions.contains() lives in the add-on, and the add-on
+ *  cannot be reached, which is the whole difficulty here.
+ */
+export function grantInStore(profileDir, origin) {
+  const dir = join(profileDir, "extension-store-permissions");
+  try {
+    for (const name of readdirSync(dir)) {
+      if (readFileSync(join(dir, name), "latin1").includes(origin)) return true;
+    }
+  } catch { /* no store yet */ }
+  return false;
 }
 
 function storageFile(profileDir, addonId, create = false) {
