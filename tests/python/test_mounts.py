@@ -67,6 +67,26 @@ class Snapshot(unittest.TestCase):
 class Fallback(unittest.TestCase):
     """The timer path, which is what Windows runs."""
 
+    def test_compares_the_thing_the_answer_depends_on(self):
+        """The cheap Windows check is only cheap when it is also correct.
+
+        A drive bitmask says nothing about whether a named folder has appeared,
+        and naming one is exactly what ABSH_DEVICE_ROOTS does - so that case
+        has to fall back to comparing the roots however cheap the bitmask is.
+        This ran green on Linux and failed on Windows, because the platform
+        chooses the reader.
+        """
+        os.environ.pop("ABSH_DEVICE_ROOTS", None)
+        self.assertIs(M._fallback_reader("win32"), M._drive_bitmask)
+        self.assertIs(M._fallback_reader("linux"), M._snapshot)
+        base = Path(os.environ.get("TMPDIR", "/tmp")) / "absh-reader"
+        base.mkdir(parents=True, exist_ok=True)
+        os.environ["ABSH_DEVICE_ROOTS"] = str(base)
+        try:
+            self.assertIs(M._fallback_reader("win32"), M._snapshot)
+        finally:
+            os.environ.pop("ABSH_DEVICE_ROOTS", None)
+
     def test_fires_only_when_the_set_changes(self):
         base = Path(os.environ.get("TMPDIR", "/tmp")) / "absh-fallback"
         one, two = base / "one", base / "two"

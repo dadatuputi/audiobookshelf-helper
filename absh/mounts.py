@@ -115,16 +115,28 @@ def _settle(changed, stop, delay=0.4):
         changed()
 
 
-def _watch_fallback(changed, stop, interval=None):
-    """Compare what is mounted, on a timer. Windows, and anything unusual.
+def _fallback_reader(system=None):
+    """What the timer should compare, which is not always the same thing.
 
-    On Windows the comparison is the drive bitmask rather than the directory
-    listing devices.roots() would do, because this runs every couple of seconds
-    for the life of the browser session and touching every removable drive that
-    often is not free - a sleeping USB disk would be woken by it.
+    On Windows the cheap answer is the drive bitmask: this runs every couple of
+    seconds for the life of the browser session, and listing every removable
+    drive that often is not free - it would keep waking a sleeping USB disk.
+
+    But the bitmask only answers the question when the question is about drive
+    letters. Point ABSH_DEVICE_ROOTS at a folder and the answer turns into
+    "does this path exist", which no drive letter appearing or disappearing
+    will ever reflect - so compare the roots themselves instead.
     """
+    system = system or sys.platform
+    if system.startswith("win") and devices._env_roots() is None:
+        return _drive_bitmask
+    return _snapshot
+
+
+def _watch_fallback(changed, stop, interval=None):
+    """Compare what is mounted, on a timer. Windows, and anything unusual."""
     interval = interval or FALLBACK_INTERVAL
-    read = _drive_bitmask if sys.platform.startswith("win") else _snapshot
+    read = _fallback_reader()
     last = read()
     while not stop.wait(interval):
         now = read()
