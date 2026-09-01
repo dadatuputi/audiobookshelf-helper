@@ -38,13 +38,35 @@ async function refreshPermissionState() {
   btn.disabled = granted;
   note(out, granted ? `Access granted for ${pattern}` : `Not granted yet for ${pattern}`,
        granted ? "ok" : "warn");
+
+  // A granted permission is not the same as a registered content script, and
+  // the difference is invisible on the page: the in-page UI is simply absent.
+  // Say which pages the script is actually registered for, and say so loudly
+  // when registering failed.
+  const reg = $("regState");
+  if (reg) {
+    const st = await browser.storage.local.get(["registrationError", "registeredPattern"]);
+    if (st.registrationError) {
+      note(reg, `In-page UI not registered - ${st.registrationError}`, "err");
+    } else if (st.registeredPattern) {
+      note(reg, `In-page UI active on ${st.registeredPattern}`, "ok");
+    } else if (granted) {
+      note(reg, "In-page UI not registered yet. Save, then reload the library page.", "warn");
+    } else {
+      note(reg, "", "");
+    }
+  }
   return granted;
 }
 
 async function load() {
   const d = await browser.storage.local.get(ABSH.DEFAULTS);
-  for (const k of FIELDS) if ($(k)) $(k).value = d[k] || "";
-  for (const k of CHECKS) $(k).checked = !!d[k];
+  // Only fill what is still untouched. Reading storage is asynchronous, and
+  // anything typed while it was in flight used to be overwritten the moment
+  // it resolved - the first characters of a pasted server URL simply
+  // vanished, and Save then stored the empty field.
+  for (const k of FIELDS) if ($(k) && !$(k).value) $(k).value = d[k] || "";
+  for (const k of CHECKS) if (!$(k).dataset.touched) $(k).checked = !!d[k];
   await refreshPermissionState();
 }
 
@@ -110,6 +132,10 @@ $("detect").addEventListener("click", async () => {
 $("deviceList").addEventListener("change", () => {
   $("devicePath").value = $("deviceList").value;
 });
+
+for (const k of CHECKS) {
+  if ($(k)) $(k).addEventListener("change", () => { $(k).dataset.touched = "1"; });
+}
 
 $("save").addEventListener("click", async () => {
   const o = {};

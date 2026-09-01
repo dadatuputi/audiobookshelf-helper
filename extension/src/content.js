@@ -13,6 +13,12 @@
  * exactly as it was, rather than showing badges that might be wrong.
  */
 (function () {
+  // The background also injects this as a fallback (see syncContentScript):
+  // a registered content script does not always run, so a second copy may
+  // arrive. Running twice would double the observers and the badges.
+  if (window.__abshLoaded) return;
+  window.__abshLoaded = true;
+
   "use strict";
 
   const BTN_ID = "absh-sync-btn";
@@ -22,8 +28,8 @@
 
   /* id -> {title, author}, learned from the page's own API traffic. */
   const KNOWN = new Map();
-  /* index on screen -> item id, for the current library listing. */
-  let ORDER = [];
+  /* Normalised title -> item id. See idForCard for why not by index. */
+  let TITLES = null;
   let STATUS = null;          // last known device status
   let refreshTimer = null;
   let busy = false;
@@ -41,10 +47,7 @@
     const d = ev.data;
     if (!d || d.source !== TAG || !Array.isArray(d.items)) return;
     for (const it of d.items) KNOWN.set(it.id, it);
-    // A listing response defines the order the cards are rendered in.
-    if (/\/items(\?|$)/.test(d.url) && d.items.length > 1) {
-      ORDER = d.items.map((i) => i.id);
-    }
+    TITLES = null;                       // rebuilt lazily on the next render
     scheduleRender();
   });
 
@@ -54,12 +57,28 @@
   }
 
   /* ----------------------------------------------------------- device state */
+  /* The status is where the card-to-book mapping comes from, so a failed call
+     is not a cosmetic problem: it means no badges at all. Retry soon rather
+     than waiting out the whole refresh interval - a transient failure used to
+     leave the page bare for a full minute. */
+  let statusRetry = 0;
   async function loadStatus() {
     try {
       STATUS = await send({ type: "status", readTags: true });
+      statusRetry = 0;
     } catch (e) {
       STATUS = { error: String(e.message || e), both: [], serverOnly: [], deviceOnly: [] };
+      // Keep trying rather than giving up after a few goes: the status is the
+      // card-to-book mapping, so while it is failing the page has no badges at
+      // all, and stopping left it dead. The long tail is only a backstop now -
+      // the common cause of a failure here is an unplugged player, and that
+      // comes back as an event the moment it is plugged in.
+      const wait = [2000, 5000, 15000][statusRetry] || 120000;
+      statusRetry += 1;
+      clearTimeout(loadStatus.__t);
+      loadStatus.__t = setTimeout(loadStatus, wait);
     }
+    TITLES = null;                       // status feeds the mapping as well
     render();
   }
 
@@ -69,17 +88,57 @@
   }
 
   /* --------------------------------------------------------------- cards */
-  function cardIndex(el) {
-    const m = /(?:book|item)-card-(\d+)/.exec(el.id || "");
-    return m ? parseInt(m[1], 10) : null;
+  function normTitle(s) {
+    return String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  /* Ambiguous titles map to null rather than to one of the candidates: a badge
+     on the wrong book is worse than no badge, and this is the same rule the
+     rest of the file follows when the mapping is unavailable.
+   *
+   * Built from the helper's status as well as the page hook. The hook only
+   * sees /personalized if it is injected before the app requests it, and it
+   * loses that race often enough to matter - the badges then never appear
+   * until a reload, which is what the real-server suite kept catching. The
+   * helper already fetched the same library through the API, so the mapping
+   * does not need to depend on winning a race against the page. */
+  function titleIndex() {
+    const byTitle = new Map();
+    const add = (id, title) => {
+      const k = normTitle(title);
+      if (!k || !id) return;
+      if (byTitle.has(k) && byTitle.get(k) !== id) byTitle.set(k, null);
+      else if (!byTitle.has(k)) byTitle.set(k, id);
+    };
+    for (const [id, it] of KNOWN) add(id, it.title);
+    if (STATUS && !STATUS.error) {
+      for (const i of STATUS.serverOnly || []) add(i.id, i.title);
+      for (const b of STATUS.both || []) add(b.item && b.item.id, b.item && b.item.title);
+    }
+    return byTitle;
+  }
+
+  /* Audiobookshelf renders the title as alt="<title>, Cover" on the cover
+     image, and again in the placeholder shown before the cover loads. */
+  function cardTitle(el) {
+    const img = el.querySelector("img[alt]");
+    if (img) return (img.getAttribute("alt") || "").replace(/,\s*cover\s*$/i, "");
+    const p = el.querySelector('[cy-id="placeholderTitleText"]');
+    return p ? p.textContent : "";
   }
 
   function idForCard(el) {
     // Prefer an id the page put in the DOM itself, if a future version does.
     const explicit = el.getAttribute("data-libraryitemid") || el.getAttribute("data-id");
     if (explicit && KNOWN.has(explicit)) return explicit;
-    const i = cardIndex(el);
-    return i != null && i < ORDER.length ? ORDER[i] : null;
+
+    // Not by card index. Card ids are NOT unique - every shelf numbers its own
+    // cards from zero, so a real library page carries several #book-card-0 -
+    // and the index is per shelf, not into any one listing response. Indexing
+    // a flat list was wrong on every page with more than one shelf, which is
+    // the default page.
+    if (!TITLES) TITLES = titleIndex();
+    return TITLES.get(normTitle(cardTitle(el))) || null;
   }
 
   function button(label, title, cls, onClick) {
@@ -98,9 +157,8 @@
 
   function decorate(card) {
     const id = idForCard(card);
-    if (!id) return;
-    const known = KNOWN.get(id);
-    const here = onDevice(id);
+    const known = id ? KNOWN.get(id) : null;
+    const here = id ? onDevice(id) : null;
 
     let badge = card.querySelector("." + BADGE);
     if (!badge) {
@@ -111,7 +169,22 @@
       card.appendChild(badge);
     }
     badge.innerHTML = "";
-    badge.dataset.abshId = id;
+    if (id) badge.dataset.abshId = id;
+    else delete badge.dataset.abshId;
+
+    // No id means the library has not been read yet, or this card's title
+    // matches two books and guessing would badge the wrong one. Say so quietly
+    // instead of leaving the card bare - an absent badge is indistinguishable
+    // from the extension not being installed, which cost a lot of time.
+    if (!id) {
+      badge.classList.add("absh-quiet");
+      badge.classList.remove("absh-on");
+      badge.textContent = "?";
+      badge.title = (STATUS && STATUS.error)
+        ? `Audiobookshelf Helper: ${STATUS.error}`
+        : "Audiobookshelf Helper: still identifying this book";
+      return;
+    }
 
     if (!STATUS || STATUS.error) {
       badge.classList.add("absh-quiet");
@@ -248,12 +321,49 @@
     renderPanel();
   }
 
-  /* Vue re-renders the shelf constantly; watch rather than run once. */
-  new MutationObserver(scheduleRender)
-    .observe(document.documentElement, { childList: true, subtree: true });
+  /* Did this mutation come from us? Draining the queue after a render was the
+     obvious way to stop the observer feeding itself, and it was wrong: it also
+     threw away Audiobookshelf's own mutations that landed mid-render, so about
+     half of all page loads never learned the cards had appeared and sat with
+     no badges at all. Judge each record instead. */
+  function ownMutation(rec) {
+    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note`;
+    const el = rec.target && rec.target.nodeType === 1
+      ? rec.target : rec.target && rec.target.parentElement;
+    if (el && el.closest && el.closest(own)) return true;
+    const touched = [...rec.addedNodes, ...rec.removedNodes];
+    return touched.length > 0 && touched.every((n) =>
+      n.nodeType === 1 && n.matches && n.matches(own));
+  }
+
+  /* Vue re-renders the shelf constantly; watch rather than run once.
+   *
+   * render() mutates the DOM, so without draining the queue afterwards the
+   * observer sees its own work and schedules another render - a loop that ran
+   * every 120ms for as long as the page was open. It burned CPU and left the
+   * badges permanently "not stable", which is how a click could never land. */
+  const observer = new MutationObserver((records) => {
+    if (records.some((r) => !ownMutation(r))) scheduleRender();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  // The helper says when a volume comes or goes, so plugging the player in
+  // updates the page at once instead of on the next tick. Guarded because
+  // losing the whole in-page UI to a failed listener registration would be the
+  // same silent nothing-on-the-page this project has already chased twice; the
+  // timer below still covers it.
+  try {
+    browser.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.type === "host-event" && msg.event === "devices-changed") {
+        loadStatus();
+      }
+    });
+  } catch (e) { /* no live extension context; the backstop still runs */ }
 
   render();
   loadStatus();
-  // The device can be unplugged while the page is open.
-  setInterval(loadStatus, 60000);
+  // A backstop, not the mechanism. Mounting and unmounting arrive as events;
+  // this is here for what they cannot cover - books added on the server, and a
+  // helper that went away and came back while nothing was watching.
+  setInterval(loadStatus, 300000);
 })();

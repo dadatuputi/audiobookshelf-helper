@@ -30,6 +30,13 @@ function port() {
   if (PORT) return PORT;
   PORT = browser.runtime.connectNative(HOST);
   PORT.onMessage.addListener((msg) => {
+    // The helper speaks unprompted too: it watches for volumes appearing and
+    // disappearing, and says so. Those carry no rid, because they answer no
+    // request - they used to be dropped here as unmatched replies.
+    if (msg && msg.rid === undefined && msg.event) {
+      onHostEvent(msg);
+      return;
+    }
     const p = PENDING.get(msg && msg.rid);
     if (!p) return;
     if (msg.event === "done") {
@@ -43,6 +50,10 @@ function port() {
       p.onProgress(msg);
     }
   });
+  // Ask it to watch. Cheap on the platforms with a real event, and the reply
+  // says whether this one has to fall back to looking - see absh/mounts.py.
+  native({ cmd: "watch" }).catch(() => { /* an older helper has no watch */ });
+
   PORT.onDisconnect.addListener(() => {
     const err = (browser.runtime.lastError && browser.runtime.lastError.message) ||
                 "native helper disconnected";
@@ -94,34 +105,92 @@ async function syncContentScript() {
   const ids = [SCRIPT_ID, HOOK_ID];
   const existing = await browser.scripting.getRegisteredContentScripts({ ids })
     .catch(() => []);
+  const wanted = pattern && (await hasHostPermission(c.absUrl)) ? pattern : null;
+
+  // If the registration is already exactly what we want, leave it alone.
+  //
+  // This used to unregister and re-register every time, and it runs on
+  // onStartup - so every browser launch opened a window with no content script
+  // registered at all. A library page loaded inside that window got nothing:
+  // no toolbar button, no badges, no error, indistinguishable from the
+  // extension not being installed. It reproduced on roughly one page load in
+  // eight against a real server.
+  if (wanted && existing.length === ids.length &&
+      existing.every((s) => Array.isArray(s.matches) &&
+                            s.matches.length === 1 && s.matches[0] === wanted)) {
+    await browser.storage.local.set({
+      registrationError: "", registeredPattern: wanted }).catch(() => {});
+    return;
+  }
+
   if (existing.length) {
     await browser.scripting.unregisterContentScripts(
       { ids: existing.map((s) => s.id) }).catch(() => {});
   }
-  if (!pattern || !(await hasHostPermission(c.absUrl))) return;
 
-  await browser.scripting.registerContentScripts([
-    {
-      // Runs in the page's own world so it can see the API responses
-      // Audiobookshelf fetched - the only reliable source of the library item
-      // id for a rendered card. document_start, or the app has already made
-      // its first request before we are watching.
-      id: HOOK_ID,
-      matches: [pattern],
-      js: ["page-hook.js"],
-      runAt: "document_start",
-      world: "MAIN",
-      persistAcrossSessions: true
-    },
-    {
+  // Say why there is nothing to register, rather than returning in silence.
+  // Silence here is indistinguishable, from the page and from the options
+  // page alike, from the extension not being installed at all - which is
+  // exactly how it looked on a real machine, twice.
+  if (!wanted) {
+    let why;
+    if (!c.absUrl) why = "no server URL is set";
+    else if (!pattern) why = `${c.absUrl} is not a usable server URL`;
+    else {
+      let origin = c.absUrl;
+      try { origin = ABSH.originPattern(c.absUrl); } catch { /* keep the raw URL */ }
+      why = `access has not been granted for ${origin}`;
+    }
+    await browser.storage.local.set(
+      { registrationError: why, registeredPattern: "" }).catch(() => {});
+    return;
+  }
+
+  // Registered one at a time, deliberately. A single call is atomic: if the
+  // browser rejects the MAIN-world hook - an older engine, a tightened policy -
+  // it rejects the whole array and *neither* script registers, so the page gets
+  // no button and no badges and nothing says why. The hook is an enhancement;
+  // the content script is the feature. Losing the first must not cost the
+  // second.
+  const problems = [];
+
+  // The content script first: it is the part the user can see.
+  try {
+    await browser.scripting.registerContentScripts([{
       id: SCRIPT_ID,
       matches: [pattern],
       js: ["browser-polyfill.js", "content.js"],
       css: ["content.css"],
       runAt: "document_idle",
       persistAcrossSessions: true
-    }
-  ]).catch((e) => console.warn("content script registration failed", e));
+    }]);
+  } catch (e) {
+    problems.push(`content script: ${e && e.message ? e.message : e}`);
+  }
+
+  // Runs in the page's own world so it can see the API responses
+  // Audiobookshelf fetched - the only reliable source of the library item id
+  // for a rendered card. document_start, or the app has already made its first
+  // request before we are watching.
+  try {
+    await browser.scripting.registerContentScripts([{
+      id: HOOK_ID,
+      matches: [pattern],
+      js: ["page-hook.js"],
+      runAt: "document_start",
+      world: "MAIN",
+      persistAcrossSessions: true
+    }]);
+  } catch (e) {
+    problems.push(`page hook: ${e && e.message ? e.message : e}`);
+  }
+
+  // Recorded rather than logged. console.warn goes to the background console,
+  // which nobody opens; the options page reads this and says so out loud.
+  await browser.storage.local.set({
+    registrationError: problems.length ? problems.join("; ") : "",
+    registeredPattern: problems.length ? "" : pattern
+  }).catch(() => {});
 }
 
 /* ------------------------------------------------------------------- API
@@ -167,6 +236,28 @@ async function route(msg, onProgress) {
   }
 }
 
+/* Pass a helper event on to the pages that can act on it.
+ *
+ * The page is what shows device state, so it is the page that has to hear
+ * this. Only tabs matching the one registered pattern are told: no other tab
+ * has a content script listening, and telling every tab would mean asking for
+ * every tab. */
+async function onHostEvent(msg) {
+  const { registeredPattern } = await browser.storage.local.get(
+    { registeredPattern: "" });
+  if (!registeredPattern) return;
+  const tabs = await browser.tabs.query({ url: registeredPattern }).catch(() => []);
+  // Chrome ignores the url filter outright when the host permission is
+  // missing, handing back every tab instead of none - so check the answer
+  // rather than trusting the question.
+  const prefix = registeredPattern.replace(/\*$/, "");
+  for (const tab of tabs) {
+    if (!tab.url || !tab.url.startsWith(prefix)) continue;
+    browser.tabs.sendMessage(tab.id, { type: "host-event", event: msg.event })
+      .catch(() => { /* no content script in that tab yet */ });
+  }
+}
+
 /* Chrome does NOT support returning a promise from an onMessage listener - the
  * sender just receives undefined. Firefox does. Answering through
  * sendResponse and returning true works in both. */
@@ -194,6 +285,63 @@ browser.runtime.onConnect.addListener((p) => {
     }
   });
 });
+
+/* A registered content script is not a guarantee.
+ *
+ * Verified against a real Audiobookshelf: on roughly one library page load in
+ * eight, no content script ran even though getRegisteredContentScripts showed
+ * both entries with the right pattern and no error stored. The page then had
+ * no toolbar button and no badges - identical to the extension not being
+ * installed, and the exact symptom that took an evening to pin down.
+ *
+ * So inject it again once the page has settled. content.js sets a flag on
+ * window and returns early if it is already there, making the duplicate a
+ * no-op on the loads where registration did work. */
+let LAST_INJECT_ERROR = "";
+
+async function injectFallback(tabId, url) {
+  if (!browser.scripting || !browser.scripting.executeScript) return;
+  const c = await cfg();
+  let prefix = null;
+  try {
+    prefix = c.absUrl ? ABSH.libraryPrefix(c.absUrl) : null;
+  } catch {
+    return;
+  }
+  if (!prefix || !String(url || "").startsWith(prefix)) return;
+  if (!(await hasHostPermission(c.absUrl))) return;
+
+  await browser.scripting.insertCSS({ target: { tabId }, files: ["content.css"] })
+    .catch(() => {});
+  try {
+    await browser.scripting.executeScript({
+      target: { tabId },
+      files: ["browser-polyfill.js", "content.js"],
+    });
+    if (LAST_INJECT_ERROR) {
+      LAST_INJECT_ERROR = "";
+      await browser.storage.local.set({ injectError: "" }).catch(() => {});
+    }
+  } catch (e) {
+    // Swallowed until now, which left the same hole the registration had: a
+    // page with no UI on it and nothing anywhere saying why. Recorded once
+    // per distinct message, so a page that fails on every load does not
+    // rewrite storage on every load.
+    const msg = (e && e.message) || String(e);
+    if (msg !== LAST_INJECT_ERROR) {
+      LAST_INJECT_ERROR = msg;
+      await browser.storage.local.set({ injectError: msg }).catch(() => {});
+    }
+  }
+}
+
+if (browser.tabs && browser.tabs.onUpdated) {
+  browser.tabs.onUpdated.addListener((tabId, info, tab) => {
+    if (info.status !== "complete") return;
+    const url = (tab && tab.url) || info.url;
+    if (url) injectFallback(tabId, url);
+  });
+}
 
 browser.runtime.onInstalled.addListener(() => { syncContentScript(); });
 if (browser.runtime.onStartup) {

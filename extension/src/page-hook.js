@@ -25,8 +25,16 @@
 
     // /api/libraries/{id}/items and friends return {results:[...]}; a single
     // item comes back bare. Both are useful.
+    // The library page's main request is /personalized, which returns a bare
+    // ARRAY of shelves - {id,label,type,entities,total} - not {results}. Only
+    // matching {results} meant the one endpoint the library page actually
+    // calls produced nothing, so no card ever learned its item id.
+    const shelves = (arr) =>
+      arr.flatMap((sh) => (sh && Array.isArray(sh.entities) ? sh.entities : []));
     const list = Array.isArray(data.results) ? data.results
       : Array.isArray(data.libraryItems) ? data.libraryItems
+      : Array.isArray(data.entities) ? data.entities
+      : Array.isArray(data) ? shelves(data)
       : (data.id && data.media) ? [data] : null;
     if (!list || !list.length) return;
 

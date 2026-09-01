@@ -93,6 +93,21 @@ function startAbs() {
         });
         return rep.end(body);
       }
+      // What the real library page fetches. Returns a bare ARRAY of shelves,
+      // each {id,label,type,entities,total} - not {results}. Verified against
+      // Audiobookshelf 2.36.0.
+      if (req.url.includes("/personalized")) {
+        const entity = (b) => ({
+          id: b.id, relPath: b.relPath, size: 2048,
+          media: { numTracks: 1, metadata: { title: b.title, authorName: b.author } }
+        });
+        return send([
+          { id: "recently-added", label: "Recently Added", type: "book",
+            entities: [entity(BOOKS[0])], total: 1 },
+          { id: "recent-series", label: "Recent Series", type: "book",
+            entities: [entity(BOOKS[1])], total: 1 }
+        ]);
+      }
       if (req.url.includes("/items")) {
         return send({
           results: BOOKS.map((b) => ({
@@ -114,11 +129,17 @@ function startAbs() {
         // the only source of item ids - the DOM never carries them - so a stub
         // that skipped it could never produce a badge, which is why the badge
         // path went uncovered for so long.
+        const card = (b) =>
+          `<div id="book-card-0"><img alt="${b.title}, Cover" src="${BASE}/placeholder.jpg"></div>`;
         return rep.end('<!doctype html><html><body><div id="app">' +
                        '<div id="toolbar" role="toolbar"></div>' +
-                       '<div id="book-card-0"></div><div id="book-card-1"></div>' +
+                       // Two shelves, each with its own #book-card-0. Card ids
+                       // are not unique on a real page; anything that maps a
+                       // card by index is wrong here, which is the point.
+                       `<div class="shelf">${card(BOOKS[0])}</div>` +
+                       `<div class="shelf">${card(BOOKS[1])}</div>` +
                        '</div><script>' +
-                       `fetch(${JSON.stringify(BASE)} + "/api/libraries/lib1/items?limit=0&minified=1")` +
+                       `fetch(${JSON.stringify(BASE)} + "/api/libraries/lib1/personalized")` +
                        '.then(r => r.json());' +
                        '</script></body></html>');
       }
@@ -178,6 +199,13 @@ async function launch(profile) {
 async function configure(ctx, { absUrl, dev, lib }) {
   const page = await ctx.newPage();
   await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+  // The options page fills its fields from storage asynchronously; typing
+  // before that resolves used to have the values overwritten, and Save then
+  // stored an empty server URL. permState carries text in every branch once
+  // that pass is done, so it is the signal that the page is ready.
+  await page.waitForFunction(
+    () => (document.getElementById("permState")?.textContent || "") !== "",
+    null, { timeout: 15_000 });
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
   await page.fill("#devicePath", dev);
@@ -449,6 +477,54 @@ test.describe("when the device is not mounted", () => {
     await expect(page.locator("#status")).toHaveClass(/err/);
     // And it must not claim an empty player.
     await expect(page.locator("#n-device")).toHaveText("");
+    await page.close();
+  });
+});
+
+/* The whole point of the mount watcher: plug the player in and the page that is
+ * already open catches up on its own. */
+test.describe("when the player is plugged in while the page is open", () => {
+  test.skip(({ browserName }) => browserName !== "chromium",
+            "chromium project only - needs --load-extension and a native host");
+
+  let ctx, srv, absUrl, lib, dev;
+
+  test.beforeAll(async () => {
+    ({ srv } = await startAbs());
+    absUrl = `http://127.0.0.1:${srv.address().port}${BASE}`;
+    ({ lib } = makeLibrary());
+    // A device that is not there yet. The helper watches for it, so this is
+    // also what it is told to look at - see absh/mounts.py on why a named root
+    // is watched by looking rather than through the mount table.
+    dev = join(mkdtempSync(join(tmpdir(), "absh-unplugged-")), "player");
+    process.env.ABSH_DEVICE_ROOTS = dev;
+    ctx = await launch(makeProfile(`${absUrl}/*`));
+    await (await configure(ctx, { absUrl, lib, dev })).close();
+  });
+
+  test.afterAll(async () => {
+    await ctx?.close();
+    srv?.close();
+    delete process.env.ABSH_DEVICE_ROOTS;
+  });
+
+  test("the page catches up on its own, with no reload and no minute-long wait",
+       async () => {
+    const page = await ctx.newPage();
+    await page.goto(`${absUrl}/library/lib1`);
+    // Badges appear either way; with no device they cannot say anything about
+    // one, which is what the quiet badge is.
+    await expect(page.locator(".absh-badge").first())
+      .toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".absh-badge .absh-mini")).toHaveCount(0);
+
+    // Plug it in. Nothing touches the page, and nothing asks it to look again.
+    mkdirSync(join(dev, "AUDIOBOOKS"), { recursive: true });
+
+    // The backstop is five minutes away, so arriving inside twenty seconds can
+    // only be the event.
+    await expect(page.locator(".absh-badge .absh-mini").first())
+      .toBeVisible({ timeout: 20_000 });
     await page.close();
   });
 });

@@ -17,6 +17,27 @@ export default defineConfig({
   reporter: [["list"]],
   projects: [
     { name: "chromium", use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") } },
-    { name: "firefox", use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") } }
+    { name: "firefox", use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") } },
+    /* Against a real Audiobookshelf, built and run by tests/real/setup.mjs.
+     * Skips itself when that has not been run, so the default suite needs no
+     * build. Longer timeout: the real app is a Nuxt SPA, not a stub. */
+    {
+      name: "real",
+      testDir: "tests/real",
+      testMatch: "real-server.spec.js",
+      timeout: 120_000,
+      use: { browserName: "chromium", ...launchOptions("ABSH_CHROMIUM_PATH") }
+    },
+    /* The same, in Firefox. Playwright cannot load an add-on there
+     * (microsoft/playwright#2644), so tests/real/firefox-addon.mjs installs it
+     * over Firefox's remote debugging protocol. This is the browser where the
+     * manifest diverges most and where lint was, until now, the only check. */
+    {
+      name: "real-firefox",
+      testDir: "tests/real",
+      testMatch: "real-firefox.spec.js",
+      timeout: 180_000,
+      use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") }
+    }
   ]
 });
