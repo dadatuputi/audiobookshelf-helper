@@ -112,14 +112,25 @@ jobs:
           } > "$NOTES"
           FLAGS=""
           if [ "$PRERELEASE" = "true" ]; then FLAGS="--prerelease"; fi
-          # --target only applies when gh has to create the tag itself, which is
-          # the workflow_dispatch path; it defaults to the *default branch*, so
-          # without this the tag would point at main while the artefacts came
-          # from the dispatched ref. On a tag push the tag already exists and
-          # this is ignored.
-          gh release create "$TAG" release/*.zip \
-            --target "$GITHUB_SHA" \
-            --title "$TAG" --notes-file "$NOTES" $FLAGS
+          # Re-cutting a tag is a normal thing to want - an alpha that shipped
+          # the wrong code, a build worth replacing - and `gh release create`
+          # fails outright when a release for the tag already exists, which
+          # left the only route as deleting the published one by hand. Update
+          # it in place instead: same tag, same download URLs, new artefacts.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/*.zip --clobber
+            gh release edit "$TAG" --title "$TAG" --notes-file "$NOTES" \
+              --prerelease="$PRERELEASE"
+          else
+            # --target only applies when gh has to create the tag itself, which
+            # is the workflow_dispatch path; it defaults to the *default
+            # branch*, so without this the tag would point at main while the
+            # artefacts came from the dispatched ref. On a tag push the tag
+            # already exists and this is ignored.
+            gh release create "$TAG" release/*.zip \
+              --target "$GITHUB_SHA" \
+              --title "$TAG" --notes-file "$NOTES" $FLAGS
+          fi
 
   amo:
     name: firefox add-ons
