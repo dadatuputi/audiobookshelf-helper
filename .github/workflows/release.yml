@@ -134,7 +134,10 @@ jobs:
 
   amo:
     name: firefox add-ons
-    needs: package
+    # github-release as well as package: this uploads onto the release, and
+    # hanging both off package alone let them race. It worked only because
+    # signing takes minutes and creating a release takes seconds.
+    needs: [package, github-release]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -154,6 +157,7 @@ jobs:
             --version "${{ needs.package.outputs.firefox_version }}"
 
       - name: Sign / submit
+        id: sign
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
@@ -162,12 +166,17 @@ jobs:
         run: |
           if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
             echo "::notice title=AMO::skipped - AMO_JWT_ISSUER/AMO_JWT_SECRET not set"
+            echo "attempted=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # A prerelease goes to the unlisted channel: signed and permanently
           # installable, but not published on addons.mozilla.org.
           CHANNEL=listed
           if [ "$PRERELEASE" = "true" ]; then CHANNEL=unlisted; fi
+          {
+            echo "attempted=true"
+            echo "channel=$CHANNEL"
+          } >> "$GITHUB_OUTPUT"
           echo "submitting to AMO ($CHANNEL)"
           npx web-ext sign \
             --source-dir extension/dist/firefox \
@@ -177,18 +186,41 @@ jobs:
             --api-secret "$AMO_JWT_SECRET"
 
       - name: Attach the signed XPI to the release
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        # always(), so a signing failure is still reported here rather than
+        # skipping the step that explains it.
+        if: ${{ always() && github.event.inputs.dry_run != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          SEMVER: ${{ needs.package.outputs.semver }}
+          ATTEMPTED: ${{ steps.sign.outputs.attempted }}
+          CHANNEL: ${{ steps.sign.outputs.channel }}
         run: |
           shopt -s nullglob
           XPI=(release-xpi/*.xpi)
           if [ ${#XPI[@]} -eq 0 ]; then
-            echo "::notice title=AMO::no signed xpi produced (listed submissions are signed after review)"
-            exit 0
+            if [ "$ATTEMPTED" != "true" ]; then
+              echo "::notice title=AMO::no credentials, so nothing was signed"
+              exit 0
+            fi
+            if [ "$CHANNEL" = "listed" ]; then
+              echo "::notice title=AMO::listed submission accepted; AMO signs it after review"
+              exit 0
+            fi
+            # Unlisted signing hands the xpi back in the same run, so nothing
+            # here means the submission did not succeed. Saying so quietly
+            # would leave a release carrying four zips and no add-on anyone
+            # can install, which is the shape of failure this project has
+            # already shipped once.
+            echo "::error title=AMO::signing was attempted on the unlisted channel and produced no xpi"
+            exit 1
           fi
-          gh release upload "$TAG" "${XPI[@]}" --clobber
+          # AMO names the file after the add-on's internal id, which reads as
+          # noise beside audiobookshelf-helper-firefox-<version>.zip. The
+          # version is the tag's, so the two match.
+          DEST="release-xpi/audiobookshelf-helper-firefox-${SEMVER}.xpi"
+          mv "${XPI[0]}" "$DEST"
+          gh release upload "$TAG" "$DEST" --clobber
 
   chrome-web-store:
     name: chrome web store
