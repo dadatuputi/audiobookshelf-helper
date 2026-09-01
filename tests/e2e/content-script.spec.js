@@ -37,11 +37,26 @@ const stubRoute = (target) =>
   target.route("**/library/**", (r) =>
     r.fulfill({ status: 200, contentType: "text/html", body: PAGE }));
 
+/* A content script always has the extension APIs beside it - the polyfill is
+ * injected with it, by registration and by the fallback alike. These tests
+ * inject the file into a bare page instead, so the page has to supply the
+ * little of that surface the script touches, or the script dies on the first
+ * line that reaches for it and the DOM contract goes untested. */
+const stubBrowser = (target) => target.addInitScript(() => {
+  window.browser = {
+    runtime: {
+      sendMessage: () => Promise.reject(new Error("no helper in this harness")),
+      onMessage: { addListener() {} },
+    },
+  };
+});
+
 /* These run under both projects and do not need the extension installed -
  * they pin the DOM contract the content script relies on. */
 test.describe("content script behaviour", () => {
   test("injects exactly once, even after the toolbar re-renders", async ({ page }) => {
     await stubRoute(page);
+    await stubBrowser(page);
     await page.goto("https://abs.test/library/main");
     await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
     await expect(page.locator("#absh-sync-btn")).toHaveCount(1);
@@ -58,6 +73,7 @@ test.describe("content script behaviour", () => {
   test("does nothing when there is no toolbar", async ({ page }) => {
     await page.route("**/library/**", (r) =>
       r.fulfill({ status: 200, contentType: "text/html", body: "<html><body></body></html>" }));
+    await stubBrowser(page);
     await page.goto("https://abs.test/library/empty");
     await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
     await expect(page.locator("#absh-sync-btn")).toHaveCount(0);

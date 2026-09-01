@@ -481,6 +481,54 @@ test.describe("when the device is not mounted", () => {
   });
 });
 
+/* The whole point of the mount watcher: plug the player in and the page that is
+ * already open catches up on its own. */
+test.describe("when the player is plugged in while the page is open", () => {
+  test.skip(({ browserName }) => browserName !== "chromium",
+            "chromium project only - needs --load-extension and a native host");
+
+  let ctx, srv, absUrl, lib, dev;
+
+  test.beforeAll(async () => {
+    ({ srv } = await startAbs());
+    absUrl = `http://127.0.0.1:${srv.address().port}${BASE}`;
+    ({ lib } = makeLibrary());
+    // A device that is not there yet. The helper watches for it, so this is
+    // also what it is told to look at - see absh/mounts.py on why a named root
+    // is watched by looking rather than through the mount table.
+    dev = join(mkdtempSync(join(tmpdir(), "absh-unplugged-")), "player");
+    process.env.ABSH_DEVICE_ROOTS = dev;
+    ctx = await launch(makeProfile(`${absUrl}/*`));
+    await (await configure(ctx, { absUrl, lib, dev })).close();
+  });
+
+  test.afterAll(async () => {
+    await ctx?.close();
+    srv?.close();
+    delete process.env.ABSH_DEVICE_ROOTS;
+  });
+
+  test("the page catches up on its own, with no reload and no minute-long wait",
+       async () => {
+    const page = await ctx.newPage();
+    await page.goto(`${absUrl}/library/lib1`);
+    // Badges appear either way; with no device they cannot say anything about
+    // one, which is what the quiet badge is.
+    await expect(page.locator(".absh-badge").first())
+      .toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(".absh-badge .absh-mini")).toHaveCount(0);
+
+    // Plug it in. Nothing touches the page, and nothing asks it to look again.
+    mkdirSync(join(dev, "AUDIOBOOKS"), { recursive: true });
+
+    // The backstop is five minutes away, so arriving inside twenty seconds can
+    // only be the event.
+    await expect(page.locator(".absh-badge .absh-mini").first())
+      .toBeVisible({ timeout: 20_000 });
+    await page.close();
+  });
+});
+
 /* First run, before the user has granted anything: the add-on has to explain
  * itself rather than fail with a bare network error. */
 test.describe("before access is granted", () => {

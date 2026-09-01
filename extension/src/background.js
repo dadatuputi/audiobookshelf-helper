@@ -30,6 +30,13 @@ function port() {
   if (PORT) return PORT;
   PORT = browser.runtime.connectNative(HOST);
   PORT.onMessage.addListener((msg) => {
+    // The helper speaks unprompted too: it watches for volumes appearing and
+    // disappearing, and says so. Those carry no rid, because they answer no
+    // request - they used to be dropped here as unmatched replies.
+    if (msg && msg.rid === undefined && msg.event) {
+      onHostEvent(msg);
+      return;
+    }
     const p = PENDING.get(msg && msg.rid);
     if (!p) return;
     if (msg.event === "done") {
@@ -43,6 +50,10 @@ function port() {
       p.onProgress(msg);
     }
   });
+  // Ask it to watch. Cheap on the platforms with a real event, and the reply
+  // says whether this one has to fall back to looking - see absh/mounts.py.
+  native({ cmd: "watch" }).catch(() => { /* an older helper has no watch */ });
+
   PORT.onDisconnect.addListener(() => {
     const err = (browser.runtime.lastError && browser.runtime.lastError.message) ||
                 "native helper disconnected";
@@ -222,6 +233,28 @@ async function route(msg, onProgress) {
       return { ok: true };
     default:
       return { ok: false, error: `unknown message type ${msg && msg.type}` };
+  }
+}
+
+/* Pass a helper event on to the pages that can act on it.
+ *
+ * The page is what shows device state, so it is the page that has to hear
+ * this. Only tabs matching the one registered pattern are told: no other tab
+ * has a content script listening, and telling every tab would mean asking for
+ * every tab. */
+async function onHostEvent(msg) {
+  const { registeredPattern } = await browser.storage.local.get(
+    { registeredPattern: "" });
+  if (!registeredPattern) return;
+  const tabs = await browser.tabs.query({ url: registeredPattern }).catch(() => []);
+  // Chrome ignores the url filter outright when the host permission is
+  // missing, handing back every tab instead of none - so check the answer
+  // rather than trusting the question.
+  const prefix = registeredPattern.replace(/\*$/, "");
+  for (const tab of tabs) {
+    if (!tab.url || !tab.url.startsWith(prefix)) continue;
+    browser.tabs.sendMessage(tab.id, { type: "host-event", event: msg.event })
+      .catch(() => { /* no content script in that tab yet */ });
   }
 }
 

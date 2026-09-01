@@ -5,6 +5,7 @@ Protocol: 4-byte little-endian length prefix + UTF-8 JSON, on stdin/stdout.
     ping     -> version, which tag reader is in play, whether config is usable
     config   -> the stored settings (never the API key)
     devices  -> plugged-in volumes that could be the player
+    watch    -> push a devices-changed event whenever a volume comes or goes
     status   -> the three-way diff: on both, server only, device only
     libraries/folders -> for choosing an upload target
     pull     -> server to device        (streams progress)
@@ -21,11 +22,13 @@ reply must not find progress events queued ahead of its answer.
 import json
 import struct
 import sys
+import threading
 import traceback
 
 from . import config as config_mod
 from . import device as device_mod
 from . import devices as devices_mod
+from . import mounts as mounts_mod
 from . import sync as sync_mod
 from . import tags as tags_mod
 from .abs_api import AbsError, Client
@@ -57,12 +60,18 @@ def read_msg(stream=None):
     return json.loads(body.decode("utf-8"))
 
 
+# The mount watcher writes from its own thread, and a reply interleaved with an
+# event would be two half-messages on one pipe.
+_WRITE_LOCK = threading.Lock()
+
+
 def write_msg(obj, stream=None):
     stream = stream or sys.stdout.buffer
     b = json.dumps(obj).encode("utf-8")
-    stream.write(struct.pack("<I", len(b)))
-    stream.write(b)
-    stream.flush()
+    with _WRITE_LOCK:
+        stream.write(struct.pack("<I", len(b)))
+        stream.write(b)
+        stream.flush()
 
 
 # ------------------------------------------------------------------ helpers
@@ -146,6 +155,28 @@ def cmd_devices(msg, emit):
     return {"ok": True, "devices": devices_mod.candidates(cfg.get("subdir") or "AUDIOBOOKS")}
 
 
+_WATCHING = None
+
+
+def cmd_watch(msg, emit):
+    """Start telling the extension when volumes come and go.
+
+    Answers immediately and keeps watching in the background for the life of
+    the connection, pushing an unsolicited {"event": "devices-changed"} on each
+    change. The point is that the page stops asking: plugging a player in is an
+    event the OS already knows about, and the extension was rediscovering it on
+    a timer.
+
+    Idempotent - the extension may call it again after a reconnect, and one
+    watcher per host process is enough.
+    """
+    global _WATCHING
+    if _WATCHING is None:
+        _WATCHING = mounts_mod.watch_in_background(
+            lambda: write_msg({"event": "devices-changed"}))
+    return {"ok": True, "watching": True, "polls": mounts_mod.is_polling()}
+
+
 def cmd_status(msg, emit):
     cfg = settings(msg)
     require_device(cfg)
@@ -202,7 +233,7 @@ COMMANDS = {
     "ping": cmd_ping, "config": cmd_config, "libraries": cmd_libraries,
     "devices": cmd_devices,
     "folders": cmd_folders, "status": cmd_status, "pull": cmd_pull,
-    "push": cmd_push, "remove": cmd_remove,
+    "push": cmd_push, "remove": cmd_remove, "watch": cmd_watch,
 }
 
 

@@ -136,6 +136,34 @@ class TestWirePayload(unittest.TestCase):
         self.assertNotIn("/Users/someone", wire)
         self.assertIn('"matchedBy": "id"', wire)
 
-
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class Watch(unittest.TestCase):
+    """The one command that answers and then keeps talking."""
+
+    def test_answers_at_once_and_says_whether_it_has_to_poll(self):
+        reply = H.handle({"cmd": "watch"})
+        self.assertTrue(reply["ok"])
+        self.assertTrue(reply["watching"])
+        # Honest about the platform rather than claiming events everywhere.
+        self.assertIn(reply["polls"], (True, False))
+
+    def test_asking_twice_does_not_start_a_second_watcher(self):
+        before = H._WATCHING
+        H.handle({"cmd": "watch"})
+        self.assertIs(H._WATCHING, before or H._WATCHING)
+        first = H._WATCHING
+        H.handle({"cmd": "watch"})
+        self.assertIs(H._WATCHING, first)
+
+    def test_an_event_is_framed_like_any_other_message(self):
+        """The push shares the pipe with replies, so it must be framed and
+        whole - a half-written event would desynchronise every reply after
+        it."""
+        buf = io.BytesIO()
+        H.write_msg({"event": "devices-changed"}, stream=buf)
+        self.assertEqual(unframe(buf.getvalue()), [{"event": "devices-changed"}])
+
+

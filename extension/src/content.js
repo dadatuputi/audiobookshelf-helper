@@ -68,11 +68,12 @@
       statusRetry = 0;
     } catch (e) {
       STATUS = { error: String(e.message || e), both: [], serverOnly: [], deviceOnly: [] };
-      // Keep trying rather than giving up after a few goes. The status is the
+      // Keep trying rather than giving up after a few goes: the status is the
       // card-to-book mapping, so while it is failing the page has no badges at
-      // all; stopping meant one hiccup left it dead until the next minute
-      // tick. Back off, then settle at every 30s for as long as it is broken.
-      const wait = [2000, 5000, 15000][statusRetry] || 30000;
+      // all, and stopping left it dead. The long tail is only a backstop now -
+      // the common cause of a failure here is an unplugged player, and that
+      // comes back as an event the moment it is plugged in.
+      const wait = [2000, 5000, 15000][statusRetry] || 120000;
       statusRetry += 1;
       clearTimeout(loadStatus.__t);
       loadStatus.__t = setTimeout(loadStatus, wait);
@@ -346,8 +347,23 @@
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
+  // The helper says when a volume comes or goes, so plugging the player in
+  // updates the page at once instead of on the next tick. Guarded because
+  // losing the whole in-page UI to a failed listener registration would be the
+  // same silent nothing-on-the-page this project has already chased twice; the
+  // timer below still covers it.
+  try {
+    browser.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.type === "host-event" && msg.event === "devices-changed") {
+        loadStatus();
+      }
+    });
+  } catch (e) { /* no live extension context; the backstop still runs */ }
+
   render();
   loadStatus();
-  // The device can be unplugged while the page is open.
-  setInterval(loadStatus, 60000);
+  // A backstop, not the mechanism. Mounting and unmounting arrive as events;
+  // this is here for what they cannot cover - books added on the server, and a
+  // helper that went away and came back while nothing was watching.
+  setInterval(loadStatus, 300000);
 })();
