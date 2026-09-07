@@ -155,6 +155,18 @@ class Reads(UpdateCase):
         self.assertEqual(U.find_release("v1.0.0-alpha.1")["tag"], "v1.0.0-alpha.1")
 
 
+# Whether "this directory is read-only" is a thing that can be arranged here,
+# and why not when it isn't. Decided at import, because the decorator below is
+# evaluated when the class body runs: os.geteuid does not exist off POSIX, and
+# reaching for it there takes the whole module out of the run rather than one
+# test.
+NO_WRITE_TEST = (
+    "chmod does not make a directory unwritable on this platform"
+    if os.name != "posix"
+    else "root can write anywhere" if os.geteuid() == 0
+    else "")
+
+
 class Refuses(UpdateCase):
     def test_a_checkout(self):
         (self.root / ".git").mkdir()
@@ -164,7 +176,7 @@ class Refuses(UpdateCase):
         (self.root / "absh" / "version.py").write_text('RELEASE = "dev"\n')
         self.assertIn("dev", U.refuse_reason(self.root))
 
-    @unittest.skipIf(os.geteuid() == 0, "root can write anywhere")
+    @unittest.skipIf(NO_WRITE_TEST, NO_WRITE_TEST)
     def test_an_install_it_cannot_write(self):
         self.root.chmod(0o555)
         try:
