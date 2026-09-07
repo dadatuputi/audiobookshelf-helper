@@ -383,6 +383,40 @@ def cmd_tui(args, cfg):
     return tui.run(cfg)
 
 
+def cmd_update(args, cfg):
+    """Replace this installed copy with a release from GitHub."""
+    from . import update as update_mod
+    from . import version as version_mod
+
+    if args.check:
+        try:
+            rel = update_mod.find_release(args.tag)
+        except update_mod.UpdateError as e:
+            die(str(e))
+        here = version_mod.release()
+        newer = rel["tag"].lstrip("v") != here
+        print(f"installed   {here}")
+        print(f"available   {rel['tag']}"
+              + ("  (prerelease)" if rel["prerelease"] else "")
+              + ("" if newer else paint("  - already current", GREEN)))
+        if newer:
+            print(paint("            run `absh update` to install it", DIM))
+        return 0
+
+    try:
+        out = update_mod.apply(args.tag, on_step=lambda m: print(paint(f"  {m}", DIM)))
+    except update_mod.UpdateError as e:
+        die(str(e))
+    if not out["updated"]:
+        print(f"{out['current']} is {out['reason']}")
+        return 0
+    print(paint(f"updated {out['current']} -> {out['latest']}", GREEN))
+    # The browser holds the old code in a running helper until the port is
+    # reopened, which is what a restart guarantees.
+    print(paint("restart your browser to pick it up", DIM))
+    return 0
+
+
 # ---------------------------------------------------------------- parser
 def build_parser():
     ap = argparse.ArgumentParser(prog="absh", description=__doc__,
@@ -441,6 +475,12 @@ def build_parser():
 
     d = sub.add_parser("doctor", help="check the configuration and connections")
     d.set_defaults(fn=cmd_doctor)
+
+    up = sub.add_parser("update", help="install the latest release of this helper")
+    up.add_argument("--check", action="store_true",
+                    help="say what is available, change nothing")
+    up.add_argument("--tag", help="a specific release, e.g. v1.0.0-alpha.1")
+    up.set_defaults(fn=cmd_update)
 
     t = sub.add_parser("tui", help="full-screen picker")
     t.set_defaults(fn=cmd_tui)

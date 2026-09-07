@@ -106,6 +106,16 @@ jobs:
             echo "then restart the browser. The helper is what writes to the device;"
             echo "the extension on its own cannot."
             echo
+            echo "**Updating the helper** — from the folder you unzipped it into:"
+            echo '```'
+            echo "python3 -m absh.cli update --check   # what is available"
+            echo "python3 -m absh.cli update           # install it"
+            echo '```'
+            echo "It replaces the files in place, checks the new helper starts,"
+            echo "and puts the old one back if it does not. Restart the browser"
+            echo "afterwards. The extension is separate - update that where you"
+            echo "installed it from."
+            echo
             if [ "$PRERELEASE" = "true" ]; then
               echo "> This is a prerelease. It is not published to any store."
             fi

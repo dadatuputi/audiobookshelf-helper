@@ -29,6 +29,7 @@ from . import config as config_mod
 from . import device as device_mod
 from . import devices as devices_mod
 from . import mounts as mounts_mod
+from . import version as version_mod
 from . import sync as sync_mod
 from . import tags as tags_mod
 from .abs_api import AbsError, Client
@@ -127,7 +128,11 @@ def _serialisable(st):
 # ----------------------------------------------------------------- commands
 def cmd_ping(msg, emit):
     cfg = settings(msg)
-    return {"ok": True, "version": VERSION, "python": sys.version.split()[0],
+    return {"ok": True, "version": VERSION,
+            # Which release this copy came from, as opposed to VERSION above,
+            # which is the protocol this host speaks. "dev" in a checkout.
+            "release": version_mod.release(),
+            "python": sys.version.split()[0],
             "tags": tags_mod.available(),
             "configured": not config_mod.missing(cfg),
             "missing": config_mod.missing(cfg)}

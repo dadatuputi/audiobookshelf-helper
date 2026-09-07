@@ -59,6 +59,23 @@ def zip_files(pairs, dest: Path):
     return dest
 
 
+def stamp_version(out: Path, semver: str) -> Path:
+    """A copy of absh/version.py that knows which release it is.
+
+    The checkout says "dev" and must keep saying it - `absh update` compares
+    this against what GitHub reports, and a checkout claiming to be a release
+    would offer to overwrite itself with one. Written beside the archives
+    rather than over the source, so building never dirties the tree.
+    """
+    src = (ROOT / NATIVE_PACKAGE / "version.py").read_text()
+    stamped = src.replace('RELEASE = "dev"', f'RELEASE = "{semver}"')
+    assert f'RELEASE = "{semver}"' in stamped, "version stamp did not take"
+    out.mkdir(parents=True, exist_ok=True)
+    dest = out / "version.py"
+    dest.write_text(stamped)
+    return dest
+
+
 def zip_source(dest: Path):
     """AMO asks for source when a build step is involved. Ours is a file copy,
     but shipping it is cheap and removes a round trip with the reviewer."""
@@ -102,8 +119,11 @@ def main():
             dist, out / f"audiobookshelf-helper-{target}-{info['semver']}.zip"))
 
     native_pairs = [(ROOT / f, Path(f).name) for f in NATIVE_FILES]
+    stamped = stamp_version(out, info["semver"])
     for f in sorted((ROOT / NATIVE_PACKAGE).glob("*.py")):
-        native_pairs.append((f, f"{NATIVE_PACKAGE}/{f.name}"))
+        # The stamped copy stands in for the checkout's, which says "dev".
+        src = stamped if f.name == "version.py" else f
+        native_pairs.append((src, f"{NATIVE_PACKAGE}/{f.name}"))
     made.append(zip_files(
         native_pairs,
         out / f"audiobookshelf-helper-native-{info['semver']}.zip"))
