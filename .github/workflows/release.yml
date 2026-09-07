@@ -129,6 +129,19 @@ jobs:
           # it in place instead: same tag, same download URLs, new artefacts.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/*.zip --clobber
+            # Drop any xpi the previous build of this tag left behind. AMO
+            # will not sign a version number twice, so a re-cut tag gets new
+            # zips and cannot get a new xpi - and leaving the old one there
+            # publishes an installable from the previous build beside
+            # artefacts from this one, both labelled the same version. A
+            # release with no xpi is a gap the notes already cover; a release
+            # with the wrong xpi is a lie.
+            gh release view "$TAG" --json assets \
+              --jq '.assets[].name | select(endswith(".xpi"))' \
+              | while read -r ASSET; do
+                  echo "removing stale $ASSET from $TAG"
+                  gh release delete-asset "$TAG" "$ASSET" --yes
+                done
             gh release edit "$TAG" --title "$TAG" --notes-file "$NOTES" \
               --prerelease="$PRERELEASE"
           else
@@ -173,6 +186,7 @@ jobs:
           AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
           AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
           PRERELEASE: ${{ needs.package.outputs.prerelease }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
             echo "::notice title=AMO::skipped - AMO_JWT_ISSUER/AMO_JWT_SECRET not set"
@@ -188,12 +202,23 @@ jobs:
             echo "channel=$CHANNEL"
           } >> "$GITHUB_OUTPUT"
           echo "submitting to AMO ($CHANNEL)"
+          set +e
           npx web-ext sign \
             --source-dir extension/dist/firefox \
             --artifacts-dir release-xpi \
             --channel "$CHANNEL" \
             --api-key "$AMO_JWT_ISSUER" \
-            --api-secret "$AMO_JWT_SECRET"
+            --api-secret "$AMO_JWT_SECRET" 2>&1 | tee sign.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          if [ "$RC" -ne 0 ] && grep -q "already exists" sign.log; then
+            # AMO's version space is append-only, so this is not a transient
+            # failure to retry: re-pushing a tag over a new commit asks it to
+            # sign a version it has already signed, and no amount of rerunning
+            # changes that. The tag has to move forward.
+            echo "::error title=AMO::AMO already has this version and will not sign it twice. Re-cutting $TAG cannot produce a new add-on - bump the tag and push that instead."
+          fi
+          exit "$RC"
 
       - name: Attach the signed XPI to the release
         # always(), so a signing failure is still reported here rather than
