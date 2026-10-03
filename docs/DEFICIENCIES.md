@@ -6,7 +6,10 @@ and can be wrong in public. Every claim here was checked against the code or
 a real run on the date noted; where something is believed rather than
 verified, it says so.
 
-Last reviewed: 2026-10-03, against `cfc0cd9`.
+Last reviewed: 2026-10-03, against `0138d94`. Status lines record what
+changed since the list was written, with the commit that did it. CI at
+`0138d94` is green on every job, including the helper's suite on Windows,
+macOS and Linux under Python 3.9, 3.11 and 3.13.
 
 ---
 
@@ -85,95 +88,142 @@ low.
 
 ## Deficiencies
 
-### D1. `absh update` verifies integrity, not provenance
-`absh/update.py` says this itself. The digest comes from GitHub, computed
-over the bytes GitHub was given, so anyone who can publish a release
-publishes a matching digest. It catches a corrupted download and nothing
-else. The helper runs outside the browser sandbox with the user's rights and
-writes to their filesystem, so this is the gap that matters most: a
-self-updater whose check establishes no provenance. The fix is signing with
-a key that does not live on GitHub, and verifying it in the updater.
+### D1. `absh update` verifies integrity, not provenance — FIXED
+The digest came from GitHub, computed over the bytes GitHub was given, so
+anyone who could publish a release published a matching digest.
 
-**Severity: high.** Everything else here is an inconvenience.
+**Status:** `a891beb`. Releases now carry a `SHA256SUMS` manifest that binds
+the tag, signed by the maintainer with an Ed25519 key that never touches
+GitHub. The updater checks it against keys pinned in the *installed* copy
+(read with `ast`, never imported) before downloading or swapping anything,
+and refuses unsigned releases with no override. The verifier is pure
+Python; it accepts 60/60 OpenSSL-made signatures and rejects 180/180
+tampered ones in an independent check. `f33821d` stops a tag build that
+would ship a helper with no pinned key, which could never update itself.
+**Not live until the maintainer pins a key — see M1.**
 
-### D2. A stale add-on is published under the wrong version
-`v1.0.0-alpha.1` still carries `cb73684229b84553a7b8-1.0.0.1.xpi`, built
-2026-09-01, beside zips rebuilt 2026-09-07 from different code and labelled
-the same version. 2 downloads. `ca67dbf` stops this recurring, but does not
-clean up the instance that already shipped — that needs deleting by hand.
+### D2. A stale add-on is published under the wrong version — FIXED
+**Status:** the maintainer deleted `cb73684229b84553a7b8-1.0.0.1.xpi` from
+`v1.0.0-alpha.1`. `ca67dbf` stops a re-cut tag leaving an old xpi behind,
+and `83edd53`'s release check would now flag one.
 
-### D3. Windows device detection is a 2-second poll
-Linux and macOS get real kernel events. Windows compares the drive bitmask
-on a timer, because the alternative is creating a window and pumping a
-message loop for `WM_DEVICECHANGE`. `mounts.is_polling()` reports this
-honestly and `cmd_watch` returns it as `polls`, so the fact already crosses
-the wire — `polls` appears nowhere in `extension/src/`, so the UI drops it.
+### D3. Windows device detection is a 2-second poll — MITIGATED
+Still a poll; there is no event worth the ctypes. **Status:** `0138d94`
+says so on the options page, only when the helper reports it is polling.
 
-### D4. A test credential is in public history
-`tests/real/state.json` holds a JWT for a throwaway local Audiobookshelf
-instance and was committed in `274935f` and `d414b8a`. It is gitignored now.
-The server it authenticates to never existed outside CI, so the practical
-risk is low; a history rewrite was considered and declined.
+### D4. A test credential is in public history — PENDING (maintainer)
+`tests/real/state.json` (a JWT for a throwaway CI server, plus local
+scratch paths) is in `274935f` and `d414b8a`. **Status:** the history
+rewrite in M4 removes it from every branch and tag. GitHub keeps PR head
+refs regardless, so it stays reachable through PRs #1–#6.
 
-### D5. The Chrome Web Store path has never run
-The `chrome-web-store` job is skipped for every prerelease and its secrets
-are unset, so the first stable tag will exercise it for the first time —
-the same way the AMO path was first exercised in production, which cost
-three failed releases.
+### D5. The Chrome Web Store path has never run — FIXED, unproven live
+**Status:** `8b37a49`. Testing it found four bugs: publish dropped its body,
+returned success on `ITEM_TAKEN_DOWN`, let a network error escape as a
+traceback, and treated partial secrets as "not configured". It also spoke
+the v1.1 API, which Google supports only until **15 Oct 2026**; it now uses
+v2. 28 tests against a local stand-in. **Needs M3 before the first stable
+tag.**
 
-### D6. AMO's listed channel has never run
-Only the unlisted channel has. The listed branch — submission accepted, no
-artefact in the run, signed after review — is covered by a stubbed `gh` and
-nothing else.
+### D6. AMO's listed channel has never run — FIXED, unproven live
+**Status:** `8ce0285`. The listed branch could never be reached: web-ext
+waits up to 15 minutes for a signed file (`approvalCheckTimeout = 900000`
+in its source), and a listed version is not signed until it is reviewed.
+Listed submissions now return at submission. Every branch of the job's own
+shell is tested, including against the real web-ext.
 
-### D7. Nothing surfaces an available update
-`absh/host.py` reports `release` in its ping reply *specifically* so the
-options page can say the helper is behind. Nothing reads it: `release` does
-not appear in `extension/src/options.js`. So `absh update` exists and the
-only way to learn it is needed is to already know.
+### D7. Nothing surfaces an available update — FIXED
+**Status:** `0138d94`. See T1/T2.
+
+---
+
+## Found while fixing the above
+
+### N1. `absh update` without `--tag` has never worked — FIXED
+GitHub's `/releases/latest` omits prereleases, and every release so far is
+one, so it returned 404. **Status:** `0138d94` picks the newest release by
+semver through `absh/releases.py`, the same rule the page uses.
+
+### N2. The options page threw away a saved folder and template — FIXED
+A regression from `0b20110`: `load()` filled only empty fields, and those two
+carry defaults in the markup, so a saved value was never shown and the next
+Save wrote the default back. **Status:** `3dc138a`, with a test that fails
+against the old code.
+
+### N3. A helper swap could run stale bytecode, and lost execute bits — FIXED
+**Status:** `0138d94`. `__pycache__` is cleared wherever a file lands; only
+the execute bits an archive records are restored, on POSIX.
 
 ---
 
 ## Todo
 
-### T1. Consume ping's `release` and offer the update
-The data already crosses the wire. Needs the options page to compare it
-against the latest release and say so. Pairs with T2. *(Closes D7.)*
+### T1. Consume ping's `release` and offer the update — DONE (`0138d94`)
+### T2. Make `absh update` reachable without the CLI — DONE (`0138d94`)
+The options page shows the installed version, the newer release, and why a
+copy cannot update itself when it can't; the Update button installs the
+release it showed and picks up the new helper without a browser restart.
+Every check goes through the helper, so no new permission.
 
-### T2. Make `absh update` reachable without the CLI
-Today it is `python3 -m absh.cli update` from the directory you unzipped.
-A user who installed by double-clicking does not have that context.
+### T3. Test that a published release matches its tag — DONE (`83edd53`)
+A `verify-release` job checks the asset set, digests against what CI built,
+stale assets, the native stamp, and opens the xpi to check AMO's signature,
+add-on id and version. Run by hand against the live `v1.0.0-alpha.3`: it
+passes, and it rejects a changed byte, another tag's build, and broken
+job outputs. **It has not yet run inside Actions.**
 
-### T3. Test that a published release matches its tag
-Packaging has real coverage; publishing is only stub-tested. Both release
-failures this cycle lived in that gap: a stale asset surviving a replace,
-and a version AMO already held. A post-publish check that asserts the
-release's assets, names and versions agree with the tag would have caught
-both.
+### T4. Make the update self-check prove more than "it starts" — DONE (`af77013`)
+The new helper must also list devices, against a stand-in folder so it
+reads nothing real and gives the same answer with nothing mounted.
 
-### T4. Make the update self-check prove more than "it starts"
-`_self_check` sends a `ping` and requires an answer. A build that starts and
-answers but cannot read a device passes. Running `devices` would cost
-nothing and prove the part that matters.
+### T5. Sign releases with a key GitHub does not hold — DONE (`a891beb`)
+See D1.
 
-### T5. Sign releases with a key GitHub does not hold
-The real fix for D1. Scope: a signing key, a published public key, a
-signature asset, and verification in `update.apply` before the swap.
+### T6. Drive the Firefox options page in a real browser — DONE (`86f76bb`)
+Over Firefox's remote debugging protocol. Proven in CI: all five tests ran
+and passed in a real Firefox. The Grant button still needs a trusted user
+gesture, so permission granting is covered only in Chromium.
 
-### T6. Drive the Firefox options page in a real browser
-Playwright's Firefox cannot drive `moz-extension://` documents, worked
-around by seeding config into the profile. So that UI is covered by unit
-tests and seeded state rather than by clicking it. DuckDuckGo's harness
-patches `omni.ja` to enable this; that is the known route if it becomes
-worth the cost.
+### T7. Optional helper-free mode on Chromium — IN PROGRESS
+See the research section. Being built as a second backend beside the helper.
 
-### T7. Optional helper-free mode on Chromium
-See the research section. A second filesystem backend behind the same
-interface the helper implements, plus a permission lifecycle, plus a user
-story for when the grant lapses. Real work, Chromium-only, and it removes
-the install step for the majority of users. Low priority precisely because
-it cannot replace the helper — only sit beside it.
+### T8. Surface that Windows is polling — DONE (`0138d94`)
 
-### T8. Surface that Windows is polling
-`cmd_watch` already returns `polls`; the UI ignores it. The page could say device changes take a
-moment here, instead of looking slow for no stated reason. *(Mitigates D3.)*
+---
+
+## Needs the maintainer
+
+### M1. Pin a release-signing key — before the next tag of any kind
+Tag builds now fail without one (`f33821d`). On your own machine:
+`python3 tools/sign_release.py keygen`, back the key up offline, paste the
+printed line into `KEYS` in `absh/release_keys.py`, commit, push.
+
+### M2. Sign each release after CI publishes it
+`python3 tools/sign_release.py sign vX`, then
+`gh release upload vX release/SHA256SUMS.sig --clobber`. `sign` rebuilds the
+native zip from the tag and compares it before vouching for CI's output.
+
+### M3. Before the first stable tag
+Add the `CWS_PUBLISHER_ID` secret; create the Chrome Web Store item by hand
+(the v2 API cannot create items); run a dispatched dry run, which signs in
+and reads the item without publishing.
+
+### M4. History rewrite
+Strip the attribution trailers and `tests/real/state.json` from history and
+delete the stale `claude/plugin-release-pipeline-kzlr09` branch. The
+permission system blocks this for an agent.
+
+---
+
+## Still unverified
+
+- The `verify-release` job has never run in Actions.
+- Chrome Web Store v2: the exact upload-state spellings and error shapes;
+  Google's reference pages were unreachable when this was written.
+- Whether AMO's first listed submission needs listing details (summary,
+  categories, licence), and whether its refusal of a deleted version number
+  says "already exists".
+- `sign_release.py sign` against a real tag (exercised against HEAD only).
+- Users on alpha.2 and alpha.3 run the old updater, which does not check
+  signatures: they trust GitHub once more, for the first signed release.
+  alpha.1 shipped no updater and must install the next release by hand.
