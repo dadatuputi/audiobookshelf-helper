@@ -65,7 +65,12 @@ async function load() {
   // anything typed while it was in flight used to be overwritten the moment
   // it resolved - the first characters of a pasted server URL simply
   // vanished, and Save then stored the empty field.
-  for (const k of FIELDS) if ($(k) && !$(k).value) $(k).value = d[k] || "";
+  //
+  // Untouched, not empty: subdir and folderTemplate carry their defaults in
+  // the markup, so testing for an empty field never showed a saved value for
+  // them. The page reverted to the default on every load, and the next Save
+  // quietly wrote the default back over the user's choice.
+  for (const k of FIELDS) if ($(k) && !$(k).dataset.touched) $(k).value = d[k] || "";
   for (const k of CHECKS) if (!$(k).dataset.touched) $(k).checked = !!d[k];
   await refreshPermissionState();
 }
@@ -133,6 +138,9 @@ $("deviceList").addEventListener("change", () => {
   $("devicePath").value = $("deviceList").value;
 });
 
+for (const k of FIELDS) {
+  if ($(k)) $(k).addEventListener("input", () => { $(k).dataset.touched = "1"; });
+}
 for (const k of CHECKS) {
   if ($(k)) $(k).addEventListener("change", () => { $(k).dataset.touched = "1"; });
 }

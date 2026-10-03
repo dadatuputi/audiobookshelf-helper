@@ -574,4 +574,24 @@ test.describe("before access is granted", () => {
     expect(scripts).toEqual([]);
     await page.close();
   });
+
+  test("a saved folder and naming template are what the page shows next time", async () => {
+    // Both carry a default in the markup, and the page used to fill only
+    // empty fields from storage - so it showed the default on every load, and
+    // the next Save wrote it back over what the user had chosen.
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await page.waitForFunction(
+      () => (document.getElementById("permState")?.textContent || "") !== "",
+      null, { timeout: 15_000 });
+    await page.fill("#subdir", "BOOKS");
+    await page.fill("#folderTemplate", "{title}");
+    await page.click("#save");
+    await expect(page.locator("#msg")).toHaveText("saved");
+
+    await page.reload();
+    await expect(page.locator("#subdir")).toHaveValue("BOOKS");
+    await expect(page.locator("#folderTemplate")).toHaveValue("{title}");
+    await page.close();
+  });
 });
