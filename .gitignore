@@ -12,3 +12,6 @@ release/
 # throwaway test server. Regenerated on every run; never committed.
 tests/real/state.json
 .abs-real/
+
+# Claude Code session state and agent worktrees. Never part of the project.
+.claude/
