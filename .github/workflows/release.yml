@@ -58,6 +58,31 @@ jobs:
             echo "prerelease=$(python3 tools/release_version.py "$TAG" --field prerelease)"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Refuse to ship a helper that could never update itself
+        # A helper that pins no release-signing key refuses every later
+        # update, so everyone who installs this release would be stuck on it
+        # until they reinstall by hand. CI's packaging dry run only warns; a
+        # real tag stops here, before anything is built or published.
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+          from absh import update
+          try:
+              keys = update.trusted_keys(Path("."))
+          except update.UpdateError:
+              keys = []
+          if not keys:
+              print("::error title=Release signing::absh/release_keys.py pins no "
+                    "release-signing key, so this release's helper could never "
+                    "update itself. Run `python3 tools/sign_release.py keygen` on "
+                    "your own machine, add the line it prints to KEYS in "
+                    "absh/release_keys.py, commit, and tag again.")
+              sys.exit(1)
+          print(f"{len(keys)} release-signing key(s) pinned")
+          PY
+
       - name: Regenerate icons
         # Rebuilt rather than trusted, so a stale committed PNG cannot ship.
         run: python3 extension/icons/make_icons.py
