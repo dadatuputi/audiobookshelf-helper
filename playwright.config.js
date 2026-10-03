@@ -35,7 +35,9 @@ export default defineConfig({
     {
       name: "real-firefox",
       testDir: "tests/real",
-      testMatch: "real-firefox.spec.js",
+      // The options page has a file of its own: its own Firefox, its own
+      // profile, and a driver (firefox-rdp.mjs) the rest does not depend on.
+      testMatch: ["real-firefox.spec.js", "real-firefox-options.spec.js"],
       timeout: 180_000,
       use: { browserName: "firefox", ...launchOptions("ABSH_FIREFOX_PATH") }
     }

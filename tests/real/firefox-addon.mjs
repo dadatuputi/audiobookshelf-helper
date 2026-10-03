@@ -216,7 +216,7 @@ class RDP {
 }
 
 /** Connect once the debugger server is listening; it is not up immediately. */
-async function connect(port, tries = 60) {
+export async function connect(port, tries = 60) {
   for (let i = 0; i < tries; i++) {
     try {
       return await new Promise((resolve, reject) => {
