@@ -111,11 +111,11 @@ and `83edd53`'s release check would now flag one.
 Still a poll; there is no event worth the ctypes. **Status:** `0138d94`
 says so on the options page, only when the helper reports it is polling.
 
-### D4. A test credential is in public history — PENDING (maintainer)
+### D4. A test credential is in public history — ACCEPTED
 `tests/real/state.json` (a JWT for a throwaway CI server, plus local
-scratch paths) is in `274935f` and `d414b8a`. **Status:** the history
-rewrite in M4 removes it from every branch and tag. GitHub keeps PR head
-refs regardless, so it stays reachable through PRs #1–#6.
+scratch paths) is in `274935f` and `d414b8a`, and has been gitignored since
+`7bdc97a`. The server it authenticates to only ever existed inside CI, so
+the maintainer chose not to rewrite history for it.
 
 ### D5. The Chrome Web Store path has never run — FIXED, unproven live
 **Status:** `8b37a49`. Testing it found four bugs: publish dropped its body,
@@ -208,10 +208,11 @@ Add the `CWS_PUBLISHER_ID` secret; create the Chrome Web Store item by hand
 (the v2 API cannot create items); run a dispatched dry run, which signs in
 and reads the item without publishing.
 
-### M4. History rewrite
-Strip the attribution trailers and `tests/real/state.json` from history and
-delete the stale `claude/plugin-release-pipeline-kzlr09` branch. The
-permission system blocks this for an agent.
+### M4. Optionally, delete the stale `claude/plugin-release-pipeline-kzlr09` branch
+Every commit on it reached main through PRs #1–#6, and `git diff` against
+its squash commit `044bd74` is empty, so nothing is lost. Deleting it only
+tidies the branch list. Nothing under `.claude/` has ever been committed on
+any ref, and `.claude/` is ignored since `22711c5`.
 
 ---
 
