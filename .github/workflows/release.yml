@@ -164,13 +164,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check AMO does not already have this version
+        # Before node, npm and a signing round-trip: AMO will not sign a
+        # version twice, so asking first turns a multi-minute Conflict into
+        # one request. It fails only on a definite yes - no credentials, an
+        # unknown add-on or an API error let the submission be the judge.
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+          FIREFOX_VERSION: ${{ needs.package.outputs.firefox_version }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if ! python3 tools/amo_versions.py --conflicts "$FIREFOX_VERSION"; then
+            echo "::error title=AMO::AMO already has version $FIREFOX_VERSION and will not sign it twice. Re-cutting $TAG cannot produce a new add-on - bump the tag and push that instead. Deleting the GitHub release does not give the version back."
+            exit 1
+          fi
+
       - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: npm
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
       - run: npm ci --no-audit --no-fund
 
       - name: Rebuild the Firefox bundle at the release version
