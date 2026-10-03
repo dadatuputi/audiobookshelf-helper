@@ -385,20 +385,22 @@ def cmd_tui(args, cfg):
 
 def cmd_update(args, cfg):
     """Replace this installed copy with a release from GitHub."""
+    from . import releases as releases_mod
     from . import update as update_mod
-    from . import version as version_mod
 
     if args.check:
         try:
+            # With no --tag, the same choice the extension's Update button
+            # makes - see releases.py for why it is not GitHub's "latest".
             rel = update_mod.find_release(args.tag)
         except update_mod.UpdateError as e:
             die(str(e))
-        here = version_mod.release()
-        newer = rel["tag"].lstrip("v") != here
+        here = update_mod.installed_release()
+        newer = releases_mod.newer(rel["tag"], here)
         print(f"installed   {here}")
         print(f"available   {rel['tag']}"
               + ("  (prerelease)" if rel["prerelease"] else "")
-              + ("" if newer else paint("  - already current", GREEN)))
+              + ("" if newer else paint("  - nothing newer", GREEN)))
         # Checked here too, so "available" is never shown for a release that
         # `absh update` would then refuse.
         try:

@@ -145,6 +145,185 @@ for (const k of CHECKS) {
   if ($(k)) $(k).addEventListener("change", () => { $(k).dataset.touched = "1"; });
 }
 
+/* ------------------------------------------------------------ the helper
+ *
+ * Which helper is installed, whether a newer one is out, and a button to
+ * install it - but only when this copy can actually replace itself. When it
+ * cannot (a git checkout, a folder you cannot write to), the helper's own
+ * sentence says why, and there is no button that would only fail. */
+
+let UPDATING = false;
+
+function showHelper({ helper, check }, checking) {
+  const s = ABSH.updateState(helper, check);
+  const version = $("helperVersion");
+  const state = $("updateState");
+  const btn = $("update");
+  const checkBtn = $("checkUpdate");
+  const when = $("checkedAt");
+
+  btn.classList.add("hidden");
+  checkBtn.classList.toggle("hidden", s.kind === "unreachable");
+  $("pollNote").classList.toggle("hidden", !(helper && helper.polls === true));
+
+  if (s.kind === "unreachable") {
+    version.textContent = "The helper isn't responding.";
+    note(state, `${(s.error || "No answer").replace(/\.$/, "")}. Run install.py ` +
+                "from the download (native/install.py in a checkout), then restart " +
+                "the browser.", "err");
+    when.textContent = "";
+    return;
+  }
+
+  version.textContent = `Helper version ${s.installed}`;
+  const latest = s.latest ? `${s.latest}${s.prerelease ? " (prerelease)" : ""}` : "";
+
+  switch (s.kind) {
+    case "available":
+      if (s.canUpdate) {
+        note(state, `${latest} is available.`, "warn");
+        btn.textContent = `Update to ${s.latest}`;
+        btn.dataset.tag = s.latest;
+        btn.classList.remove("hidden");
+      } else if (s.refused) {
+        // This copy cannot replace itself at all: a checkout, a folder it
+        // cannot write, or - in every build until a key is pinned - no key
+        // to tell a genuine release from a forged one.
+        note(state, `${latest} is available, but it can't be installed from here: ` +
+                    s.refused, "warn");
+      } else {
+        // This copy could, but not this release: unsigned, or not by a key
+        // it trusts.
+        note(state, `${latest} is available, but the helper won't install it: ` +
+                    s.releaseRefused, "warn");
+      }
+      break;
+    case "current":
+      note(state, (s.ahead
+        ? `Up to date - newer than the latest release, ${latest}.`
+        : "Up to date.") +
+        (s.refused ? ` Later releases can't be installed from here, though: ${s.refused}` : ""),
+        "ok");
+      break;
+    case "unversioned":
+      note(state, (s.refused ? `This copy can't update itself: ${s.refused}` :
+                               "This copy has no release version to update from.") +
+                  (latest ? ` The latest release is ${latest}.` : ""), "");
+      break;
+    case "unsupported":
+      note(state, "This helper is too old to be updated from here. Download the " +
+                  "latest release and run its install.py once; later updates can " +
+                  "then be installed from this page.", "warn");
+      break;
+    case "failed":
+      note(state, "Couldn't check for updates.", "");
+      break;
+    default:
+      note(state, checking ? "" : "Not checked for updates yet.", "");
+  }
+
+  if (checking) {
+    when.textContent = "Checking for updates…";
+  } else if (s.error) {
+    when.textContent = `Last check failed: ${s.error}`;
+  } else if (s.checkedAt) {
+    when.textContent = `Checked ${new Date(s.checkedAt).toLocaleString()}.`;
+  } else {
+    when.textContent = "";
+  }
+}
+
+async function helperStatus(opts) {
+  const r = await browser.runtime.sendMessage({ type: "updateStatus", ...opts });
+  if (!r || !r.ok) throw new Error((r && r.error) || "no response");
+  return r.data;
+}
+
+/** Show what is known at once, then ask the release feed if that is due -
+ *  the version should not wait on GitHub. Resolves to the final status. */
+async function refreshHelper(force) {
+  if (UPDATING) return null;
+  const checkBtn = $("checkUpdate");
+  checkBtn.disabled = true;
+  try {
+    let st = await helperStatus({ force, peek: true });
+    showHelper(st, st.due);
+    if (st.due) {
+      st = await helperStatus({ force });
+      showHelper(st, false);
+    }
+    return st;
+  } catch (e) {
+    showHelper({ helper: { ok: false, error: String(e.message || e) }, check: null });
+    return null;
+  } finally {
+    checkBtn.disabled = false;
+  }
+}
+
+/* Installing streams its steps, so it goes over a port rather than a single
+ * message - the same way the popup streams a sync. */
+function runUpdate(tag, onStep) {
+  return new Promise((resolve, reject) => {
+    const p = browser.runtime.connect({ name: "absh" });
+    p.onMessage.addListener((m) => {
+      if (m.progress) {
+        if (m.progress.event === "step") onStep(m.progress.message);
+        return;
+      }
+      p.disconnect();
+      m.ok ? resolve(m.data) : reject(new Error(m.error || "no response"));
+    });
+    p.onDisconnect.addListener(() => reject(new Error("the extension's background stopped")));
+    p.postMessage({ type: "update", tag, rid: 1 });
+  });
+}
+
+$("update").addEventListener("click", async () => {
+  const btn = $("update");
+  const steps = $("updateSteps");
+  const tag = btn.dataset.tag;
+  UPDATING = true;
+  btn.disabled = true;
+  $("checkUpdate").disabled = true;
+  btn.textContent = "Updating…";
+  steps.innerHTML = "";
+  note($("updateState"), `Installing ${tag}. Keep this page open until it finishes.`, "");
+  try {
+    const r = await runUpdate(tag, (msg) => {
+      const li = document.createElement("li");
+      li.textContent = msg;
+      steps.appendChild(li);
+    });
+    UPDATING = false;
+    // Asking again reaches a fresh helper started from the new files, so the
+    // version it reports is the one now installed - which is the proof the
+    // swap took, rather than the old process's word for it.
+    const st = await refreshHelper(false);
+    const now = st && st.helper && st.helper.ok ? st.helper.release : "";
+    if (!r.updated) {
+      note($("updateState"), "Already on the latest release.", "ok");
+    } else if (ABSH.compareVersions(now, r.to) === 0) {
+      note($("updateState"), `Updated to ${r.to}. The helper restarted on the new version.`, "ok");
+    } else if (now) {
+      note($("updateState"), `${r.to} is installed, but the helper still reports ` +
+                             `${now}. Restart the browser to pick it up.`, "warn");
+    }
+  } catch (e) {
+    UPDATING = false;
+    btn.textContent = `Update to ${tag}`;
+    // The helper's own words. They say what went wrong and whether the old
+    // version was put back, and rewording them would lose that.
+    note($("updateState"), `The update didn't finish: ${e.message || e}`, "err");
+  } finally {
+    UPDATING = false;
+    btn.disabled = false;
+    $("checkUpdate").disabled = false;
+  }
+});
+
+$("checkUpdate").addEventListener("click", () => refreshHelper(true));
+
 $("save").addEventListener("click", async () => {
   const o = {};
   for (const k of FIELDS) o[k] = $(k).value.trim();
@@ -157,3 +336,4 @@ $("save").addEventListener("click", async () => {
 });
 
 load();
+refreshHelper(false);

@@ -47,10 +47,19 @@ def pin_line(*secrets):
 
 
 def build_native_zip(dest: Path, release: str, break_host=False, escape=False,
-                     drop=None, break_devices=False, blind_devices=False):
-    """The same archive tools/package.py produces, at a chosen version."""
+                     drop=None, break_devices=False, blind_devices=False,
+                     host_mode=None):
+    """The same archive tools/package.py produces, at a chosen version.
+
+    `host_mode` records that permission for absh_host.py instead of whatever
+    the checkout's file has, the way an archive built elsewhere might."""
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(ROOT / "native" / "absh_host.py", "absh_host.py")
+        if host_mode is None:
+            z.write(ROOT / "native" / "absh_host.py", "absh_host.py")
+        else:
+            info = zipfile.ZipInfo("absh_host.py")
+            info.external_attr = (0o100000 | host_mode) << 16
+            z.writestr(info, (ROOT / "native" / "absh_host.py").read_bytes())
         z.write(ROOT / "native" / "install.py", "install.py")
         z.write(ROOT / "extension" / "identity.json", "identity.json")
         z.write(ROOT / "extension" / "identity.py", "identity.py")
@@ -113,14 +122,18 @@ class Feed:
                         return
                     body, ctype = assets[name], "application/octet-stream"
                 else:
-                    body = json.dumps({
+                    release = {
                         "tag_name": tag, "prerelease": prerelease,
                         "assets": [{"name": n,
                                     "browser_download_url":
                                         f"http://{outer.host}/download/{urllib.parse.quote(n)}",
                                     "digest": f"sha256:{sha(b)}"}
                                    for n, b in assets.items()],
-                    }).encode()
+                    }
+                    # The listing is how the latest is chosen (releases.py);
+                    # anything else is asking for this one release.
+                    listing = self.path.split("?")[0].endswith("/releases")
+                    body = json.dumps([release] if listing else release).encode()
                     ctype = "application/json"
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
@@ -503,13 +516,85 @@ class Cli(UpdateCase):
         self.assertNotIn("run `absh update`", p.stdout)
 
 
+def unchecked_bytecode(root):
+    """Compile the installed package into .pyc files Python will trust without
+    looking at the source at all.
+
+    The deterministic form of a hazard that is otherwise a race: an ordinary
+    .pyc is reused when the source's mtime-to-the-second and size match, and
+    a release's version.py is the same size as the one it replaces. Unchecked
+    pycs are also what some packagers ship."""
+    import importlib.util
+    import py_compile
+    for f in (root / "absh").glob("*.py"):
+        py_compile.compile(str(f), cfile=importlib.util.cache_from_source(str(f)),
+                           doraise=True,
+                           invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+
+
+class SwapsCleanly(UpdateCase):
+    """What the swap leaves behind is the release, not traces of the old copy."""
+
+    def test_old_bytecode_cannot_vouch_for_a_broken_build(self):
+        # Without clearing the cache, the self-check imports the old, working
+        # host.py from bytecode, passes, and the broken build is kept.
+        unchecked_bytecode(self.root)
+        self.serve("v1.0.0-alpha.2", break_host=True)
+        with self.assertRaises(U.UpdateError) as e:
+            U.apply(root=self.root)
+        self.assertIn("put the previous version back", str(e.exception))
+        self.assertEqual(U.installed_release(self.root), "1.0.0-alpha.1")
+        self.assertIsNone(U._self_check(self.root), "the rollback does not start")
+
+    def test_the_next_helper_runs_the_new_code_not_the_cached_old(self):
+        unchecked_bytecode(self.root)
+        self.serve("v1.0.0-alpha.2")
+        self.assertTrue(U.apply(root=self.root)["updated"])
+        p = subprocess.run(
+            [sys.executable, "-c", "from absh import version; print(version.release())"],
+            cwd=self.root, capture_output=True, text=True, timeout=60)
+        self.assertEqual(p.stdout.strip(), "1.0.0-alpha.2", p.stderr)
+
+    @unittest.skipIf(os.name != "posix", "execute bits are a POSIX permission")
+    def test_an_executable_in_the_archive_comes_out_executable(self):
+        # extractall drops the mode the archive recorded; a manifest pointing
+        # at the script would then find nothing it can start.
+        (self.root / "absh_host.py").chmod(0o644)
+        self.serve("v1.0.0-alpha.2", host_mode=0o755)
+        self.assertTrue(U.apply(root=self.root)["updated"])
+        self.assertTrue(os.access(self.root / "absh_host.py", os.X_OK))
+
+    @unittest.skipIf(os.name != "posix", "execute bits are a POSIX permission")
+    def test_an_installed_executable_stays_executable(self):
+        # install.py marks the host executable; an archive that records no
+        # mode for it does not get to take that away.
+        (self.root / "absh_host.py").chmod(0o755)
+        self.serve("v1.0.0-alpha.2", host_mode=0o644)
+        self.assertTrue(U.apply(root=self.root)["updated"])
+        self.assertTrue(os.access(self.root / "absh_host.py", os.X_OK))
+
+    @unittest.skipIf(os.name != "posix", "execute bits are a POSIX permission")
+    def test_the_archive_cannot_grant_more_than_execute(self):
+        (self.root / "absh_host.py").chmod(0o644)
+        self.serve("v1.0.0-alpha.2", host_mode=0o4777)
+        self.assertTrue(U.apply(root=self.root)["updated"])
+        mode = (self.root / "absh_host.py").stat().st_mode
+        self.assertFalse(mode & 0o4000, "setuid came from the archive")
+        self.assertFalse(mode & 0o002, "world-writable came from the archive")
+
+
 class Orders(unittest.TestCase):
+    """The downgrade guard uses the same ordering as the choice of latest
+    (releases.py, tested in full in test_host_update.py), so the two cannot
+    disagree about which way is forward."""
+
     def test_release_strings_sort_as_releases(self):
-        seq = ["1.0.0-alpha.1", "v1.0.0-alpha.2", "1.0.0-alpha.10", "1.0.0-beta.1",
-               "1.0.0-rc.1", "1.0.0", "1.0.1-alpha.1", "1.0.1", "1.10.0"]
-        keys = [U._order(v) for v in seq]
-        self.assertEqual(keys, sorted(keys))
-        self.assertIsNone(U._order("dev"))
+        from absh import releases
+        seq = ["1.0.0-alpha", "1.0.0-alpha.1", "v1.0.0-alpha.2", "1.0.0-alpha.10",
+               "1.0.0-beta.1", "1.0.0-rc.1", "1.0.0", "1.0.1-alpha.1", "1.0.1", "1.10.0"]
+        for older, newer in zip(seq, seq[1:]):
+            self.assertEqual(releases.compare(older, newer), -1, (older, newer))
+        self.assertIsNone(releases.compare("dev", "1.0.0"))
 
 
 if __name__ == "__main__":

@@ -18,6 +18,11 @@ header a:hover { color: var(--fg); }
 .status:empty { display: none; }
 .status.ok { color: var(--ok); }
 .status.err { color: var(--err); }
+.update-hint {
+  display: block; padding: 0 10px 6px; font-size: 11px; color: #fcd34d; text-decoration: none;
+}
+.update-hint:hover { text-decoration: underline; }
+.update-hint.hidden { display: none; }
 
 .tabs { display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--line); }
 .tab {

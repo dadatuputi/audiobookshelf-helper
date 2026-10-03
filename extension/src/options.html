@@ -20,8 +20,24 @@ code{background:#111827;padding:1px 4px;border-radius:3px}
 .note{font-size:12px;margin-top:.5rem;color:#9ca3af}
 .note.ok{color:#86efac} .note.warn{color:#fcd34d} .note.err{color:#fca5a5}
 .grant{border:1px solid #374151;border-radius:6px;padding:.8rem 1rem;margin-top:.8rem;background:#171717}
+.actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.actions button{margin-top:.8rem}
+#updateSteps{margin:.6rem 0 0;padding-left:1.2rem;font-size:12px;color:#9ca3af}
+#updateSteps:empty{display:none}
 </style></head><body>
 <h1>Audiobookshelf Helper</h1>
+
+<h2>Helper</h2>
+<div class="grant" id="helper">
+  <div id="helperVersion">Asking the helper which version it is…</div>
+  <div id="updateState" class="note"></div>
+  <div class="actions">
+    <button id="update" class="hidden">Update helper</button>
+    <button id="checkUpdate" class="secondary hidden">Check for updates</button>
+  </div>
+  <ol id="updateSteps"></ol>
+  <div id="checkedAt" class="hint"></div>
+</div>
 
 <h2>Server</h2>
 <label for="absUrl">Audiobookshelf URL</label>
@@ -48,6 +64,10 @@ code{background:#111827;padding:1px 4px;border-radius:3px}
 <div class="hint">Absolute path to the mounted player. The helper writes here.
   Books are fetched from your Audiobookshelf server - nothing else needs to be
   mounted.</div>
+<div id="pollNote" class="hint hidden">On this computer, a player you plug in
+  can take a couple of seconds to show up on your library page: the helper
+  looks for new players on a timer here, rather than being told the moment
+  one is connected.</div>
 <label for="subdir">Folder on the device</label>
 <input type="text" id="subdir" value="AUDIOBOOKS">
 <div class="hint">Some players give a named folder resume and bookmarks - check your manual.</div>

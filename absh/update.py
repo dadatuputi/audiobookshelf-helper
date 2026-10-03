@@ -70,10 +70,16 @@ def find_release(tag=None):
 
     A tag can be named, which is how you go back to a known-good build - and
     the only way to exercise this at all before a newer release exists.
+
+    Without one, the newest release this copy should be offered, as
+    releases.latest chooses it. Not GitHub's own "latest": that skips
+    prereleases by definition, so while every release is one it answers 404.
     """
-    where = f"/repos/{REPO}/releases/tags/{tag}" if tag else f"/repos/{REPO}/releases/latest"
+    if not tag:
+        from . import releases       # here, not at the top: it imports this module
+        return releases.latest(installed_release())
     try:
-        rel = _get(API + where)
+        rel = _get(API + f"/repos/{REPO}/releases/tags/{tag}")
     except Exception as e:                          # network, 404, bad JSON
         raise UpdateError(f"could not reach the release feed: {e}")
 
@@ -220,25 +226,17 @@ def verify_release(rel, root=None):
     return {"sha256": digests[rel["name"]], "key": kid}
 
 
-_ORDER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.?(\d+)?)?$")
-
-
-def _order(version):
-    """A sortable key for a release string, or None if it is not one of ours."""
-    m = _ORDER.match(version or "")
-    if not m:
-        return None
-    rank = {"alpha": 0, "beta": 1, "rc": 2, None: 3}[m.group(4)]
-    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), rank,
-            int(m.group(5) or (1 if m.group(4) else 0)))
-
-
 def _extract(zip_path, dest):
     """Unpack, refusing entries that would land outside dest.
 
     Our own archive is flat and harmless, but the threat this command cannot
     otherwise address is a release that is not ours, and writing outside the
     install directory is the cheapest thing such an archive would try.
+
+    extractall drops the permission bits the archive recorded, so a script
+    packed executable comes out not, and a launcher or manifest pointing at
+    it can no longer start it. The execute bits are put back - only those:
+    the archive does not get to make anything setuid or world-writable.
     """
     dest.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path) as z:
@@ -247,6 +245,12 @@ def _extract(zip_path, dest):
             if not str(target).startswith(str(dest.resolve()) + os.sep):
                 raise UpdateError(f"archive entry escapes the install: {info.filename}")
         z.extractall(dest)
+        if os.name == "posix":
+            for info in z.infolist():
+                execs = (info.external_attr >> 16) & 0o111
+                target = dest / info.filename
+                if execs and not info.is_dir() and target.is_file():
+                    target.chmod(target.stat().st_mode | execs)
     missing = [f for f in REQUIRED if not (dest / f).is_file()]
     if missing:
         raise UpdateError(f"archive is missing {', '.join(missing)}")
@@ -334,13 +338,14 @@ def apply(tag=None, root=None, on_step=lambda _m: None):
     if why:
         raise UpdateError(why)
 
+    from . import releases       # here, not at the top: it imports this module
     current = installed_release(root)
-    rel = find_release(tag)
-    if rel["tag"].lstrip("v") == current and not tag:
+    rel = find_release(tag) if tag else releases.latest(current)
+    order = releases.compare(rel["tag"], current)
+    if not tag and (order == 0 or rel["tag"].lstrip("v") == current):
         return {"updated": False, "current": current, "latest": rel["tag"],
                 "reason": "already on the latest release"}
-    have, offered = _order(current), _order(rel["tag"])
-    if not tag and have and offered and offered < have:
+    if not tag and order == -1:
         # Signed releases stay validly signed forever, so an old one being
         # presented as the latest is a downgrade, whoever arranged it. Going
         # back stays possible, but only when someone asks for it by name.
@@ -382,10 +387,7 @@ def apply(tag=None, root=None, on_step=lambda _m: None):
                 shutil.copy2(existing, backup / rel_path)
 
         on_step(f"replacing {current} with {rel['tag']}")
-        for rel_path in _files_in(new):
-            dest = root / rel_path
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(new / rel_path, dest)
+        _put(new, root)
 
         problem = _self_check(root)
         if problem:
@@ -402,8 +404,34 @@ def _files_in(base):
     return sorted(p.relative_to(base) for p in base.rglob("*") if p.is_file())
 
 
-def _restore(backup, root):
-    for rel_path in _files_in(backup):
+def _put(src, root):
+    """Copy every file under src over the installation at root.
+
+    A file being replaced keeps any execute bit it had: install.py marks the
+    host script executable, and a release archived somewhere that records no
+    mode must not quietly take that away.
+
+    Then the bytecode cache goes, wherever a file landed. Python reuses a .pyc
+    when the source's mtime, to the second, and size match what it recorded -
+    and a release's version.py is the same size as the one it replaces. A swap
+    inside that second would leave the old code running from the cache, and
+    the self-check that follows the swap would be vouching for it rather than
+    for what was installed - and after a rollback, the cache could still hold
+    the build that failed. A hash-checked or unchecked .pyc is worse still: nothing about
+    the new source would invalidate it. Deleting it costs one recompile.
+    """
+    touched = set()
+    for rel_path in _files_in(src):
         dest = root / rel_path
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(backup / rel_path, dest)
+        keep = dest.stat().st_mode & 0o111 if dest.is_file() else 0
+        shutil.copy2(src / rel_path, dest)
+        if keep and os.name == "posix":
+            dest.chmod(dest.stat().st_mode | keep)
+        touched.add(dest.parent)
+    for d in touched:
+        shutil.rmtree(d / "__pycache__", ignore_errors=True)
+
+
+def _restore(backup, root):
+    _put(backup, root)

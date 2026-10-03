@@ -12,8 +12,10 @@
 import { test, expect, chromium } from "@playwright/test";
 import { createServer } from "node:http";
 import {
-  mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, statSync
+  mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, statSync,
+  copyFileSync, chmodSync
 } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,6 +42,12 @@ function chromeIdFromKey(b64) {
 const LAUNCH = process.env.ABSH_CHROMIUM_PATH
   ? { executablePath: process.env.ABSH_CHROMIUM_PATH }
   : { channel: "chromium" };
+
+/* The options page and the popup now ask the helper about updates, and the
+ * helper asks GitHub. No test here should depend on GitHub, or spend its rate
+ * limit, so the helper's release feed is a refused local port unless a test
+ * stands one up. Chromium passes this on to the helper it spawns. */
+process.env.ABSH_UPDATE_API = "http://127.0.0.1:9";
 
 const BOOKS = [
   { id: "bk1", title: "Redwall", author: "Brian Jacques", relPath: "Brian Jacques/Redwall" },
@@ -156,7 +164,7 @@ function startAbs() {
  * permissions.request() never resolves there and the grant has to be seeded.
  * The un-granted first-run state is covered by its own context below.
  */
-function makeProfile(grantOrigin) {
+function makeProfile(grantOrigin, hostPath = resolve(root, "native/absh_host.py")) {
   const profile = mkdtempSync(join(tmpdir(), "absh-e2e-"));
   // Chromium looks under the user-data-dir, not ~/.config, when one is given.
   const dir = join(profile, "NativeMessagingHosts");
@@ -164,7 +172,7 @@ function makeProfile(grantOrigin) {
   writeFileSync(join(dir, `${HOST_NAME}.json`), JSON.stringify({
     name: HOST_NAME,
     description: "Audiobookshelf Helper native host (test)",
-    path: resolve(root, "native/absh_host.py"),
+    path: hostPath,
     type: "stdio",
     allowed_origins: [`chrome-extension://${EXT_ID}/`]
   }, null, 2));
@@ -592,6 +600,298 @@ test.describe("before access is granted", () => {
     await page.reload();
     await expect(page.locator("#subdir")).toHaveValue("BOOKS");
     await expect(page.locator("#folderTemplate")).toHaveValue("{title}");
+    await page.close();
+  });
+});
+
+/* ------------------------------------------------------------ helper updates
+ *
+ * A stand-in for GitHub's release endpoints - as much as the helper reads -
+ * so what the options page shows is decided here rather than by whatever was
+ * last published. Counts its requests, so a test can say what a visit costs.
+ *
+ * A release given a `dir` serves every file in it - the archive, SHA256SUMS
+ * and its signature, as signedRelease() writes them. One without carries only
+ * a placeholder archive, for a release that is looked at and never installed. */
+const REPO = /^REPO = "([^"]+)"/m.exec(readFileSync(resolve(root, "absh/update.py"), "utf8"))[1];
+const ASSET = (tag) => `audiobookshelf-helper-native-${tag.replace(/^v/, "")}.zip`;
+
+function startFeed(releases) {
+  const requests = [];
+  const filesOf = (r) => (r.dir ? readdirSync(r.dir) : [ASSET(r.tag)]);
+  return new Promise((res) => {
+    const srv = createServer((req, rep) => {
+      requests.push(req.url);
+      const json = (obj) => {
+        rep.writeHead(200, { "Content-Type": "application/json" });
+        rep.end(JSON.stringify(obj));
+      };
+      const host = req.headers.host;
+      const release = (r) => ({
+        tag_name: r.tag, prerelease: r.prerelease, draft: false,
+        assets: filesOf(r).map((name) => ({
+          name, browser_download_url: `http://${host}/dl/${r.tag}/${name}`
+        }))
+      });
+      const path = req.url.split("?")[0];
+      const base = `/repos/${REPO}/releases`;
+      if (path === base) return json(releases.map(release));
+      if (path.startsWith(`${base}/tags/`)) {
+        const r = releases.find((x) => x.tag === path.slice(`${base}/tags/`.length));
+        if (r) return json(release(r));
+      }
+      const [, tag, name] = /^\/dl\/([^/]+)\/([^/]+)$/.exec(path) || [];
+      const r = releases.find((x) => x.tag === tag && x.dir);
+      if (r && filesOf(r).includes(name)) {
+        const body = readFileSync(join(r.dir, name));
+        rep.writeHead(200, { "Content-Type": "application/octet-stream",
+                             "Content-Length": String(body.length) });
+        return rep.end(body);
+      }
+      rep.writeHead(404); rep.end("no");
+    });
+    srv.listen(0, "127.0.0.1", () => res({
+      srv, requests, api: `http://127.0.0.1:${srv.address().port}`,
+      listings: () => requests.filter((u) => u.split("?")[0].endsWith("/releases")).length
+    }));
+  });
+}
+
+/** A signed release in `dir`, made with the Python suite's own helpers and a
+ *  throwaway key, and the KEYS line an installation needs to trust it. The
+ *  key never leaves the one python process that makes and uses it. */
+function signedRelease(dir, tag) {
+  mkdirSync(dir, { recursive: true });
+  const out = execFileSync("python3", ["-c", `
+import json, sys
+from pathlib import Path
+sys.path[:0] = ["tests/python", "."]
+import test_update as T
+from absh import signing
+out, tag = Path(sys.argv[1]), sys.argv[2]
+blob = T.build_native_zip(out / "build.zip", tag.lstrip("v")).read_bytes()
+(out / "build.zip").unlink()
+name = T.native_name(tag)
+(out / name).write_bytes(blob)
+manifest = signing.make_manifest(tag, {name: T.sha(blob)})
+(out / signing.MANIFEST_NAME).write_bytes(manifest)
+(out / signing.SIGNATURE_NAME).write_bytes(
+    signing.sign_manifest((T.TRUSTED,), manifest).encode())
+print(json.dumps(T.pin_line(T.TRUSTED)))
+`, dir, tag], { cwd: root, encoding: "utf8" });
+  return `KEYS = ${out.trim()}\n`;
+}
+
+/** What the installation at `dir` says about why it cannot update itself -
+ *  asked of absh itself, so the test compares against the real sentence. */
+function refuseReason(dir) {
+  return execFileSync("python3", ["-c",
+    "import sys; from pathlib import Path; from absh import update\n" +
+    "print(update.refuse_reason(Path(sys.argv[1])))", dir],
+  { cwd: root, encoding: "utf8" }).trim();
+}
+
+/** Set environment for the helpers a browser will spawn, and put it back. */
+function withEnv(vars) {
+  const saved = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
+  const apply = (vals) => {
+    for (const [k, v] of Object.entries(vals)) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  };
+  apply(vars);
+  return () => apply(saved);
+}
+
+async function optionsPage(ctx) {
+  const page = await ctx.newPage();
+  await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+  return page;
+}
+
+/* This repository is a git checkout, so the helper every other test runs is
+ * one that must not update itself - the state every developer is in. */
+test.describe("the helper's version, from a checkout", () => {
+  test.skip(({ browserName }) => browserName !== "chromium",
+            "chromium project only - needs --load-extension and a native host");
+
+  let ctx, srv, feed, restoreEnv;
+
+  test.beforeAll(async () => {
+    ({ srv } = await startAbs());
+    const absUrl = `http://127.0.0.1:${srv.address().port}${BASE}`;
+    const { lib, dev } = makeLibrary();
+    feed = await startFeed([{ tag: "v1.0.0-alpha.9", prerelease: true }]);
+    // A named device root is watched by looking, on every platform - see
+    // mounts.is_polling - which makes "this helper polls" deterministic here.
+    restoreEnv = withEnv({ ABSH_UPDATE_API: feed.api, ABSH_DEVICE_ROOTS: dev });
+    ctx = await launch(makeProfile(`${absUrl}/*`));
+    await (await configure(ctx, { absUrl, dev, lib })).close();
+  });
+
+  test.afterAll(async () => {
+    await ctx?.close();
+    srv?.close();
+    feed?.srv.close();
+    restoreEnv?.();
+  });
+
+  test("the options page shows the version, and why it cannot update itself", async () => {
+    const page = await optionsPage(ctx);
+    await expect(page.locator("#helperVersion")).toHaveText("Helper version dev",
+                                                            { timeout: 20_000 });
+    // The helper's own reason, and what the latest release is regardless.
+    await expect(page.locator("#updateState")).toContainText("git checkout");
+    await expect(page.locator("#updateState")).toContainText("v1.0.0-alpha.9");
+    // No button that could only fail.
+    await expect(page.locator("#update")).toBeHidden();
+    await expect(page.locator("#checkUpdate")).toBeVisible();
+    await page.close();
+  });
+
+  test("asks the release feed once a day, not once a visit", async () => {
+    // configure() opened the page once already; that was the day's check.
+    await expect.poll(() => feed.listings(), { timeout: 20_000 }).toBe(1);
+    for (let i = 0; i < 2; i++) {
+      const page = await optionsPage(ctx);
+      await expect(page.locator("#updateState")).toContainText("v1.0.0-alpha.9",
+                                                               { timeout: 20_000 });
+      await page.close();
+    }
+    expect(feed.listings()).toBe(1);
+
+    // Asking is always allowed.
+    const page = await optionsPage(ctx);
+    await expect(page.locator("#checkUpdate")).toBeEnabled({ timeout: 20_000 });
+    await page.click("#checkUpdate");
+    await expect.poll(() => feed.listings(), { timeout: 20_000 }).toBe(2);
+    await expect(page.locator("#checkedAt")).toContainText("Checked");
+    await page.close();
+  });
+
+  test("says a newly plugged-in player can take a moment, when the helper polls", async () => {
+    const page = await optionsPage(ctx);
+    await expect(page.locator("#pollNote")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#pollNote")).toContainText("couple of seconds");
+    await page.close();
+  });
+});
+
+/* The whole update, through the browser: a real installed copy, a release
+ * feed offering a newer one, the button, and then proof that the helper
+ * answering afterwards is the new one - which only a fresh process can be,
+ * since the old one holds the old code in memory. */
+test.describe("updating an installed helper from the options page", () => {
+  test.skip(({ browserName }) => browserName !== "chromium",
+            "chromium project only - needs --load-extension and a native host");
+
+  let ctx, srv, feed, restoreEnv, install, pinned;
+
+  test.beforeAll(async () => {
+    ({ srv } = await startAbs());
+    const absUrl = `http://127.0.0.1:${srv.address().port}${BASE}`;
+    const { lib, dev } = makeLibrary();
+
+    // The newer release, signed with a throwaway key...
+    const base = mkdtempSync(join(tmpdir(), "absh-installed-"));
+    const releaseDir = join(base, "v1.0.0-alpha.2");
+    pinned = signedRelease(releaseDir, "v1.0.0-alpha.2");
+
+    // ...and an installation as install.py leaves one, trusting that key: the
+    // package beside the host script, stamped with the release it came from.
+    install = join(base, "install");
+    mkdirSync(join(install, "absh"), { recursive: true });
+    copyFileSync(resolve(root, "native/absh_host.py"), join(install, "absh_host.py"));
+    for (const f of readdirSync(resolve(root, "absh")).filter((n) => n.endsWith(".py"))) {
+      copyFileSync(resolve(root, "absh", f), join(install, "absh", f));
+    }
+    writeFileSync(join(install, "absh", "version.py"),
+                  'RELEASE = "1.0.0-alpha.1"\n\n\ndef release():\n    return RELEASE\n\n\n' +
+                  'def is_release():\n    return RELEASE != "dev"\n');
+    writeFileSync(join(install, "absh", "release_keys.py"), pinned);
+
+    // Registered the way install.py registers one: the browser starts a
+    // launcher that execs an absolute interpreter on the script.
+    const python = execFileSync("python3", ["-c", "import sys; print(sys.executable)"],
+                                { encoding: "utf8" }).trim();
+    const launcher = join(base, "absh_host.sh");
+    writeFileSync(launcher, `#!/bin/sh\nexec "${python}" "${join(install, "absh_host.py")}" "$@"\n`);
+    chmodSync(launcher, 0o755);
+
+    feed = await startFeed([{ tag: "v1.0.0-alpha.2", prerelease: true, dir: releaseDir },
+                            { tag: "v1.0.0-alpha.1", prerelease: true }]);
+    // No named device root: on Linux the helper is then told about mounts by
+    // the kernel, so the polling note must stay away.
+    restoreEnv = withEnv({ ABSH_UPDATE_API: feed.api, ABSH_DEVICE_ROOTS: undefined });
+    ctx = await launch(makeProfile(`${absUrl}/*`, launcher));
+    await (await configure(ctx, { absUrl, dev, lib })).close();
+  });
+
+  test.afterAll(async () => {
+    await ctx?.close();
+    srv?.close();
+    feed?.srv.close();
+    restoreEnv?.();
+  });
+
+  test("the popup mentions it in one line", async () => {
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(page.locator("#updateHint"))
+      .toHaveText("Helper v1.0.0-alpha.2 is available - update it in Options",
+                  { timeout: 20_000 });
+    await page.close();
+  });
+
+  test("a copy that pins no signing key says so, in the helper's words, with no button",
+       async () => {
+    // What every copy built before the maintainer pins a key will show.
+    const keys = join(install, "absh", "release_keys.py");
+    writeFileSync(keys, "KEYS = []\n");
+    try {
+      const why = refuseReason(install);
+      expect(why).toContain("pins no release-signing key");
+      const page = await optionsPage(ctx);
+      await expect(page.locator("#updateState"))
+        .toHaveText(`v1.0.0-alpha.2 (prerelease) is available, but it can't be installed ` +
+                    `from here: ${why}`, { timeout: 20_000 });
+      await expect(page.locator("#update")).toBeHidden();
+      await page.close();
+    } finally {
+      writeFileSync(keys, pinned);
+    }
+  });
+
+  test("the options page offers it, installs it, and the new helper answers", async () => {
+    const page = await optionsPage(ctx);
+    await expect(page.locator("#helperVersion")).toHaveText("Helper version 1.0.0-alpha.1",
+                                                            { timeout: 20_000 });
+    await expect(page.locator("#updateState"))
+      .toContainText("v1.0.0-alpha.2 (prerelease) is available", { timeout: 20_000 });
+    if (process.platform === "linux") await expect(page.locator("#pollNote")).toBeHidden();
+
+    const btn = page.locator("#update");
+    await expect(btn).toHaveText("Update to v1.0.0-alpha.2");
+    await btn.click();
+
+    await expect(page.locator("#updateSteps li").first()).toContainText("signed by trusted key");
+    await expect(page.locator("#updateSteps")).toContainText("downloading");
+    await expect(page.locator("#updateState"))
+      .toContainText("Updated to v1.0.0-alpha.2", { timeout: 60_000 });
+    // Reported by a helper started after the swap: the old process could only
+    // ever have said alpha.1.
+    await expect(page.locator("#helperVersion")).toHaveText("Helper version 1.0.0-alpha.2");
+    await expect(page.locator("#update")).toBeHidden();
+    expect(readFileSync(join(install, "absh", "version.py"), "utf8"))
+      .toContain('"1.0.0-alpha.2"');
+
+    // And the rest of the extension carries on against the new helper.
+    const popup = await ctx.newPage();
+    await popup.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(popup.locator("#status")).toContainText("helper ok (1.0.0-alpha.2",
+                                                         { timeout: 20_000 });
+    await expect(popup.locator("#updateHint")).toBeHidden();
+    await popup.close();
     await page.close();
   });
 });

@@ -25,10 +25,15 @@ const HOOK_ID = "absh-page-hook";
 let PORT = null;
 let RID = 0;
 const PENDING = new Map();
+/* The answer to this connection's watch request. Its `polls` says whether the
+ * helper is told about devices by the OS or has to keep looking, which the
+ * options page says out loud - so it is kept rather than dropped. */
+let WATCH = null;
 
 function port() {
   if (PORT) return PORT;
-  PORT = browser.runtime.connectNative(HOST);
+  const self = browser.runtime.connectNative(HOST);
+  PORT = self;
   PORT.onMessage.addListener((msg) => {
     // The helper speaks unprompted too: it watches for volumes appearing and
     // disappearing, and says so. Those carry no rid, because they answer no
@@ -52,16 +57,35 @@ function port() {
   });
   // Ask it to watch. Cheap on the platforms with a real event, and the reply
   // says whether this one has to fall back to looking - see absh/mounts.py.
-  native({ cmd: "watch" }).catch(() => { /* an older helper has no watch */ });
+  WATCH = native({ cmd: "watch" });
+  WATCH.catch(() => { /* an older helper has no watch */ });
 
   PORT.onDisconnect.addListener(() => {
-    const err = (browser.runtime.lastError && browser.runtime.lastError.message) ||
-                "native helper disconnected";
-    PORT = null;
-    for (const [, p] of PENDING) p.reject(new Error(err));
-    PENDING.clear();
+    // A port this script already let go of (see dropPort) has nothing left
+    // to say about the one that replaced it.
+    if (PORT !== self) return;
+    dropPort((browser.runtime.lastError && browser.runtime.lastError.message) ||
+             "native helper disconnected");
   });
   return PORT;
+}
+
+/* Forget the connection, and fail whatever was still waiting on it.
+ *
+ * Called on a disconnect, and deliberately after the helper replaces itself:
+ * that process has exited and will not answer anything queued behind the
+ * update, and the next message has to reach a fresh one started from the new
+ * files. Waiting for the browser to report the exit would leave a window in
+ * which a request is posted to a port that is already closing. */
+function dropPort(reason) {
+  const old = PORT;
+  PORT = null;
+  WATCH = null;
+  if (old) {
+    try { old.disconnect(); } catch { /* already gone */ }
+  }
+  for (const [, p] of PENDING) p.reject(new Error(reason));
+  PENDING.clear();
 }
 
 function native(payload, onProgress) {
@@ -206,10 +230,74 @@ async function call(cmd, extra, onProgress) {
 
 async function ping() {
   try {
-    return { ok: true, ...(await call("ping")) };
+    const reply = await call("ping");
+    // The watch was sent first on this connection, so its answer is already
+    // in or about to be. null when the helper is too old to watch at all.
+    const watch = WATCH ? await WATCH.catch(() => null) : null;
+    return { ok: true, ...reply, polls: watch ? !!watch.polls : null };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };
   }
+}
+
+/* ---------------------------------------------------------------- updates
+ *
+ * Every check goes through the helper, which asks the release feed itself.
+ * The extension holds no host permission for GitHub and should not need one:
+ * the shipped manifest asks for no host at all, and what the helper is
+ * updating is the helper.
+ *
+ * The answer is cached in storage with the time it was asked, and asked again
+ * only when ABSH.updateCheckDue says - see lib.js for the cadence. */
+let CHECKING = null;
+
+async function askReleaseFeed(previous, installed) {
+  let check;
+  try {
+    const r = await native({ cmd: "update-check" });
+    check = r.checkError
+      // Keep what was known before: a failed check is no evidence that an
+      // update found yesterday has gone away.
+      ? { ...(previous || {}), error: r.checkError }
+      : { latest: r.latest || "", prerelease: !!r.prerelease,
+          releaseRefused: r.releaseRefused || "", error: "" };
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    // A helper from before in-browser updates rejects the command outright.
+    // That is not a failed check, and retrying it hourly would not help.
+    check = /unknown cmd/.test(msg)
+      ? { unsupported: true, error: "" }
+      : { ...(previous || {}), error: msg };
+  }
+  check.installed = installed;
+  check.checkedAt = Date.now();
+  await browser.storage.local.set({ updateCheck: check }).catch(() => {});
+  return check;
+}
+
+/** The helper as it is now, and what the release feed last said - asked
+ *  again first if that is due. `peek` answers from the cache regardless and
+ *  says whether a check is due, so a page can show the version at once and
+ *  the feed's answer when it arrives. */
+async function updateStatus({ force = false, peek = false } = {}) {
+  const helper = await ping();
+  const { updateCheck } = await browser.storage.local.get({ updateCheck: null });
+  if (!helper.ok) return { helper, check: updateCheck, due: false };
+  const due = ABSH.updateCheckDue(updateCheck, helper.release, Date.now(), force);
+  if (!due || peek) return { helper, check: updateCheck, due };
+  // The popup and the options page can both ask at once; one request is
+  // enough for both.
+  if (!CHECKING) {
+    CHECKING = askReleaseFeed(updateCheck, helper.release)
+      .finally(() => { CHECKING = null; });
+  }
+  return { helper, check: await CHECKING, due: false };
+}
+
+async function installUpdate(tag, onProgress) {
+  const r = await native({ cmd: "update", ...(tag ? { tag } : {}) }, onProgress);
+  if (r.restarting) dropPort("the helper restarted after updating itself");
+  return r;
 }
 
 /* --------------------------------------------------------------- routing */
@@ -223,6 +311,8 @@ async function route(msg, onProgress) {
     case "push":      return { ok: true, data: await call("push", { names: msg.names, libraryId: msg.libraryId, folderId: msg.folderId }, onProgress) };
     case "remove":    return { ok: true, data: await call("remove", { names: msg.names }) };
     case "ping":      return { ok: true, data: await ping() };
+    case "updateStatus": return { ok: true, data: await updateStatus({ force: !!msg.force, peek: !!msg.peek }) };
+    case "update":    return { ok: true, data: await installUpdate(msg.tag, onProgress) };
     case "permissionChanged":
       await syncContentScript();
       return { ok: true };
@@ -276,7 +366,7 @@ browser.runtime.onConnect.addListener((p) => {
     const reply = (body) => {
       try { p.postMessage({ ...body, rid: msg && msg.rid }); } catch { /* popup closed */ }
     };
-    const streams = msg && (msg.type === "pull" || msg.type === "push");
+    const streams = msg && ["pull", "push", "update"].includes(msg.type);
     const onProgress = streams ? (ev) => reply({ ok: true, progress: ev }) : null;
     try {
       reply(await route(msg, onProgress));

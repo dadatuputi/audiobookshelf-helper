@@ -178,17 +178,36 @@ async function load() {
     status(String(e.message || e), "err");
     return;
   }
+  // Not awaited: the shelf should not wait on GitHub.
+  updateHint();
   await refresh();
   // Set last: refresh() reports its own outcome, and this should be what
   // remains on screen when everything is fine.
   if (!$("#status").classList.contains("err")) {
-    status(`helper ok (${p.version}, tags: ${p.tags})`, "ok");
+    status(`helper ok (${p.release || p.version}, tags: ${p.tags})`, "ok");
   }
+}
+
+/* One line, and only when there is something to do. The popup is where people
+ * actually are, so it is where a waiting update gets noticed; the options page
+ * is where it is explained and installed. Nothing is said on the library page
+ * itself - that is Audiobookshelf's screen, not ours to nag on. */
+async function updateHint() {
+  try {
+    const { helper, check } = await send({ type: "updateStatus" });
+    const s = ABSH.updateState(helper, check);
+    if (s.kind !== "available") return;
+    const a = $("#updateHint");
+    a.textContent = `Helper ${s.latest} is available - ` +
+                    (s.canUpdate ? "update it in Options" : "see Options");
+    a.classList.remove("hidden");
+  } catch { /* a failed check says nothing here; Options says why */ }
 }
 
 /* ---------------------------------------------------------------- wiring */
 $("#filter").addEventListener("input", render);
 $("#opts").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
+$("#updateHint").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
 $("#refresh").addEventListener("click", refresh);
 $("#all").addEventListener("change", () => {
   const rows = visible();

@@ -11,6 +11,10 @@ Protocol: 4-byte little-endian length prefix + UTF-8 JSON, on stdin/stdout.
     pull     -> server to device        (streams progress)
     push     -> device to server        (streams progress)
     remove   -> delete from the device
+    update-check -> what is installed, what is latest, and whether this copy
+                    can replace itself (answered off the main loop - see main)
+    update   -> install a newer release over this one (streams progress), then
+                exit, so the browser's next connection runs the new files
 
 Settings come from the request when the extension supplies them, and from the
 shared config file otherwise, so the extension and `absh` on the command line
@@ -132,6 +136,10 @@ def cmd_ping(msg, emit):
             # Which release this copy came from, as opposed to VERSION above,
             # which is the protocol this host speaks. "dev" in a checkout.
             "release": version_mod.release(),
+            # Whether this copy can update itself, and if not, the sentence
+            # saying why. Local and cheap, so it is asked fresh every time
+            # rather than cached with the answer from the release feed.
+            "updateRefused": _update_refused(),
             "python": sys.version.split()[0],
             "tags": tags_mod.available(),
             "configured": not config_mod.missing(cfg),
@@ -234,12 +242,107 @@ def cmd_remove(msg, emit):
     return {"ok": True, **sync_mod.remove(names, cfg, emit)}
 
 
+def _update_refused():
+    from . import update as update_mod
+    try:
+        return update_mod.refuse_reason()
+    except Exception as e:                      # a ping must still answer
+        return f"could not tell whether this copy can update itself: {e}"
+
+
+def cmd_update_check(msg, emit):
+    """What an update would do, without doing it.
+
+    The feed half can fail - offline, rate limited, GitHub down - and the
+    local half cannot, so a failed check is still an answer: ok, with what is
+    installed and whether it could be replaced, and checkError saying why the
+    latest is unknown. The page shows "couldn't check" and carries on.
+    """
+    from . import releases as releases_mod
+    from . import update as update_mod
+
+    installed = update_mod.installed_release()
+    out = {"ok": True, "installed": installed,
+           "refused": _update_refused(),
+           "latest": None, "prerelease": None, "newer": False,
+           "releaseRefused": None, "checkError": None}
+    try:
+        rel = releases_mod.latest(installed)
+    except update_mod.UpdateError as e:
+        out["checkError"] = str(e)
+        return out
+    out.update(latest=rel["tag"], prerelease=rel["prerelease"],
+               newer=releases_mod.newer(rel["tag"], installed))
+    if out["newer"] and not out["refused"]:
+        # Whether this copy would accept that release: its signature, by a
+        # key this copy pins. A few hundred bytes, and the difference between
+        # offering a button and offering one that is then refused - an
+        # unsigned release, or one whose signature is not attached yet.
+        try:
+            update_mod.verify_release(rel)
+        except update_mod.UpdateError as e:
+            out["releaseRefused"] = str(e)
+    return out
+
+
+def cmd_update(msg, emit):
+    """Replace this installation with a newer release, then step aside.
+
+    The code answering this is the old code, loaded into memory before the
+    files under it changed, and it stays the old code until the process ends.
+    So after a successful swap the reply says restarting, and main() exits
+    once it is sent: the browser sees the port close, and the next message
+    the extension sends spawns a fresh helper from the new files. No browser
+    restart, and no window in which a half-old helper keeps answering.
+
+    Only ever forward. The CLI's --tag can go back to a known-good build on
+    purpose; a button on a page should not be able to do that by accident.
+    """
+    from . import releases as releases_mod
+    from . import update as update_mod
+
+    tag = msg.get("tag")
+    if tag is not None and not releases_mod.valid_tag(tag):
+        raise ValueError(f"not a release tag: {tag!r}")
+    try:
+        why = update_mod.refuse_reason()
+        if why:
+            # Before touching the network: a copy that cannot be replaced
+            # should not cost a request to learn it.
+            raise update_mod.UpdateError(why)
+        installed = update_mod.installed_release()
+        target = tag or releases_mod.latest(installed)["tag"]
+        if not releases_mod.newer(target, installed):
+            return {"ok": True, "updated": False, "installed": installed,
+                    "latest": target, "restarting": False,
+                    "reason": "already on the latest release"}
+        out = update_mod.apply(
+            tag=target, on_step=lambda m: emit({"event": "step", "message": m}))
+    except update_mod.UpdateError as e:
+        # Verbatim. These are written for the person reading them - including
+        # a refusal to install a release that cannot be verified - and
+        # rewording one here is how it would stop meaning what it says.
+        return {"ok": False, "error": str(e)}
+    return {"ok": True, "updated": bool(out.get("updated")),
+            "from": out.get("current"), "to": out.get("latest"),
+            "prerelease": out.get("prerelease"),
+            "restarting": bool(out.get("updated"))}
+
+
 COMMANDS = {
     "ping": cmd_ping, "config": cmd_config, "libraries": cmd_libraries,
     "devices": cmd_devices,
     "folders": cmd_folders, "status": cmd_status, "pull": cmd_pull,
     "push": cmd_push, "remove": cmd_remove, "watch": cmd_watch,
+    "update-check": cmd_update_check, "update": cmd_update,
 }
+
+# Commands answered from a thread of their own. Everything else runs in order
+# on the main loop, which is what keeps a pull from interleaving with a remove;
+# but an update check waits on someone else's server, and an unreachable one
+# would otherwise hold the device badges on the page hostage for the length of
+# a network timeout. It only reads, so letting it run alongside is safe.
+CONCURRENT = {"update-check"}
 
 
 def handle(msg, emit=None):
@@ -256,7 +359,17 @@ def handle(msg, emit=None):
                 "trace": traceback.format_exc()[-800:]}
 
 
+def _replier(rid):
+    # Bound per request rather than closing over the loop's variable: a reply
+    # sent from a thread after the loop has moved on must still carry its own
+    # request's id.
+    def send(ev):
+        write_msg({**ev, "rid": rid} if rid is not None else ev)
+    return send
+
+
 def main():
+    threads = []
     while True:
         try:
             msg = read_msg()
@@ -266,13 +379,28 @@ def main():
         if msg is None:
             break
 
-        rid = msg.get("rid")
-
-        def send(ev):
-            write_msg({**ev, "rid": rid} if rid is not None else ev)
-
+        send = _replier(msg.get("rid"))
         emit = send if msg.get("progress") else None
-        send({**handle(msg, emit), "event": "done"})
+
+        if msg.get("cmd") in CONCURRENT:
+            threads = [t for t in threads if t.is_alive()]
+            t = threading.Thread(
+                target=lambda m=msg, s=send, e=emit: s({**handle(m, e), "event": "done"}),
+                name=f"absh-{msg.get('cmd')}", daemon=True)
+            t.start()
+            threads.append(t)
+            continue
+
+        reply = handle(msg, emit)
+        send({**reply, "event": "done"})
+        if msg.get("cmd") == "update" and reply.get("restarting") is True:
+            break                   # see cmd_update: the files changed under us
+
+    # stdin closing is the caller hanging up on its side, but an answer already
+    # being worked on is still owed to whoever reads stdout to the end - a
+    # test, or a script. Bounded by the network timeouts inside it.
+    for t in threads:
+        t.join()
 
 
 if __name__ == "__main__":

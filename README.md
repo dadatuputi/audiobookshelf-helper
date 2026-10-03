@@ -85,7 +85,18 @@ directly.
 
 ### Updating the helper
 
-From the folder you unzipped a release into:
+In the extension: Options → **Helper** shows which version is installed and
+whether a newer release is out, and installs it with **Update** — no terminal,
+and no browser restart, because the old helper exits once it has replaced
+itself and the next request starts the new one. The popup shows one line when
+an update is waiting. The helper asks GitHub at most once a day on its own (or
+when you press **Check for updates**); the extension itself has no access to
+GitHub, and nothing is installed without the click. When this copy cannot
+update itself — a git checkout, a folder you cannot write to, or a build that
+pins no signing key — the page says which, in the helper's own words, and shows
+no button.
+
+Or from the folder you unzipped a release into:
 
 ```bash
 python3 -m absh.cli update --check   # what is available, and whether it is signed
@@ -93,13 +104,18 @@ python3 -m absh.cli update           # install it, then restart the browser
 python3 -m absh.cli update --tag v1.0.0-alpha.4   # go back to a specific release
 ```
 
-It installs only a release whose `SHA256SUMS` is signed by a key your
+Both choose the release the same way. A copy of a prerelease is offered the
+next prerelease; a copy of a stable release only stable ones. Neither will touch
+a git checkout — update that with git.
+
+Either way, it installs only a release whose `SHA256SUMS` is signed by a key your
 installed copy already trusts (`absh/release_keys.py`), whose signed manifest
 names the release you asked for, and whose archive matches that manifest. The
 key is held by the maintainer, offline — not by GitHub — so being able to
 publish a release is not enough to get code onto your machine this way. It
 will not quietly downgrade you either: an older release is installed only when
-named with `--tag`, and only if it too is signed. After swapping the files it
+named with `--tag` on the command line, and only if it too is signed; the
+Update button only ever goes forward. After swapping the files it
 starts the new helper and has it list a test device; if that fails, the
 previous version is put back.
 
@@ -172,7 +188,8 @@ appear in a panel with an **Upload** button.
 ### In the popup
 
 Three tabs over the same status: **To pull**, **On device**, **To push**. Tick
-and act. Progress streams per file.
+and act. Progress streams per file. A line under the status says when a helper
+update is waiting — see [Updating the helper](#updating-the-helper).
 
 ## Finding the device
 
@@ -359,6 +376,7 @@ absh/             THE ENGINE - stdlib only, so the browser can always launch it
   tui.py          curses picker
   host.py         the native-messaging protocol
   update.py       absh update: verify the signature, swap, self-check, roll back
+  releases.py     which release is latest, by semver, prereleases included
   signing.py      the signed-release format; ed25519.py verifies it, stdlib only
   release_keys.py the signing keys an installed copy trusts
 extension/
