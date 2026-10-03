@@ -120,15 +120,24 @@ class GitHub:
                 "digest": f"sha256:{sha(blob)}" if digest else None,
                 "browser_download_url": f"{self.base}/download/{name}"}
 
-    def publish(self, tag, files=None, prerelease=None, extra=(), draft=False):
-        """A release for `tag` carrying `files` (name -> bytes, default: the
-        four zips exactly as built) plus `extra` asset dicts."""
+    def publish(self, tag, files=None, prerelease=None, extra=(), draft=False,
+                with_sums=True):
+        """A release for `tag` carrying `files` (name -> bytes, default: what
+        github-release uploads - the four zips exactly as built, and the
+        SHA256SUMS manifest package.py writes beside them) plus `extra` asset
+        dicts, which replace a default asset of the same name rather than sit
+        beside it, the way an upload with --clobber does."""
         info = V.RV.parse_tag(tag)
         if files is None:
             files = {V.zip_name(k, info["semver"]):
                      (BUILT[tag] / V.zip_name(k, info["semver"])).read_bytes()
                      for k in V.ZIP_KINDS}
-        assets = [self.asset(n, b) for n, b in files.items()] + list(extra)
+            sums = BUILT[tag] / "SHA256SUMS"
+            if with_sums and sums.exists():
+                files["SHA256SUMS"] = sums.read_bytes()
+        override = {a["name"] for a in extra}
+        assets = ([self.asset(n, b) for n, b in files.items() if n not in override]
+                  + list(extra))
         self.releases[tag] = {
             "tag_name": tag, "name": tag, "draft": draft,
             "prerelease": info["prerelease"] if prerelease is None else prerelease,
@@ -200,8 +209,11 @@ class Matches(Case):
         self.assertClean(self.verify(STABLE, ("success", "true", "listed")))
 
     def test_checksums_and_their_signature_are_allowed(self):
+        # The manifest this build really wrote: package.py makes one, so the
+        # verifier holds the published copy to its bytes.
+        sums = (BUILT[ALPHA] / "SHA256SUMS").read_bytes()
         self.gh.publish(ALPHA, extra=[self.xpi(ALPHA),
-                                      self.gh.asset("SHA256SUMS", b"sums\n", when=T0),
+                                      self.gh.asset("SHA256SUMS", sums, when=T0),
                                       self.gh.asset("SHA256SUMS.sig", b"sig", when=T2)])
         self.assertClean(self.verify(ALPHA))
 
@@ -280,7 +292,7 @@ class Assets(Case):
     def test_a_checksum_manifest_this_build_made_must_be_published(self):
         art = self.artifacts_copy(ALPHA)
         (art / "SHA256SUMS").write_bytes(b"this build's sums\n")
-        self.gh.publish(ALPHA, extra=[self.xpi(ALPHA)])
+        self.gh.publish(ALPHA, extra=[self.xpi(ALPHA)], with_sums=False)
         self.assertProblem(self.verify(ALPHA, artifacts=art), "SHA256SUMS", "missing",
                            "this run built it")
         self.gh.publish(ALPHA, extra=[self.xpi(ALPHA), self.gh.asset("SHA256SUMS", b"old\n")])
