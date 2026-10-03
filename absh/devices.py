@@ -92,6 +92,11 @@ def _env_roots():
     filesystem as candidates, let the person who knows say where to look.
 
     Separator is os.pathsep, like PATH: ":" everywhere but Windows.
+
+    `absh update` also uses this to point a freshly installed build at a
+    stand-in device before keeping it, so the name is part of what an older
+    copy expects of a newer one: renaming it would fail every update's
+    self-check and roll it back.
     """
     raw = os.environ.get("ABSH_DEVICE_ROOTS")
     if not raw:

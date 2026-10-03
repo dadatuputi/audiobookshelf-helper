@@ -10,7 +10,8 @@ alone, because "refused" means nothing if the files were already swapped.
   archive whose bytes are not the ones the manifest signed - with a digest
   GitHub would happily report for them.
 - The archive: missing pieces, or entries that would write outside the install.
-- The swap: a build that does not start must be rolled back.
+- The swap: a build that does not start, and one that starts and answers a
+  ping but cannot do real work. Both must be rolled back.
 
 The feed is a real HTTP server on localhost rather than a patched urlopen, so
 the request, the JSON shape and the downloads are all exercised as written.
@@ -46,7 +47,7 @@ def pin_line(*secrets):
 
 
 def build_native_zip(dest: Path, release: str, break_host=False, escape=False,
-                     drop=None):
+                     drop=None, break_devices=False, blind_devices=False):
     """The same archive tools/package.py produces, at a chosen version."""
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(ROOT / "native" / "absh_host.py", "absh_host.py")
@@ -65,6 +66,15 @@ def build_native_zip(dest: Path, release: str, break_host=False, escape=False,
                 # Importable but fatal on startup, which is how a bad release
                 # would actually present: the browser sees only a disconnect.
                 z.writestr(arc, 'raise SystemExit("this build is broken")\n')
+            elif f.name == "devices.py" and break_devices:
+                # Starts, imports, answers a ping - and fails the first time
+                # it is asked to look at a volume.
+                z.writestr(arc, f.read_text() + '\n\ndef candidates(*a, **k):\n'
+                                '    raise OSError("this build cannot read a volume")\n')
+            elif f.name == "devices.py" and blind_devices:
+                # Answers ok and lists nothing, wherever it is pointed.
+                z.writestr(arc, f.read_text() + '\n\ndef roots(system=None):\n'
+                                '    return []\n')
             else:
                 z.write(f, arc)
         if escape:
@@ -430,6 +440,44 @@ class Applies(UpdateCase):
         self.assertEqual(U.installed_release(self.root), "1.0.0-alpha.1")
         self.assertIsNone(U._self_check(self.root),
                           "the helper does not start after the rollback")
+
+    def test_puts_the_old_version_back_when_the_new_one_answers_but_cannot_work(self):
+        # Starts, imports, answers ping. A ping-only check would keep it.
+        self.serve("v1.0.0-alpha.2", break_devices=True)
+        with self.assertRaises(U.UpdateError) as e:
+            U.apply(root=self.root)
+        self.assertIn("cannot list devices", str(e.exception))
+        self.assertIn("put the previous version back", str(e.exception))
+        self.assertEqual(U.installed_release(self.root), "1.0.0-alpha.1")
+        self.assertIsNone(U._self_check(self.root))
+
+    def test_puts_the_old_version_back_when_the_new_one_sees_nothing(self):
+        self.serve("v1.0.0-alpha.2", blind_devices=True)
+        with self.assertRaises(U.UpdateError) as e:
+            U.apply(root=self.root)
+        self.assertIn("did not see a test device", str(e.exception))
+        self.assertEqual(U.installed_release(self.root), "1.0.0-alpha.1")
+
+
+class SelfCheck(UpdateCase):
+    def test_does_not_depend_on_what_is_plugged_in_or_configured(self):
+        # Whatever this machine has mounted or configured, the check looks
+        # only at the stand-in it makes - so it passes in CI with no player,
+        # and never reads a user's real device or settings.
+        saved = {k: os.environ.get(k) for k in ("ABSH_DEVICE_ROOTS", "ABSH_CONFIG")}
+        os.environ["ABSH_DEVICE_ROOTS"] = str(Path(self.tmp) / "nowhere")
+        bad = Path(self.tmp) / "config.json"
+        bad.write_text('{"subdir": "../../escape"}')
+        os.environ["ABSH_CONFIG"] = str(bad)
+        try:
+            self.assertIsNone(U._self_check(self.root))
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
 
 class Cli(UpdateCase):
     """`absh update --check`, run as a user would: from the installed copy."""

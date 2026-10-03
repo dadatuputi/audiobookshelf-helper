@@ -100,7 +100,8 @@ key is held by the maintainer, offline — not by GitHub — so being able to
 publish a release is not enough to get code onto your machine this way. It
 will not quietly downgrade you either: an older release is installed only when
 named with `--tag`, and only if it too is signed. After swapping the files it
-starts the new helper; if that fails, the previous version is put back.
+starts the new helper and has it list a test device; if that fails, the
+previous version is put back.
 
 There is no switch to skip the signature check. Releases from before signing
 began (`v1.0.0-alpha.3` and earlier) are not signed, so `absh update` refuses

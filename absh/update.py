@@ -253,33 +253,72 @@ def _extract(zip_path, dest):
     return dest
 
 
+def _frames(out):
+    """Every length-prefixed JSON reply in a host's stdout, in order."""
+    replies = []
+    while len(out) >= 4:
+        n = struct.unpack("<I", out[:4])[0]
+        if len(out) < 4 + n:
+            break
+        replies.append(json.loads(out[4:4 + n].decode("utf-8")))
+        out = out[4 + n:]
+    return replies
+
+
 def _self_check(root, timeout=30):
-    """Start the new host and make it answer, over its own protocol.
+    """Start the new host and make it do real work, over its own protocol.
 
     A swap that leaves a helper which cannot start is worse than no update:
     the browser reports only that the port disconnected, and the UI that would
     explain it is the thing that stopped working. So the new code has to prove
     itself before the old code is discarded.
+
+    Answering a ping proves it starts. Listing devices proves it can do the
+    part that matters - dispatch a real command, load settings, and look at a
+    volume - which a build that imports cleanly and then breaks on first use
+    would not survive. It is pointed at a stand-in device made here, with a
+    config path that does not exist, rather than at what is plugged in: the
+    check must read nothing of the user's, must give the same answer whether
+    or not a player is connected, and must not walk a large disk that happens
+    to be mounted and time out on it, which would roll back a good build.
     """
-    msg = json.dumps({"cmd": "ping"}).encode("utf-8")
+    work = Path(tempfile.mkdtemp(prefix="absh-selfcheck-"))
     try:
-        p = subprocess.run(
-            [sys.executable, str(root / "absh_host.py")],
-            input=struct.pack("<I", len(msg)) + msg,
-            capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return "the new helper did not answer a ping"
-    out = p.stdout
-    if len(out) < 4:
-        return f"the new helper wrote nothing (exit {p.returncode})"
-    n = struct.unpack("<I", out[:4])[0]
-    try:
-        reply = json.loads(out[4:4 + n].decode("utf-8"))
-    except Exception as e:
-        return f"the new helper's reply was unreadable: {e}"
-    if not reply.get("ok"):
-        return f"the new helper refused a ping: {reply.get('error')}"
-    return None
+        device = work / "PLAYER"
+        (device / "AUDIOBOOKS" / "A Book").mkdir(parents=True)
+        env = dict(os.environ,
+                   ABSH_DEVICE_ROOTS=str(device),
+                   ABSH_CONFIG=str(work / "no-config.json"))
+        frames = b""
+        for msg in ({"cmd": "ping"}, {"cmd": "devices", "subdir": "AUDIOBOOKS"}):
+            body = json.dumps(msg).encode("utf-8")
+            frames += struct.pack("<I", len(body)) + body
+        try:
+            p = subprocess.run(
+                [sys.executable, str(root / "absh_host.py")],
+                input=frames, capture_output=True, timeout=timeout, env=env)
+        except subprocess.TimeoutExpired:
+            return "the new helper did not answer"
+        try:
+            replies = _frames(p.stdout)
+        except Exception as e:
+            return f"the new helper's reply was unreadable: {e}"
+        if not replies:
+            return f"the new helper wrote nothing (exit {p.returncode})"
+        if not replies[0].get("ok"):
+            return f"the new helper refused a ping: {replies[0].get('error')}"
+        if len(replies) < 2:
+            return f"the new helper answered a ping and then stopped (exit {p.returncode})"
+        listed = replies[1]
+        if not listed.get("ok"):
+            return f"the new helper cannot list devices: {listed.get('error')}"
+        seen = [d for d in listed.get("devices") or []
+                if isinstance(d, dict) and Path(str(d.get("path"))) == device]
+        if not seen or not seen[0].get("hasSubdir"):
+            return "the new helper did not see a test device it was pointed at"
+        return None
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
 
 
 def apply(tag=None, root=None, on_step=lambda _m: None):
