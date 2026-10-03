@@ -344,7 +344,7 @@ native/
 tools/            package.py, release_version.py, publish_cws.py, check_upstream.py
 store/            privacy policy and store listing copy
 tests/            python (engine, protocol, build, packaging) | js | e2e
-docs/             the diagrams above
+docs/             the diagrams above, and DEFICIENCIES.md
 ```
 </details>
 
