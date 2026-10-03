@@ -399,6 +399,14 @@ def cmd_update(args, cfg):
         print(f"available   {rel['tag']}"
               + ("  (prerelease)" if rel["prerelease"] else "")
               + ("" if newer else paint("  - already current", GREEN)))
+        # Checked here too, so "available" is never shown for a release that
+        # `absh update` would then refuse.
+        try:
+            signed = update_mod.verify_release(rel)
+        except update_mod.UpdateError as e:
+            print(paint(f"signature   not accepted: {e}", RED))
+            return 1
+        print(f"signature   good, key {signed['key']}")
         if newer:
             print(paint("            run `absh update` to install it", DIM))
         return 0

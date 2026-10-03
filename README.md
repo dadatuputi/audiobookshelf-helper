@@ -83,6 +83,30 @@ Then load the extension:
 browser at a generated `.bat`, because Windows browsers cannot execute a `.py`
 directly.
 
+### Updating the helper
+
+From the folder you unzipped a release into:
+
+```bash
+python3 -m absh.cli update --check   # what is available, and whether it is signed
+python3 -m absh.cli update           # install it, then restart the browser
+python3 -m absh.cli update --tag v1.0.0-alpha.4   # go back to a specific release
+```
+
+It installs only a release whose `SHA256SUMS` is signed by a key your
+installed copy already trusts (`absh/release_keys.py`), whose signed manifest
+names the release you asked for, and whose archive matches that manifest. The
+key is held by the maintainer, offline — not by GitHub — so being able to
+publish a release is not enough to get code onto your machine this way. It
+will not quietly downgrade you either: an older release is installed only when
+named with `--tag`, and only if it too is signed. After swapping the files it
+starts the new helper; if that fails, the previous version is put back.
+
+There is no switch to skip the signature check. Releases from before signing
+began (`v1.0.0-alpha.3` and earlier) are not signed, so `absh update` refuses
+them; to install one, download the native zip and run `python3 install.py`,
+which is the same trust decision as your first install.
+
 ## Configure
 
 Toolbar icon → ⚙, or `absh config`, or <kbd>s</kbd> in the TUI. All three write
@@ -333,6 +357,9 @@ absh/             THE ENGINE - stdlib only, so the browser can always launch it
   cli.py          absh status/ls/pull/push/rm/doctor/config/devices/tui
   tui.py          curses picker
   host.py         the native-messaging protocol
+  update.py       absh update: verify the signature, swap, self-check, roll back
+  signing.py      the signed-release format; ed25519.py verifies it, stdlib only
+  release_keys.py the signing keys an installed copy trusts
 extension/
   identity.json   the add-on id, host name and Chrome key - one source of truth
   icons/          make_icons.py generates the PNG set with no dependencies
@@ -341,7 +368,8 @@ extension/
 native/
   absh_host.py    thin shim: finds the absh package and runs absh.host
   install.py      registers the helper (6 OS x browser combinations)
-tools/            package.py, release_version.py, publish_cws.py, check_upstream.py
+tools/            package.py, sign_release.py, release_version.py, publish_cws.py,
+                  check_upstream.py
 store/            privacy policy and store listing copy
 tests/            python (engine, protocol, build, packaging) | js | e2e
 docs/             the diagrams above, and DEFICIENCIES.md
@@ -402,6 +430,31 @@ version may look like — Chrome takes 1–4 integers and rejects `1.0.0-alpha.1
 outright, while Firefox sorts `1.0.0a1` *below* `1.0.0`. So `v1.0.0-alpha.1`
 becomes `1.0.0a1` for Firefox and `1.0.0.1` for Chrome. See
 `tools/release_version.py`.
+
+### Signing the helper, by hand, every release
+
+CI publishes a `SHA256SUMS` beside the archives. `absh update` will not
+install the release until the maintainer signs that file with a key GitHub
+never sees — not a repository secret, since any workflow can read those:
+
+```bash
+python3 tools/sign_release.py sign v1.0.0-alpha.4    # checks, then signs
+gh release upload v1.0.0-alpha.4 release/SHA256SUMS.sig --clobber
+python3 tools/sign_release.py verify v1.0.0-alpha.4  # as an installed copy would
+```
+
+`sign` reads the published release (no credentials) and refuses unless the
+manifest names that tag, every archive matches it, and the native archive is
+the tagged source file for file, so it is a check rather than a rubber stamp.
+It prints the upload command. Re-cutting a tag drops the old signature; sign
+again.
+
+Once, before the first signed release: `python3 tools/sign_release.py keygen`
+writes the private key outside any git checkout (default
+`~/.config/absh-release/signing.key` — back it up offline) and prints a line to
+add to `KEYS` in `absh/release_keys.py`. Commit that before tagging. Rotation
+is described in that file: pin the new key beside the old, release, then sign
+with both (`--key OLD --key NEW`) until the old one can be dropped.
 
 ## Watching upstream
 

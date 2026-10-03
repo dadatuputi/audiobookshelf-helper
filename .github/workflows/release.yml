@@ -116,6 +116,10 @@ jobs:
             echo "afterwards. The extension is separate - update that where you"
             echo "installed it from."
             echo
+            echo "It installs only a release signed with the maintainer's own key,"
+            echo "which is attached by hand shortly after this is published. Until"
+            echo "then it says the release is not signed and changes nothing."
+            echo
             if [ "$PRERELEASE" = "true" ]; then
               echo "> This is a prerelease. It is not published to any store."
             fi
@@ -128,16 +132,18 @@ jobs:
           # left the only route as deleting the published one by hand. Update
           # it in place instead: same tag, same download URLs, new artefacts.
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/*.zip --clobber
+            gh release upload "$TAG" release/*.zip release/SHA256SUMS --clobber
             # Drop any xpi the previous build of this tag left behind. AMO
             # will not sign a version number twice, so a re-cut tag gets new
             # zips and cannot get a new xpi - and leaving the old one there
             # publishes an installable from the previous build beside
             # artefacts from this one, both labelled the same version. A
             # release with no xpi is a gap the notes already cover; a release
-            # with the wrong xpi is a lie.
+            # with the wrong xpi is a lie. The same goes for the signature:
+            # it covers the previous SHA256SUMS, so it has to go until the
+            # maintainer signs this build.
             gh release view "$TAG" --json assets \
-              --jq '.assets[].name | select(endswith(".xpi"))' \
+              --jq '.assets[].name | select(endswith(".xpi") or . == "SHA256SUMS.sig")' \
               | while read -r ASSET; do
                   echo "removing stale $ASSET from $TAG"
                   gh release delete-asset "$TAG" "$ASSET" --yes
@@ -150,7 +156,7 @@ jobs:
             # branch*, so without this the tag would point at main while the
             # artefacts came from the dispatched ref. On a tag push the tag
             # already exists and this is ignored.
-            gh release create "$TAG" release/*.zip \
+            gh release create "$TAG" release/*.zip release/SHA256SUMS \
               --target "$GITHUB_SHA" \
               --title "$TAG" --notes-file "$NOTES" $FLAGS
           fi

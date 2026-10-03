@@ -106,6 +106,27 @@ class TestNativeArchive(PackageBase):
             shutil.rmtree(out, ignore_errors=True)
 
 
+class TestManifest(PackageBase):
+    """SHA256SUMS is what the maintainer signs and `absh update` checks."""
+
+    def test_lists_every_archive_under_the_tag_it_was_built_for(self):
+        import hashlib, sys
+        sys.path.insert(0, str(ROOT))
+        from absh import signing
+        tag, digests = signing.parse_manifest((self.out / "SHA256SUMS").read_bytes())
+        self.assertEqual(tag, self.TAG)
+        self.assertEqual(sorted(digests), sorted(self.zips))
+        for name, p in self.zips.items():
+            self.assertEqual(digests[name], hashlib.sha256(p.read_bytes()).hexdigest())
+
+    def test_the_native_archive_carries_the_verifier_and_the_trust_list(self):
+        # Without these an installed copy cannot check the update after it.
+        with zipfile.ZipFile(self.find("native")) as z:
+            names = set(z.namelist())
+        for f in ("absh/ed25519.py", "absh/signing.py", "absh/release_keys.py"):
+            self.assertIn(f, names)
+
+
 class TestSourceArchive(PackageBase):
     def test_carries_the_real_source(self):
         with zipfile.ZipFile(self.find("source")) as z:

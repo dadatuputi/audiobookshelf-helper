@@ -11,12 +11,18 @@ browser's manifest points at a launcher, and that launcher execs an absolute
 interpreter against a fixed absh_host.py path. Replacing the files under that
 path leaves both untouched, so nothing has to be re-registered.
 
-What this does NOT do is verify who published the release. The digest GitHub
-reports is computed by GitHub from the bytes it was given, so it catches a
-corrupted download and nothing else: whoever can publish a release publishes
-its digest too. Signing with a key that does not live on GitHub is the fix,
-and until that exists this is a convenience over downloading the zip by hand,
-not a trust boundary.
+What makes it safe to run at all is the signature. A digest GitHub reports is
+computed by GitHub over whatever it was given, so anyone able to publish a
+release publishes a matching one; it proves the download arrived intact and
+nothing about who made it. So a release is installed only if its SHA256SUMS
+is signed by a key the *installed* copy already pins (absh/release_keys.py),
+the manifest names the tag that was fetched, and the archive's bytes match the
+manifest. The private key is held by the maintainer and never by GitHub, so
+publishing a release - with a stolen token, a compromised account or a
+malicious workflow - is no longer enough to ship code to everyone who runs
+this. There is deliberately no switch to skip that: installing an unsigned
+release is downloading a zip and running install.py, and a flag that does the
+same thing from here would only be something to talk a person into typing.
 """
 import hashlib
 import json
@@ -31,9 +37,11 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+from . import signing
 from . import version as version_mod
 
 REPO = "dadatuputi/audiobookshelf-helper"
+RELEASES_PAGE = f"https://github.com/{REPO}/releases"
 API = os.environ.get("ABSH_UPDATE_API", "https://api.github.com")
 ASSET_PREFIX = "audiobookshelf-helper-native-"
 
@@ -76,13 +84,22 @@ def find_release(tag=None):
         raise UpdateError(
             f"release {rel.get('tag_name', '?')} has no {ASSET_PREFIX}*.zip to install")
     a = assets[0]
+    by_name = {x.get("name"): x.get("browser_download_url")
+               for x in rel.get("assets", [])}
     return {
         "tag": rel.get("tag_name", "?"),
         "name": a["name"],
         "url": a["browser_download_url"],
         # "sha256:abc..." when GitHub reports one; absent on older releases.
+        # Informational only: see the module docstring for why it is not
+        # what decides whether to install.
         "digest": (a.get("digest") or "").split(":")[-1] or None,
         "prerelease": bool(rel.get("prerelease")),
+        # None on any release published before signing began, and on a new
+        # one in the minutes between CI publishing it and the maintainer
+        # attaching the signature.
+        "manifest_url": by_name.get(signing.MANIFEST_NAME),
+        "signature_url": by_name.get(signing.SIGNATURE_NAME),
     }
 
 
@@ -125,7 +142,95 @@ def refuse_reason(root=None):
                 "update from; install a release first")
     if not os.access(root, os.W_OK):
         return f"{root} is not writable by you"
+    try:
+        trusted_keys(root)
+    except UpdateError as e:
+        return str(e)
     return None
+
+
+def trusted_keys(root=None):
+    """The signing keys the copy at `root` pins, read before anything changes.
+
+    From the installation's own absh/release_keys.py, the same way
+    installed_release reads its version: what decides whether a release is
+    genuine has to be the thing already on disk, never anything the release
+    brings with it.
+    """
+    root = root or install_root()
+    path = root / "absh" / "release_keys.py"
+    try:
+        keys = signing.read_pinned(path)
+    except signing.SignatureError as e:
+        raise UpdateError(
+            f"cannot read the signing keys this copy trusts ({e}); reinstall it "
+            f"from {RELEASES_PAGE}")
+    if not keys:
+        raise UpdateError(
+            "this copy pins no release-signing key, so it cannot tell a genuine "
+            "release from a forged one and will not install any. Download the "
+            f"native zip from {RELEASES_PAGE} and run `python3 install.py` from it "
+            "instead. (Maintainers: `python3 tools/sign_release.py keygen` makes a "
+            "key and prints the line that belongs in absh/release_keys.py.)")
+    return keys
+
+
+def verify_release(rel, root=None):
+    """Check `rel`'s signature against the installed copy's keys.
+
+    Returns {"sha256": the native archive's signed digest, "key": the id of the
+    key that signed it}. Fetches only the manifest and its signature - a few
+    hundred bytes - so `absh update --check` can say whether a release would
+    be accepted without downloading the archive.
+    """
+    keys = trusted_keys(root)
+    tag = rel["tag"]
+    if not rel.get("manifest_url") or not rel.get("signature_url"):
+        missing = (signing.SIGNATURE_NAME if rel.get("manifest_url")
+                   else f"{signing.MANIFEST_NAME} or {signing.SIGNATURE_NAME}")
+        raise UpdateError(
+            f"release {tag} is not signed (it has no {missing}), so this copy will "
+            "not install it. If it was published in the last few minutes, the "
+            "signature may not be attached yet - try again later. Releases from "
+            f"before signing began can only be installed by hand from {RELEASES_PAGE}.")
+    try:
+        manifest = _get(rel["manifest_url"], binary=True)
+        signature = _get(rel["signature_url"], binary=True)
+    except Exception as e:
+        raise UpdateError(f"could not download release {tag}'s signature: {e}")
+
+    try:
+        kid = signing.verify(manifest, signature, keys)
+        signed_tag, digests = signing.parse_manifest(manifest)
+    except signing.SignatureError as e:
+        raise UpdateError(
+            f"release {tag} failed its signature check: {e}. It will not be "
+            "installed. If you trust it anyway, install it by hand from "
+            f"{RELEASES_PAGE} - this command will not.")
+    if signed_tag != tag:
+        # A genuine manifest from one release attached to another: the
+        # signature is real, the claim it is making here is not.
+        raise UpdateError(
+            f"release {tag} carries a signed manifest for {signed_tag}; refusing "
+            "a signature that belongs to a different release")
+    if rel["name"] not in digests:
+        raise UpdateError(
+            f"the signed manifest for {tag} does not list {rel['name']}, so "
+            "there is nothing signed to install")
+    return {"sha256": digests[rel["name"]], "key": kid}
+
+
+_ORDER = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.?(\d+)?)?$")
+
+
+def _order(version):
+    """A sortable key for a release string, or None if it is not one of ours."""
+    m = _ORDER.match(version or "")
+    if not m:
+        return None
+    rank = {"alpha": 0, "beta": 1, "rc": 2, None: 3}[m.group(4)]
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3)), rank,
+            int(m.group(5) or (1 if m.group(4) else 0)))
 
 
 def _extract(zip_path, dest):
@@ -178,7 +283,13 @@ def _self_check(root, timeout=30):
 
 
 def apply(tag=None, root=None, on_step=lambda _m: None):
-    """Download, verify, swap, and prove it starts. Returns a summary dict."""
+    """Download, verify, swap, and prove it starts. Returns a summary dict.
+
+    Verification happens in full before the install is touched: the
+    signature over the manifest by a key this copy already pins, the tag the
+    manifest names, and the archive's bytes against the manifest. A failure
+    at any of those leaves the installation exactly as it was.
+    """
     root = root or install_root()
     why = refuse_reason(root)
     if why:
@@ -189,6 +300,17 @@ def apply(tag=None, root=None, on_step=lambda _m: None):
     if rel["tag"].lstrip("v") == current and not tag:
         return {"updated": False, "current": current, "latest": rel["tag"],
                 "reason": "already on the latest release"}
+    have, offered = _order(current), _order(rel["tag"])
+    if not tag and have and offered and offered < have:
+        # Signed releases stay validly signed forever, so an old one being
+        # presented as the latest is a downgrade, whoever arranged it. Going
+        # back stays possible, but only when someone asks for it by name.
+        return {"updated": False, "current": current, "latest": rel["tag"],
+                "reason": f"newer than the latest release ({rel['tag']}); "
+                          "name it with --tag to go back to it deliberately"}
+
+    signed = verify_release(rel, root)
+    on_step(f"signed by trusted key {signed['key']} for {rel['tag']}")
 
     on_step(f"downloading {rel['name']}")
     try:
@@ -196,13 +318,13 @@ def apply(tag=None, root=None, on_step=lambda _m: None):
     except Exception as e:
         raise UpdateError(f"could not download {rel['name']}: {e}")
 
-    if rel["digest"]:
-        got = hashlib.sha256(blob).hexdigest()
-        if got != rel["digest"]:
-            raise UpdateError(
-                f"downloaded bytes do not match the published digest "
-                f"({got[:12]}… vs {rel['digest'][:12]}…)")
-        on_step("digest matches what the release publishes")
+    got = hashlib.sha256(blob).hexdigest()
+    if got != signed["sha256"]:
+        raise UpdateError(
+            f"downloaded bytes do not match the digest in the signed manifest "
+            f"({got[:12]}… vs {signed['sha256'][:12]}…) - this is not the "
+            "archive that was signed, so it will not be installed")
+    on_step("archive matches the signed manifest")
 
     work = Path(tempfile.mkdtemp(prefix="absh-update-"))
     backup = work / "backup"
