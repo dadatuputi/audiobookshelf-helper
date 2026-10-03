@@ -164,6 +164,14 @@ jobs:
       - name: addons-linter (Chrome bundle - catches MV3 mistakes too)
         run: npx addons-linter extension/dist/chrome || true
 
+      # The release's signing steps against the web-ext this repo pins. The
+      # python matrix has no node_modules, so those tests skip there; this
+      # job has them, and the variable turns a skip into a failure here.
+      - name: AMO signing steps against the real web-ext
+        env:
+          ABSH_REQUIRE_WEB_EXT: "1"
+        run: python -m unittest tests/python/test_release_amo.py -v
+
   extension-unit:
     name: extension unit tests (node ${{ matrix.node }})
     runs-on: ubuntu-latest

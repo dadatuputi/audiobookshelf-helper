@@ -251,6 +251,13 @@ jobs:
           # installable, but not published on addons.mozilla.org.
           CHANNEL=listed
           if [ "$PRERELEASE" = "true" ]; then CHANNEL=unlisted; fi
+          # web-ext waits for the signed file on either channel, 15 minutes by
+          # default, and a listed version is not signed until it has been
+          # reviewed. So a stable tag would sit out the wait and then fail
+          # with the submission already made. Stop at the submission instead:
+          # AMO publishes a listed version itself once it is approved.
+          WAIT=""
+          if [ "$CHANNEL" = "listed" ]; then WAIT="--approval-timeout 0"; fi
           {
             echo "attempted=true"
             echo "channel=$CHANNEL"
@@ -260,7 +267,7 @@ jobs:
           npx web-ext sign \
             --source-dir extension/dist/firefox \
             --artifacts-dir release-xpi \
-            --channel "$CHANNEL" \
+            --channel "$CHANNEL" $WAIT \
             --api-key "$AMO_JWT_ISSUER" \
             --api-secret "$AMO_JWT_SECRET" 2>&1 | tee sign.log
           RC=${PIPESTATUS[0]}
@@ -288,6 +295,12 @@ jobs:
           shopt -s nullglob
           XPI=(release-xpi/*.xpi)
           if [ ${#XPI[@]} -eq 0 ]; then
+            if [ -z "$ATTEMPTED" ]; then
+              # The sign step never ran, because a step before it failed; that
+              # step has said why, and "no credentials" here would be a lie.
+              echo "::notice title=AMO::signing did not run, so there is nothing to attach"
+              exit 0
+            fi
             if [ "$ATTEMPTED" != "true" ]; then
               echo "::notice title=AMO::no credentials, so nothing was signed"
               exit 0

@@ -23,6 +23,22 @@ API = os.environ.get("AMO_API", "https://addons.mozilla.org/api/v5")
 
 # Unlisted versions are the ones a prerelease creates, and they are invisible
 # to the default filter - which would make every alpha look available.
+#
+# What is known and what is not, since only the unlisted path has run:
+#
+# - Known, from AMO's API documentation: with no filter the list holds only
+#   public versions, so a listed version still awaiting review - the state a
+#   stable tag leaves behind - would be invisible and look free.
+#   all_with_unlisted is documented as "all versions (including unlisted)" and
+#   needs a developer's credentials, which these are. So the same query covers
+#   the listed channel; there is no listed-only filter to switch to.
+# - Known gap: deleted versions. Only all_with_deleted shows them, and that
+#   needs admin rights. AMO is believed to refuse a deleted version's number as
+#   well, so a tag whose version was signed and then deleted on AMO passes this
+#   check and is refused by the submission instead. Whether that refusal says
+#   "already exists" - which the sign step greps for - has not been seen.
+# - Unverified: that rejected or disabled listed versions appear under
+#   all_with_unlisted. The documentation says "all"; it has not been observed.
 VERSIONS = "/addons/addon/{addon}/versions/?filter=all_with_unlisted"
 
 
