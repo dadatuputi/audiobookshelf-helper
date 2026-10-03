@@ -345,11 +345,15 @@ jobs:
           CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
           CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
           CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
           CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           ZIP=$(ls release/*-chrome-*.zip)
           DRY=""
-          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then DRY="--dry-run"; fi
+          # A dry run still signs in and reads the item, so the secrets can be
+          # proven before the first stable tag depends on them.
+          if [ "$DRY_RUN" = "true" ]; then DRY="--dry-run"; fi
           set +e
           python3 tools/publish_cws.py --zip "$ZIP" $DRY
           code=$?
