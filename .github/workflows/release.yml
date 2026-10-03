@@ -193,6 +193,11 @@ jobs:
     # signing takes minutes and creating a release takes seconds.
     needs: [package, github-release]
     runs-on: ubuntu-latest
+    # What signing did, for verify-release: whether an xpi belongs on the
+    # release depends on it, and only this job knows.
+    outputs:
+      attempted: ${{ steps.sign.outputs.attempted }}
+      channel: ${{ steps.sign.outputs.channel }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -341,3 +346,40 @@ jobs:
             exit 0
           fi
           exit $code
+
+  verify-release:
+    name: verify release
+    # Every job above can report success while the release is wrong: alpha.1
+    # shipped an xpi from the previous build beside this build's zips, and
+    # nothing failed. This asks GitHub what it is actually serving and holds
+    # it against what this run built and what the tag says it is.
+    #
+    # After amo, because that uploads onto the release too. !cancelled()
+    # rather than success(), so a failed or skipped amo job still gets the
+    # rest of the release checked - the verifier is told amo's result and
+    # stops expecting an xpi it cannot account for, rather than guessing.
+    needs: [package, github-release, amo]
+    if: ${{ !cancelled() && needs.github-release.result == 'success' && github.event.inputs.dry_run != 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-artifacts
+          path: release
+
+      - name: Check the published release against the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          AMO_RESULT: ${{ needs.amo.result }}
+          AMO_ATTEMPTED: ${{ needs.amo.outputs.attempted }}
+          AMO_CHANNEL: ${{ needs.amo.outputs.channel }}
+        run: |
+          python3 tools/verify_release.py --tag "$TAG" --artifacts release \
+            --amo-result "$AMO_RESULT" \
+            --amo-attempted "$AMO_ATTEMPTED" \
+            --amo-channel "$AMO_CHANNEL"
