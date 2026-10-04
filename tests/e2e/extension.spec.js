@@ -17,7 +17,7 @@ import {
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { resolve, join, dirname } from "node:path";
+import { resolve, join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 
@@ -216,11 +216,24 @@ async function configure(ctx, { absUrl, dev, lib }) {
     null, { timeout: 15_000 });
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
-  await page.fill("#devicePath", dev);
   await page.click("#save");
   await expect(page.locator("#msg")).toHaveText("saved");
+  // The player is chosen in the popup now; the popup tests below drive that.
+  // Setup only needs it set, so it goes straight into storage.
+  await page.evaluate((d) => chrome.storage.local.set({ devicePath: d }), dev);
   return page;
 }
+
+/** The popup, after its first pass: the player strip has a name in it. */
+async function popupPage(ctx) {
+  const page = await ctx.newPage();
+  await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+  await expect(page.locator("#playerName")).not.toHaveText("", { timeout: 20_000 });
+  return page;
+}
+
+const stored = (page, key) =>
+  page.evaluate((k) => chrome.storage.local.get(k).then((s) => s[k]), key);
 
 /** A real MP4 atom tree with a metadata block, so the helper can read tags. */
 function m4aWithTags(title, author) {
@@ -303,26 +316,78 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
-  test("Detect finds the player so nobody types its path", async () => {
-    const page = await env.ctx.newPage();
-    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
-    await page.click("#detect");
+  test("the popup names the player and finds it with Detect", async () => {
+    const page = await popupPage(env.ctx);
+    await expect(page.locator("#playerName")).toHaveText(basename(env.dev));
+    await expect(page.locator("#playerName")).not.toHaveClass(/missing/);
+    await expect(page.locator("#playerPanel")).toBeHidden();
+    await page.click("#playerToggle");
     // Assert the device itself is offered, by path. "at least one option" passed
     // on any machine with a stray directory under /mnt while never once finding
     // the device it claimed to - which is how this read green locally and red
     // on a runner where /mnt is empty.
-    await expect(page.locator(`#deviceList option[value="${env.dev}"]`))
+    await expect(page.locator(`.player-pick[title="${env.dev}"]`))
       .toHaveCount(1, { timeout: 20_000 });
+    await expect(page.locator(`.player-pick[title="${env.dev}"]`)).toHaveClass(/current/);
     await page.close();
   });
 
-  test("saved settings survive a reload", async () => {
+  test("the options page keeps the server; the popup keeps the player", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
     await expect(page.locator("#absUrl")).toHaveValue(env.absUrl);
-    await expect(page.locator("#devicePath")).toHaveValue(env.dev);
     await expect(page.locator("#renameM4b")).toBeChecked();
+    // The player is not a setting on this page any more.
+    await expect(page.locator("#devicePath")).toHaveCount(0);
+    await expect(page.locator("#detect")).toHaveCount(0);
     await page.close();
+    const pop = await popupPage(env.ctx);
+    await expect(pop.locator("#devicePath")).toHaveValue(env.dev);
+    await pop.close();
+  });
+
+  test("a player typed into the popup is kept even if it closes straight away", async () => {
+    // A popup closes the moment it loses focus, so there is no Save button to
+    // forget: what is typed is stored as it is typed.
+    const page = await popupPage(env.ctx);
+    await page.click("#playerToggle");
+    const elsewhere = join(tmpdir(), "absh-typed-player");
+    try {
+      await page.fill("#devicePath", elsewhere);
+      await expect.poll(() => stored(page, "devicePath"), { timeout: 5_000 }).toBe(elsewhere);
+      await page.close();
+      const again = await popupPage(env.ctx);
+      await expect(again.locator("#devicePath")).toHaveValue(elsewhere);
+      await again.close();
+    } finally {
+      const fix = await env.ctx.newPage();
+      await fix.goto(`chrome-extension://${EXT_ID}/popup.html`);
+      await fix.evaluate((d) => chrome.storage.local.set({ devicePath: d }), env.dev);
+      await fix.close();
+    }
+  });
+
+  test("when the saved player is not plugged in, the popup offers the one that is", async () => {
+    const page0 = await env.ctx.newPage();
+    await page0.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await page0.evaluate((d) => chrome.storage.local.set({ devicePath: d }),
+                         join(tmpdir(), "absh-unplugged-player"));
+    await page0.close();
+    const page = await popupPage(env.ctx);
+    try {
+      await expect(page.locator("#playerPanel")).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("#playerName")).toHaveClass(/missing/);
+      await expect(page.locator("#playerNote")).toContainText("isn't plugged in");
+      // One click puts the real one back, and the shelf comes back with it.
+      await page.locator(`.player-pick[title="${env.dev}"]`).click({ timeout: 20_000 });
+      await expect.poll(() => stored(page, "devicePath")).toBe(env.dev);
+      await expect(page.locator("#playerPanel")).toBeHidden();
+      await expect(page.locator("#playerName")).toHaveText(basename(env.dev));
+      await expect(page.locator("#n-server")).not.toHaveText("", { timeout: 20_000 });
+    } finally {
+      await page.evaluate((d) => chrome.storage.local.set({ devicePath: d }), env.dev);
+      await page.close();
+    }
   });
 
   test("popup reaches the native host and lists what can be pulled", async () => {
@@ -481,10 +546,15 @@ test.describe("when the device is not mounted", () => {
   test("the popup says the device is missing rather than showing it empty", async () => {
     const page = await ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
-    await expect(page.locator("#status")).toContainText("not mounted", { timeout: 20_000 });
-    await expect(page.locator("#status")).toHaveClass(/err/);
-    // And it must not claim an empty player.
+    // It opens the player strip on it, saying so, so picking another is a click.
+    await expect(page.locator("#playerPanel")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#playerNote")).toContainText("isn't plugged in");
+    await expect(page.locator("#playerNote")).toHaveClass(/err/);
+    await expect(page.locator("#playerName")).toHaveClass(/missing/);
+    // And it must not claim an empty player - or claim anything about one:
+    // the shelf below used to say everything was already on the device.
     await expect(page.locator("#n-device")).toHaveText("");
+    await expect(page.locator("#list")).toHaveText("Pick your player above to see what is on it.");
     await page.close();
   });
 });
@@ -583,8 +653,8 @@ test.describe("before access is granted", () => {
     await page.close();
   });
 
-  test("a saved folder and naming template are what the page shows next time", async () => {
-    // Both carry a default in the markup, and the page used to fill only
+  test("a saved naming template is what the page shows next time", async () => {
+    // It carries a default in the markup, and the page used to fill only
     // empty fields from storage - so it showed the default on every load, and
     // the next Save wrote it back over what the user had chosen.
     const page = await ctx.newPage();
@@ -592,15 +662,24 @@ test.describe("before access is granted", () => {
     await page.waitForFunction(
       () => (document.getElementById("permState")?.textContent || "") !== "",
       null, { timeout: 15_000 });
-    await page.fill("#subdir", "BOOKS");
     await page.fill("#folderTemplate", "{title}");
     await page.click("#save");
     await expect(page.locator("#msg")).toHaveText("saved");
 
     await page.reload();
-    await expect(page.locator("#subdir")).toHaveValue("BOOKS");
     await expect(page.locator("#folderTemplate")).toHaveValue("{title}");
     await page.close();
+  });
+
+  test("the folder on the player is set in the popup and kept", async () => {
+    const page = await popupPage(ctx);
+    if (await page.locator("#playerPanel").isHidden()) await page.click("#playerToggle");
+    await page.fill("#subdir", "BOOKS");
+    await expect.poll(() => stored(page, "subdir"), { timeout: 5_000 }).toBe("BOOKS");
+    await page.close();
+    const again = await popupPage(ctx);
+    await expect(again.locator("#subdir")).toHaveValue("BOOKS");
+    await again.close();
   });
 });
 
@@ -770,7 +849,8 @@ test.describe("the helper's version, from a checkout", () => {
   });
 
   test("says a newly plugged-in player can take a moment, when the helper polls", async () => {
-    const page = await optionsPage(ctx);
+    const page = await popupPage(ctx);
+    await page.click("#playerToggle");
     await expect(page.locator("#pollNote")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("#pollNote")).toContainText("couple of seconds");
     await page.close();

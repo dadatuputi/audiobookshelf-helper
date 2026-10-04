@@ -9,6 +9,8 @@ let ST = { both: [], serverOnly: [], deviceOnly: [] };
 let SEL = new Set();
 let PROGRESS = null;
 let BUSY = false;
+// No usable player: the shelf has nothing true to say about "the device".
+let NO_PLAYER = false;
 
 /* ----------------------------------------------------------- transport */
 const PORT = browser.runtime.connect({ name: "absh" });
@@ -98,7 +100,9 @@ function render() {
   const rows = visible();
   const ul = $("#list");
   ul.innerHTML = "";
-  if (!rows.length) {
+  if (NO_PLAYER) {
+    ul.appendChild(el("li", "empty", "Pick your player above to see what is on it."));
+  } else if (!rows.length) {
     ul.appendChild(el("li", "empty", {
       server: "Everything on the server is already on the device.",
       device: "Nothing from this library is on the device yet.",
@@ -147,15 +151,24 @@ function updateAction() {
 async function refresh() {
   try {
     ST = await send({ type: "status" });
+    NO_PLAYER = false;
     SEL.clear();
     render();
     if (!ST.both.length && !ST.serverOnly.length && !ST.deviceOnly.length) {
       status("Nothing on either side yet.");
     }
   } catch (e) {
-    status(String(e.message || e), "err");
+    const msg = String(e.message || e);
     ST = { both: [], serverOnly: [], deviceOnly: [] };
     render();
+    if (BACKEND === "helper" && /device not mounted at|no device path is set/.test(msg)) {
+      status("");
+      await needPlayer(PLAYER.devicePath
+        ? `${baseName(PLAYER.devicePath)} isn't plugged in. Connect it, or pick another:`
+        : "Choose the player to copy books to:");
+      return;
+    }
+    status(msg, "err");
   }
 }
 
@@ -168,6 +181,137 @@ function optionsLink(text) {
   $("#status").after(a);
 }
 
+/* -------------------------------------------------------------- the player
+ * The device is the one setting that changes between visits, so it is chosen
+ * here rather than in Options. Every change is saved as it is made: a popup
+ * closes the moment it loses focus, and a Save button would lose whatever was
+ * typed before it was pressed. */
+const PLAYER = { devicePath: "", subdir: ABSH.DEFAULTS.subdir || "AUDIOBOOKS" };
+let BACKEND = "helper";                // or "folder" (Chrome without the helper)
+
+function baseName(path) {
+  const parts = String(path || "").replace(/[\\/]+$/, "").split(/[\\/]/);
+  return parts[parts.length - 1] || String(path || "");
+}
+
+function showPlayer(name, missing = false) {
+  const n = $("#playerName");
+  n.textContent = name;
+  n.title = BACKEND === "folder" ? "" : PLAYER.devicePath;
+  n.classList.toggle("missing", missing);
+}
+
+function playerNote(text, cls = "") {
+  const n = $("#playerNote");
+  n.textContent = text || "";
+  n.className = "player-note " + cls;
+}
+
+function openPlayer(open) {
+  $("#playerPanel").classList.toggle("hidden", !open);
+  $("#playerToggle").textContent = open ? "Done" : "Change";
+  $("#playerToggle").setAttribute("aria-expanded", String(open));
+}
+
+async function readPlayer() {
+  const s = await browser.storage.local.get({ devicePath: "", subdir: PLAYER.subdir });
+  PLAYER.devicePath = s.devicePath || "";
+  PLAYER.subdir = s.subdir;
+  $("#devicePath").value = PLAYER.devicePath;
+  $("#subdir").value = PLAYER.subdir;
+}
+
+async function savePlayer(patch) {
+  Object.assign(PLAYER, patch);
+  await browser.storage.local.set(patch);
+  if (BACKEND === "helper") {
+    showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "not chosen");
+  }
+}
+
+/* Saved as you type (so closing the popup loses nothing), re-read once you
+ * stop: Enter, or leaving the field. */
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+const saveTyped = debounce((patch) => savePlayer(patch), 250);
+
+function freeText(d) {
+  return d.free ? `${ABSH.formatBytes(d.free)} free` : "";
+}
+
+async function detect() {
+  const btn = $("#detect");
+  btn.disabled = true;
+  btn.textContent = "Looking…";
+  const list = $("#playerList");
+  try {
+    const devices = await send({ type: "devices" });
+    list.innerHTML = "";
+    if (!devices || !devices.length) {
+      playerNote("No player is plugged in. Some players have to be switched to " +
+                 "USB storage (MSC) mode before they show up as a drive.", "err");
+      return [];
+    }
+    for (const d of devices) {
+      const b = el("button", "player-pick" + (d.path === PLAYER.devicePath ? " current" : ""));
+      b.type = "button";
+      b.setAttribute("role", "listitem");
+      b.title = d.path;
+      b.append(el("span", "n", d.name || d.path));
+      if (d.hasSubdir) b.append(el("span", "chip on", "has your books"));
+      b.append(el("span", "d", freeText(d)));
+      b.addEventListener("click", async () => {
+        $("#devicePath").value = d.path;
+        await savePlayer({ devicePath: d.path });
+        openPlayer(false);
+        playerNote("");
+        await load();
+      });
+      list.appendChild(b);
+    }
+    return devices;
+  } catch (e) {
+    playerNote("Couldn't ask the helper for players: " + (e.message || e), "err");
+    return [];
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Detect";
+  }
+}
+
+/* The player isn't usable: open the strip with what is plugged in, so picking
+ * the right one is a click rather than a trip to Options. */
+async function needPlayer(why) {
+  NO_PLAYER = true;
+  ST = { both: [], serverOnly: [], deviceOnly: [] };
+  render();
+  showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "not chosen", true);
+  playerNote(why, "err");
+  openPlayer(true);
+  await detect();
+}
+
+$("#playerToggle").addEventListener("click", async () => {
+  const open = $("#playerPanel").classList.contains("hidden");
+  openPlayer(open);
+  if (open && BACKEND === "helper" && !$("#playerList").children.length) await detect();
+  if (!open) await load();
+});
+$("#detect").addEventListener("click", detect);
+$("#devicePath").addEventListener("input", () => saveTyped({ devicePath: $("#devicePath").value.trim() }));
+$("#devicePath").addEventListener("change", async () => {
+  await savePlayer({ devicePath: $("#devicePath").value.trim() });
+  await load();
+});
+$("#subdir").addEventListener("input", () => saveTyped({ subdir: $("#subdir").value.trim() }));
+$("#subdir").addEventListener("change", async () => {
+  await savePlayer({ subdir: $("#subdir").value.trim() });
+  await refresh();
+});
+$("#folderChange").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
+
 async function load() {
   status("checking helper…");
   let p;
@@ -179,6 +323,12 @@ async function load() {
       if (p.folderAvailable) optionsLink("Or, in Chrome, choose your player's folder in Options");
       return;
     }
+    BACKEND = p.backend === "folder" ? "folder" : "helper";
+    $("#pathField").classList.toggle("hidden", BACKEND === "folder");
+    $("#folderChange").classList.toggle("hidden", BACKEND !== "folder");
+    $("#pollNote").classList.toggle("hidden", !(BACKEND === "helper" && p.polls === true));
+    if (BACKEND === "folder") showPlayer(`folder “${p.folder}”`, p.access === "prompt" || p.access === "missing");
+    else showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "not chosen");
     // Chrome without the helper: the folder has to be usable before anything
     // on it can be listed. The popup cannot restore access itself - Chrome
     // only renews it from one of the extension's tabs - so it sends you there.
@@ -194,8 +344,16 @@ async function load() {
       return;
     }
     if (!p.configured) {
-      status("Not configured yet: " + (p.missing || []).join(", ")
-             + "\nOpen options, or run `absh config`.", "err");
+      const missing = p.missing || [];
+      const serverGaps = missing.filter((m) => !m.startsWith("devicePath"));
+      if (serverGaps.length) {
+        status("Set up your server first: " + serverGaps.join(", ")
+               + "\nOpen Options, or run `absh config`.", "err");
+        return;
+      }
+      // Only the player is missing, and that is chosen right here.
+      status("");
+      await needPlayer("Choose the player to copy books to:");
       return;
     }
   } catch (e) {
@@ -269,4 +427,4 @@ $("#act").addEventListener("click", async () => {
   }
 });
 
-load();
+readPlayer().then(load);

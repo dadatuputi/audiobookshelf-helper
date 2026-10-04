@@ -204,9 +204,10 @@ async function configure(ctx, absUrl, devicePath = "") {
   const page = await optionsPage(ctx);
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
-  await page.fill("#devicePath", devicePath);
   await page.click("#save");
   await expect(page.locator("#msg")).toHaveText("saved");
+  // The helper's player path is chosen in the popup now; setup sets it directly.
+  await page.evaluate((d) => chrome.storage.local.set({ devicePath: d }), devicePath);
   return page;
 }
 

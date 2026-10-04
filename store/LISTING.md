@@ -158,8 +158,8 @@ timing cooperates.
 >
 > 1. Clone https://github.com/dadatuputi/audiobookshelf-helper
 > 2. `python3 native/install.py` registers the helper.
-> 3. Any local directory works as the "player mount path" — a USB device is not
->    required to test.
+> 3. Any local directory works as the player — set it in the toolbar popup under
+>    **Player** → **Change**. A USB device is not required to test.
 > 4. An Audiobookshelf server is needed for the library list. The repository's
 >    test suite includes a stand-in server
 >    (`tests/e2e/extension.spec.js`) that can be run instead.

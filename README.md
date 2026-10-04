@@ -164,8 +164,8 @@ the same file.
 | Audiobookshelf URL | e.g. `http://media.local:13378` |
 | **Grant access** | Extension only. Required — [see below](#the-permission-grant) |
 | API key | Audiobookshelf → Settings → API Keys |
-| Device path | Absolute, e.g. `/Volumes/PLAYER` or `E:\`. **Detect** lists what is plugged in |
-| Folder on device | `AUDIOBOOKS` by default. Some players give a named folder resume and bookmarks — check your manual |
+| Device path | Absolute, e.g. `/Volumes/PLAYER` or `E:\`. In the extension it is set from the toolbar popup's **Player** strip, not Options — it changes more often than anything else here. **Detect** lists what is plugged in, and the popup opens the strip by itself when the saved player isn't connected |
+| Folder on device | `AUDIOBOOKS` by default, set beside the player in the popup. Some players give a named folder resume and bookmarks — check your manual |
 | Folder template | `{author}` `{title}` `{series}`. Also how a book is recognised on the device, so changing it makes synced books look absent |
 | Rename m4b → m4a | Leave on unless your player handles `.m4b` |
 
@@ -236,7 +236,7 @@ synced to before is next, and a small volume beats a large one. You pick.
 ```
 
 All three front-ends offer it: `absh devices`, <kbd>s</kbd> in the TUI, and the
-**Detect** button on the extension's options page.
+**Detect** button in the extension's toolbar popup, under **Player**.
 
 If your player mounts somewhere the desktop conventions do not cover — by hand
 under `~/mnt`, or from an idiosyncratic fstab entry — set `ABSH_DEVICE_ROOTS`

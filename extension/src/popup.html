@@ -7,6 +7,35 @@
 <div id="status" class="status"></div>
 <a id="updateHint" class="update-hint hidden" href="#"></a>
 
+<!-- The player is the setting that changes between visits - a different
+     player, or the same one mounted somewhere new - so it lives here, where
+     the copying happens, rather than in Options. -->
+<section id="player" class="player">
+  <div class="player-row">
+    <span class="player-label">Player</span>
+    <span id="playerName" class="player-name">not chosen</span>
+    <button id="playerToggle" class="ghost small" aria-expanded="false" aria-controls="playerPanel">Change</button>
+  </div>
+  <div id="playerPanel" class="player-panel hidden">
+    <div id="playerNote" class="player-note"></div>
+    <div id="playerList" class="player-list" role="list"></div>
+    <div id="pathField">
+      <label for="devicePath">Where it is mounted</label>
+      <div class="field-row">
+        <input id="devicePath" type="text" placeholder="/Volumes/PLAYER" spellcheck="false" autocomplete="off">
+        <button id="detect" class="ghost">Detect</button>
+      </div>
+    </div>
+    <a id="folderChange" class="update-hint hidden" href="#">Choose a different folder from the options page</a>
+    <label for="subdir">Folder on the player</label>
+    <input id="subdir" type="text" placeholder="AUDIOBOOKS" spellcheck="false" autocomplete="off">
+    <div class="hint">Some players only resume and bookmark inside a named folder - check your manual.</div>
+    <div id="pollNote" class="hint hidden">On this computer a player you plug in
+      can take a couple of seconds to appear: the helper checks for new players
+      on a timer here rather than being told the moment one connects.</div>
+  </div>
+</section>
+
 <nav class="tabs">
   <button class="tab active" data-tab="server">To pull <span id="n-server" class="badge"></span></button>
   <button class="tab" data-tab="device">On device <span id="n-device" class="badge"></span></button>

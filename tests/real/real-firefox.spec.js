@@ -136,7 +136,6 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           null, { timeout: 5_000 });
         await opt.fill("#absUrl", state.absUrl, { timeout: 5_000 });
         await opt.fill("#apiKey", state.token, { timeout: 5_000 });
-        await opt.fill("#devicePath", state.device, { timeout: 5_000 });
         await opt.click("#save", { timeout: 5_000 });
         await opt.waitForTimeout(1000);
       } catch (e) {

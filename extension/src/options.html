@@ -56,21 +56,10 @@ code{background:#111827;padding:1px 4px;border-radius:3px}
 <div id="permState" class="note"></div>
 </div>
 
-<h2>Device</h2>
-<label for="devicePath">Player mount path</label>
-<div class="row"><input type="text" id="devicePath" placeholder="/Volumes/PLAYER">
-  <button id="detect" class="secondary inline">Detect</button></div>
-<select id="deviceList" class="hidden" size="4"></select>
-<div class="hint">Absolute path to the mounted player. The helper writes here.
-  Books are fetched from your Audiobookshelf server - nothing else needs to be
-  mounted.</div>
-<div id="pollNote" class="hint hidden">On this computer, a player you plug in
-  can take a couple of seconds to show up on your library page: the helper
-  looks for new players on a timer here, rather than being told the moment
-  one is connected.</div>
-<label for="subdir">Folder on the device</label>
-<input type="text" id="subdir" value="AUDIOBOOKS">
-<div class="hint">Some players give a named folder resume and bookmarks - check your manual.</div>
+<h2>Player</h2>
+<div class="hint">Choose your player, and the folder on it, from the toolbar
+  button: it changes more often than anything here, so it lives where the
+  copying happens.</div>
 
 <h2>Naming</h2>
 <label for="folderTemplate">Folder template</label>

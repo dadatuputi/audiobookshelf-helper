@@ -78,3 +78,44 @@ footer { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(-
 footer #sync { flex: 1 1 auto; }
 .orphan-head { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
 .empty { padding: 14px 10px; color: var(--muted); font-size: 12px; }
+
+/* The player strip: what you are copying to, and the one place to change it. */
+.player { border-bottom: 1px solid var(--line); }
+.player-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+.player-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.player-name {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600;
+}
+.player-name.missing { color: var(--err); font-weight: 400; }
+button.small { padding: 3px 9px; font-size: 12px; }
+.player-panel { display: grid; gap: 4px; padding: 0 10px 10px; }
+/* .hidden is declared earlier with the same specificity, so without this
+   the grid above wins and the panel can never be closed. */
+.player-panel.hidden { display: none; }
+.player-panel label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.player-panel input[type=text] {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+  border-radius: 4px; padding: 5px 6px; font: inherit; width: 100%; min-width: 0;
+}
+.player-panel input[type=text]:focus, .player-pick:focus-visible, button:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.field-row { display: flex; gap: 6px; }
+.field-row input { flex: 1 1 auto; }
+.player-note { font-size: 12px; color: var(--muted); }
+.player-note:empty { display: none; }
+.player-note.err { color: var(--err); }
+.player-list { display: grid; gap: 4px; }
+.player-list:empty { display: none; }
+.player-pick {
+  display: flex; align-items: baseline; gap: 6px; width: 100%; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); color: var(--fg);
+  border-radius: 4px; padding: 6px 8px; font: inherit; cursor: pointer;
+}
+.player-pick:hover { border-color: var(--accent); }
+.player-pick.current { border-color: var(--ok); }
+.player-pick .n { font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-pick .d { font-size: 11px; color: var(--muted); margin-left: auto; white-space: nowrap; }
+.hint { font-size: 11px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }

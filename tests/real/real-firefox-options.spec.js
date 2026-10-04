@@ -63,7 +63,7 @@ test.describe("Firefox options page, driven", () => {
   // meaningful for the next one to check.
   test.describe.configure({ mode: "serial" });
 
-  let ctx, rdp, page, tab, disconnect, profile, device, origin;
+  let ctx, rdp, page, tab, popPage, popTab, disconnect, profile, device, origin;
 
   test.beforeAll(async () => {
     profile = mkdtempSync(join(tmpdir(), "absh-ffopt-"));
@@ -119,13 +119,25 @@ test.describe("Firefox options page, driven", () => {
     // branch, so text there means the page has finished starting up.
     await tab.waitFor("the options page finishing its first load",
       () => document.getElementById("permState").textContent !== "");
+
+    // The toolbar popup, reached the same way in a tab of its own: the player
+    // is chosen there, not on the options page.
+    popPage = await ctx.newPage();
+    await popPage.goto(`data:text/plain,${MARKER}-popup`);
+    popTab = await openExtensionPage(rdp, {
+      marker: `${MARKER}-popup`, url: `moz-extension://${uuid}/popup.html`,
+    });
+    // Nothing is saved yet, so its first pass ends asking for the server.
+    await popTab.waitFor("the popup finishing its first pass",
+      () => document.getElementById("status").textContent.includes("Set up your server first"));
   });
 
   test.afterAll(async () => {
     rdp?.close();
     // Juggler never saw this tab arrive where it is, so do not let it hold up
     // the shutdown if it cannot close it either.
-    await Promise.race([page?.close().catch(() => {}),
+    await Promise.race([Promise.all([page?.close().catch(() => {}),
+                                     popPage?.close().catch(() => {})]),
                         new Promise((r) => setTimeout(r, 5_000))]);
     await ctx?.close();
     disconnect?.();
@@ -137,8 +149,8 @@ test.describe("Firefox options page, driven", () => {
       // The page's own handle on the add-on, which an ordinary page lacks.
       api: typeof browser !== "undefined" && typeof browser.storage?.local?.get === "function",
       absUrl: document.getElementById("absUrl").value,
-      devicePath: document.getElementById("devicePath").value,
-      subdir: document.getElementById("subdir").value,
+      // The player moved to the popup; this page must not still offer it.
+      deviceField: !!document.getElementById("devicePath"),
       renameM4b: document.getElementById("renameM4b").checked,
       permState: document.getElementById("permState").textContent,
       grantDisabled: document.getElementById("grant").disabled,
@@ -146,8 +158,7 @@ test.describe("Firefox options page, driven", () => {
     expect(s.href).toMatch(/^moz-extension:\/\/[^/]+\/options\.html$/);
     expect(s.api, "the page has no browser.storage - not an extension page").toBe(true);
     expect(s.absUrl).toBe("");
-    expect(s.devicePath).toBe("");
-    expect(s.subdir).toBe("AUDIOBOOKS");
+    expect(s.deviceField).toBe(false);
     expect(s.renameM4b).toBe(true);
     expect(s.permState).toBe("Set the server URL first.");
     expect(s.grantDisabled).toBe(true);
@@ -172,31 +183,36 @@ test.describe("Firefox options page, driven", () => {
       .toBe(false);
   });
 
-  test("Detect finds the player through the helper", async () => {
-    await tab.click("#detect");
-    // The device itself, by path - not merely "some option", which a stray
+  test("the popup finds the player through the helper, and keeps the choice", async () => {
+    await popTab.click("#playerToggle");
+    // The device itself, by path - not merely "some player", which a stray
     // mount on a developer's machine would satisfy.
-    const offered = await tab.waitFor("the device appearing in the Detect list",
+    const offered = await popTab.waitFor("the device appearing in the popup's player list",
       (dev) => {
-        const o = [...document.querySelectorAll("#deviceList option")]
-          .find((x) => x.value === dev);
-        return o ? { text: o.textContent, list: document.getElementById("deviceList").className }
-                 : null;
+        const b = [...document.querySelectorAll(".player-pick")].find((x) => x.title === dev);
+        return b ? { text: b.textContent } : null;
       }, [device], { timeout: 30_000 });
-    expect(offered.list).not.toContain("hidden");
-    expect(offered.text).toContain("has your books folder");
-    // The likeliest player is filled in for the user.
-    expect(await tab.evaluate(() => document.getElementById("devicePath").value)).toBe(device);
-    expect(await tab.evaluate(() => document.getElementById("detect").textContent)).toBe("Detect");
+    expect(offered.text).toContain("has your books");
+    expect(await popTab.evaluate(() => document.getElementById("detect").textContent)).toBe("Detect");
+
+    // Picking it, and the folder on it, is the whole choice: there is no Save
+    // in a popup, which closes the moment it loses focus.
+    await popTab.click(`.player-pick[title="${device}"]`);
+    await popTab.click("#playerToggle");
+    await popTab.fill("#subdir", "BOOKS");
+    const stored = await until(() => {
+      const s = readLocalStorage(profile, GECKO_ID);
+      return s.devicePath === device && s.subdir === "BOOKS" ? s : null;
+    }, { timeout: 15_000 });
+    expect(stored, "the popup's choice never reached storage.local").toBeTruthy();
   });
 
   test("saved settings reach storage and survive a reload", async () => {
     await tab.fill("#apiKey", "test-key");
-    // Away from their defaults, every one: these two carry theirs in the
-    // markup, and a page that ignored what was saved for them read back fine
-    // until something other than the default was saved. The box is turned
-    // off for the same reason.
-    await tab.fill("#subdir", "BOOKS");
+    // Away from its default: the template carries one in the markup, and a
+    // page that ignored what was saved for it read back fine until something
+    // other than the default was saved. The box is turned off for the same
+    // reason.
     await tab.fill("#folderTemplate", "{title}");
     await tab.click("#renameM4b");
     expect(await tab.evaluate(() => document.getElementById("renameM4b").checked)).toBe(false);
@@ -209,9 +225,10 @@ test.describe("Firefox options page, driven", () => {
     // form, independent of the page reading them back.
     const stored = await until(() => {
       const s = readLocalStorage(profile, GECKO_ID);
-      return s.subdir === "BOOKS" ? s : null;
+      return s.folderTemplate === "{title}" ? s : null;
     }, { timeout: 15_000 });
     expect(stored, "storage.local never received the save").toBeTruthy();
+    // The player and its folder are the popup's, and Save here leaves them be.
     expect(stored).toMatchObject({
       absUrl: state.absUrl, apiKey: "test-key", devicePath: device,
       subdir: "BOOKS", folderTemplate: "{title}", renameM4b: false,
@@ -221,12 +238,11 @@ test.describe("Firefox options page, driven", () => {
     await tab.waitFor("the reloaded page finishing its load",
       () => document.getElementById("permState").textContent !== "");
     const after = await tab.evaluate(() => Object.fromEntries(
-      ["absUrl", "apiKey", "devicePath", "subdir", "folderTemplate"]
+      ["absUrl", "apiKey", "folderTemplate"]
         .map((k) => [k, document.getElementById(k).value])
         .concat([["renameM4b", document.getElementById("renameM4b").checked]])));
     expect(after).toEqual({
-      absUrl: state.absUrl, apiKey: "test-key", devicePath: device,
-      subdir: "BOOKS", folderTemplate: "{title}", renameM4b: false,
+      absUrl: state.absUrl, apiKey: "test-key", folderTemplate: "{title}", renameM4b: false,
     });
   });
 

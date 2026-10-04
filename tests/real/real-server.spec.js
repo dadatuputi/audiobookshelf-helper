@@ -94,10 +94,21 @@ test.describe("against a real Audiobookshelf", () => {
       null, { timeout: 15_000 });
     await opt.fill("#absUrl", state.absUrl);
     await opt.fill("#apiKey", state.token);
-    await opt.fill("#devicePath", state.device);
     await opt.click("#save");
     await opt.waitForTimeout(1500);
     await opt.close();
+
+    // The player is chosen from the toolbar popup. With none saved, it opens
+    // its player strip by itself; type the path as a user would.
+    const pop = await ctx.newPage();
+    await pop.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await pop.locator("#playerPanel").waitFor({ state: "visible", timeout: 20_000 });
+    await pop.fill("#devicePath", state.device);
+    await pop.locator("#devicePath").press("Tab");
+    await expect.poll(() => pop.evaluate(
+      () => chrome.storage.local.get("devicePath").then((s) => s.devicePath)),
+      { timeout: 10_000 }).toBe(state.device);
+    await pop.close();
   });
 
   test.afterAll(async () => { await ctx?.close(); });
