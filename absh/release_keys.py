@@ -34,5 +34,6 @@ until a key is here.
 """
 
 KEYS = [
+    "ed25519:lFF8XOSR1NdtDyiiApXBQCKCaBGeIQ+rfyT83T64Dqk=",  # held by GitHub Actions as the RELEASE_SIGNING_KEY secret
     # "ed25519:<base64 public key>",  # who holds it, when it was made
 ]
