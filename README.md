@@ -442,7 +442,8 @@ any store account exists.
 | Secret | For |
 |---|---|
 | `AMO_JWT_ISSUER`, `AMO_JWT_SECRET` | Firefox signing and submission |
-| `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, `CWS_ITEM_ID` | Chrome Web Store |
+| `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`, `CWS_ITEM_ID`, `CWS_PUBLISHER_ID` | Chrome Web Store (v2 API) |
+| `RELEASE_SIGNING_KEY` | Signs every release, so `absh update` will install it |
 
 Versions are derived from the tag, because the stores disagree about what a
 version may look like — Chrome takes 1–4 integers and rejects `1.0.0-alpha.1`
@@ -450,30 +451,34 @@ outright, while Firefox sorts `1.0.0a1` *below* `1.0.0`. So `v1.0.0-alpha.1`
 becomes `1.0.0a1` for Firefox and `1.0.0.1` for Chrome. See
 `tools/release_version.py`.
 
-### Signing the helper, by hand, every release
+### Signing the helper
 
-CI publishes a `SHA256SUMS` beside the archives. `absh update` will not
-install the release until the maintainer signs that file with a key GitHub
-never sees — not a repository secret, since any workflow can read those:
+The release workflow signs every release itself: it writes a `SHA256SUMS`
+beside the archives and signs it with the key in the `RELEASE_SIGNING_KEY`
+secret, and `absh update` installs nothing without a valid signature from a
+key the installed copy pins.
 
-```bash
-python3 tools/sign_release.py sign v1.0.0-alpha.4    # checks, then signs
-gh release upload v1.0.0-alpha.4 release/SHA256SUMS.sig --clobber
-python3 tools/sign_release.py verify v1.0.0-alpha.4  # as an installed copy would
-```
+Once, before the first signed release:
 
-`sign` reads the published release (no credentials) and refuses unless the
-manifest names that tag, every archive matches it, and the native archive is
-the tagged source file for file, so it is a check rather than a rubber stamp.
-It prints the upload command. Re-cutting a tag drops the old signature; sign
-again.
+1. Make a key: `openssl rand -base64 32`.
+2. Add it as a repository secret named `RELEASE_SIGNING_KEY` (Settings →
+   Secrets and variables → Actions → New repository secret).
+3. Run the **Pin release-signing key** workflow from the Actions tab. It
+   commits the key's public half to `absh/release_keys.py`.
 
-Once, before the first signed release: `python3 tools/sign_release.py keygen`
-writes the private key outside any git checkout (default
-`~/.config/absh-release/signing.key` — back it up offline) and prints a line to
-add to `KEYS` in `absh/release_keys.py`. Commit that before tagging. Rotation
-is described in that file: pin the new key beside the old, release, then sign
-with both (`--key OLD --key NEW`) until the old one can be dropped.
+A tag build stops before building anything if the secret is missing or its key
+is not pinned, because a helper released without a trusted key can never
+update itself.
+
+What the signature proves: that a release came out of this repository's
+release workflow, so an asset swapped in afterwards, or a build from anywhere
+else, is refused. What it does not: a key held as an Actions secret can be
+read by anyone who can run workflows here or controls the maintainer's
+account. That was a deliberate trade for a release process with no manual
+steps. The stronger arrangement keeps a key off GitHub —
+`python3 tools/sign_release.py keygen`, then `sign vX` after CI publishes — and
+it can be pinned beside the CI key. Rotation is described in
+`absh/release_keys.py`.
 
 ## Watching upstream
 

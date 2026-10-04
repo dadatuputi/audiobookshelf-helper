@@ -5,11 +5,13 @@ these. The list is read from the copy being updated, before anything is
 replaced, so a release can only ever be vouched for by a key its predecessor
 already trusted - never by one it brings with it.
 
-The private halves live with the maintainer, offline, and nowhere on GitHub:
-not in the repository and not in an Actions secret, because a workflow can
-read its secrets and a stolen secret would put us back where an unsigned
-release leaves us. `python3 tools/sign_release.py keygen` makes a key and
-prints the line that belongs here.
+The private half is the RELEASE_SIGNING_KEY Actions secret, and the release
+workflow signs every build with it; the "Pin release-signing key" workflow
+adds its public half here. That was the maintainer's choice, for a release
+with no manual steps, and it has a cost worth stating: anyone who can run
+workflows in the repository can read the secret and sign. A key held off
+GitHub (`python3 tools/sign_release.py keygen`) closes that, and can be pinned
+beside this one.
 
 Rotating to a new key:
 

@@ -88,19 +88,25 @@ low.
 
 ## Deficiencies
 
-### D1. `absh update` verifies integrity, not provenance — FIXED
+### D1. `absh update` verifies integrity, not provenance — NARROWED, by choice
 The digest came from GitHub, computed over the bytes GitHub was given, so
 anyone who could publish a release published a matching digest.
 
-**Status:** `a891beb`. Releases now carry a `SHA256SUMS` manifest that binds
-the tag, signed by the maintainer with an Ed25519 key that never touches
-GitHub. The updater checks it against keys pinned in the *installed* copy
-(read with `ast`, never imported) before downloading or swapping anything,
-and refuses unsigned releases with no override. The verifier is pure
-Python; it accepts 60/60 OpenSSL-made signatures and rejects 180/180
-tampered ones in an independent check. `f33821d` stops a tag build that
-would ship a helper with no pinned key, which could never update itself.
-**Not live until the maintainer pins a key — see M1.**
+**Status:** `a891beb` added signing. Releases carry a `SHA256SUMS` manifest
+that binds the tag, and the updater checks its Ed25519 signature against keys
+pinned in the *installed* copy (read with `ast`, never imported) before
+downloading or swapping anything; unsigned releases are refused with no
+override. The verifier is pure Python and accepts 60/60 OpenSSL-made
+signatures and rejects 180/180 tampered ones in an independent check.
+
+The maintainer chose to have CI hold the key, as the `RELEASE_SIGNING_KEY`
+secret, so releasing needs no manual step. What that means plainly: a
+signature proves a release came out of this repository's release workflow,
+so an asset swapped in afterwards or a build from anywhere else is refused.
+It does not hold against someone who can run workflows here or controls the
+maintainer's GitHub account; they can read the secret and sign. Closing that
+needs a key held off GitHub, which `tools/sign_release.py keygen` / `sign`
+still support and which can be pinned beside the CI key.
 
 ### D2. A stale add-on is published under the wrong version — FIXED
 **Status:** the maintainer deleted `cb73684229b84553a7b8-1.0.0.1.xpi` from
@@ -122,7 +128,7 @@ the maintainer chose not to rewrite history for it.
 returned success on `ITEM_TAKEN_DOWN`, let a network error escape as a
 traceback, and treated partial secrets as "not configured". It also spoke
 the v1.1 API, which Google supports only until **15 Oct 2026**; it now uses
-v2. 28 tests against a local stand-in. **Needs M3 before the first stable
+v2. 28 tests against a local stand-in. **Needs M2 before the first stable
 tag.**
 
 ### D6. AMO's listed channel has never run — FIXED, unproven live
@@ -176,7 +182,7 @@ job outputs. **It has not yet run inside Actions.**
 The new helper must also list devices, against a stand-in folder so it
 reads nothing real and gives the same answer with nothing mounted.
 
-### T5. Sign releases with a key GitHub does not hold — DONE (`a891beb`)
+### T5. Sign releases — DONE, with a CI-held key by choice (`a891beb`)
 See D1.
 
 ### T6. Drive the Firefox options page in a real browser — DONE (`86f76bb`)
@@ -193,22 +199,22 @@ See the research section. Being built as a second backend beside the helper.
 
 ## Needs the maintainer
 
-### M1. Pin a release-signing key — before the next tag of any kind
-Tag builds now fail without one (`f33821d`). On your own machine:
-`python3 tools/sign_release.py keygen`, back the key up offline, paste the
-printed line into `KEYS` in `absh/release_keys.py`, commit, push.
+### M1. Set up the signing key — once, before the next tag of any kind
+1. `openssl rand -base64 32`.
+2. Add the output as the repository secret `RELEASE_SIGNING_KEY`.
+3. Run the **Pin release-signing key** workflow (Actions tab); it commits the
+   key's public half to `absh/release_keys.py`.
 
-### M2. Sign each release after CI publishes it
-`python3 tools/sign_release.py sign vX`, then
-`gh release upload vX release/SHA256SUMS.sig --clobber`. `sign` rebuilds the
-native zip from the tag and compares it before vouching for CI's output.
+Tag builds stop without this, because a helper released with no trusted key
+can never update itself. After it, every release is signed by CI; there is no
+per-release step.
 
-### M3. Before the first stable tag
+### M2. Before the first stable tag
 Add the `CWS_PUBLISHER_ID` secret; create the Chrome Web Store item by hand
 (the v2 API cannot create items); run a dispatched dry run, which signs in
 and reads the item without publishing.
 
-### M4. Optionally, delete the stale `claude/plugin-release-pipeline-kzlr09` branch
+### M3. Optionally, delete the stale `claude/plugin-release-pipeline-kzlr09` branch
 Every commit on it reached main through PRs #1–#6, and `git diff` against
 its squash commit `044bd74` is empty, so nothing is lost. Deleting it only
 tidies the branch list. Nothing under `.claude/` has ever been committed on
@@ -224,7 +230,8 @@ any ref, and `.claude/` is ignored since `22711c5`.
 - Whether AMO's first listed submission needs listing details (summary,
   categories, licence), and whether its refusal of a deleted version number
   says "already exists".
-- `sign_release.py sign` against a real tag (exercised against HEAD only).
+- CI signing (`ci-sign`) and the pin workflow have run only in tests, against
+  the workflow's own step scripts; the first tag after M1 is their first live run.
 - Users on alpha.2 and alpha.3 run the old updater, which does not check
   signatures: they trust GitHub once more, for the first signed release.
   alpha.1 shipped no updater and must install the next release by hand.

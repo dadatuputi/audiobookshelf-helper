@@ -13,8 +13,8 @@ Produces, under release/:
     audiobookshelf-helper-source-<ver>.zip    for AMO's source review
     SHA256SUMS                                every archive's sha256, and the tag
 
-SHA256SUMS is what the maintainer signs, by hand and off GitHub, once CI has
-published it (tools/sign_release.py). `absh update` installs nothing without
+SHA256SUMS is what the release workflow signs, with the RELEASE_SIGNING_KEY
+secret (tools/sign_release.py ci-sign). `absh update` installs nothing without
 that signature.
 
 The root placement is the whole point: `zip -r out.zip firefox` puts the
@@ -164,16 +164,16 @@ def main():
           f"prerelease={info['prerelease']}):")
     for p in made:
         print(f"  {p.stat().st_size:>9,} bytes  {p.name}")
-    print(f"and {signing.MANIFEST_NAME}, to sign once published: "
-          f"python3 tools/sign_release.py sign {a.tag}")
+    print(f"and {signing.MANIFEST_NAME}, which the release workflow signs "
+          f"(tools/sign_release.py ci-sign).")
 
     if not signing.read_pinned(ROOT / NATIVE_PACKAGE / "release_keys.py"):
         # Not fatal, so the pipeline and its tests run before a key exists -
         # but a helper shipped like this refuses every update after it, so
         # whoever is cutting the release should hear about it here first.
         msg = ("absh/release_keys.py pins no signing key: the helper in this "
-               "build will refuse every future update. Run "
-               "`python3 tools/sign_release.py keygen` and commit the key it prints.")
+               "build will refuse every future update. Add the RELEASE_SIGNING_KEY "
+               "secret and run the \"Pin release-signing key\" workflow.")
         print(("::warning title=No release-signing key::" if os.environ.get("GITHUB_ACTIONS")
                else "\nWARNING: ") + msg)
 

@@ -17,10 +17,12 @@ release publishes a matching one; it proves the download arrived intact and
 nothing about who made it. So a release is installed only if its SHA256SUMS
 is signed by a key the *installed* copy already pins (absh/release_keys.py),
 the manifest names the tag that was fetched, and the archive's bytes match the
-manifest. The private key is held by the maintainer and never by GitHub, so
-publishing a release - with a stolen token, a compromised account or a
-malicious workflow - is no longer enough to ship code to everyone who runs
-this. There is deliberately no switch to skip that: installing an unsigned
+manifest. The private key is the RELEASE_SIGNING_KEY Actions secret, and only
+the release workflow signs with it - the maintainer's choice, so that releasing
+needs no manual step. So a signature proves a release came out of this
+repository's release workflow: an asset swapped in afterwards, or a build from
+anywhere else, is refused. It does not hold against someone who can run
+workflows here or controls the maintainer's account; they can sign too. There is deliberately no switch to skip that: installing an unsigned
 release is downloading a zip and running install.py, and a flag that does the
 same thing from here would only be something to talk a person into typing.
 """
@@ -176,8 +178,9 @@ def trusted_keys(root=None):
             "this copy pins no release-signing key, so it cannot tell a genuine "
             "release from a forged one and will not install any. Download the "
             f"native zip from {RELEASES_PAGE} and run `python3 install.py` from it "
-            "instead. (Maintainers: `python3 tools/sign_release.py keygen` makes a "
-            "key and prints the line that belongs in absh/release_keys.py.)")
+            "instead. (Maintainers: add the RELEASE_SIGNING_KEY secret and run the "
+            "\"Pin release-signing key\" workflow, which pins its key in "
+            "absh/release_keys.py.)")
     return keys
 
 

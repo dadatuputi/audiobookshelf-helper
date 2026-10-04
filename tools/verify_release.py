@@ -75,9 +75,10 @@ def xpi_name(semver):
 
 def asset_rules(semver, xpi_need):
     rules = {zip_name(k, semver): (REQUIRED, None) for k in ZIP_KINDS}
-    # A checksum manifest the build may emit, and a signature over it that
-    # the maintainer uploads by hand afterwards. A signature older than the
-    # manifest signs a previous build's manifest.
+    # The checksum manifest and the signature the release workflow makes over
+    # it. Both are in this run's build output, which makes them required and
+    # holds them to those exact bytes. A signature older than the manifest
+    # signs a previous build's manifest.
     rules["SHA256SUMS"] = (OPTIONAL, None)
     rules["SHA256SUMS.sig"] = (OPTIONAL, "SHA256SUMS")
     if xpi_need:

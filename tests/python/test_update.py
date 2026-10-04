@@ -299,7 +299,7 @@ class RefusesWithoutProvenance(UpdateCase):
         self.assertIn("pins no release-signing key", why)
         # The user is told the way round it, and the maintainer the fix.
         self.assertIn("install.py", why)
-        self.assertIn("tools/sign_release.py keygen", why)
+        self.assertIn("Pin release-signing key", why)
         self.assertIn("absh/release_keys.py", why)
         self.assertRefused("pins no release-signing key")
 

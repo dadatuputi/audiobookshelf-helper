@@ -58,30 +58,20 @@ jobs:
             echo "prerelease=$(python3 tools/release_version.py "$TAG" --field prerelease)"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Refuse to ship a helper that could never update itself
-        # A helper that pins no release-signing key refuses every later
-        # update, so everyone who installs this release would be stuck on it
-        # until they reinstall by hand. CI's packaging dry run only warns; a
-        # real tag stops here, before anything is built or published.
+      - name: Check the signing key before building anything
+        # Releases are signed here, with the key held in the
+        # RELEASE_SIGNING_KEY secret. If it is missing, or its public half
+        # is not pinned in absh/release_keys.py, no installed helper would
+        # accept this release - and one built without a pinned key could
+        # never update itself again. Stop before anything is built.
         if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          python3 - <<'PY'
-          import sys
-          from pathlib import Path
-          from absh import update
-          try:
-              keys = update.trusted_keys(Path("."))
-          except update.UpdateError:
-              keys = []
-          if not keys:
-              print("::error title=Release signing::absh/release_keys.py pins no "
-                    "release-signing key, so this release's helper could never "
-                    "update itself. Run `python3 tools/sign_release.py keygen` on "
-                    "your own machine, add the line it prints to KEYS in "
-                    "absh/release_keys.py, commit, and tag again.")
-              sys.exit(1)
-          print(f"{len(keys)} release-signing key(s) pinned")
-          PY
+          if ! python3 tools/sign_release.py pin --check; then
+            echo "::error title=Release signing::This release could not be signed with a key installed helpers trust. Add the RELEASE_SIGNING_KEY secret if it is missing, then run the \"Pin release-signing key\" workflow, and tag again. The lines above say which step is needed."
+            exit 1
+          fi
 
       - name: Regenerate icons
         # Rebuilt rather than trusted, so a stale committed PNG cannot ship.
@@ -89,6 +79,18 @@ jobs:
 
       - name: Build artefacts
         run: python3 tools/package.py --tag "${{ steps.v.outputs.tag }}"
+
+      - name: Sign the release
+        # Into release/ beside the archives, so github-release publishes it
+        # with them and verify-release holds it to these exact bytes.
+        # ci-sign re-verifies its own signature against the pinned keys
+        # before writing it.
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          python3 tools/sign_release.py ci-sign --tag "$TAG"
 
       - uses: actions/upload-artifact@v5
         with:
@@ -157,22 +159,24 @@ jobs:
           # left the only route as deleting the published one by hand. Update
           # it in place instead: same tag, same download URLs, new artefacts.
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/*.zip release/SHA256SUMS --clobber
             # Drop any xpi the previous build of this tag left behind. AMO
             # will not sign a version number twice, so a re-cut tag gets new
             # zips and cannot get a new xpi - and leaving the old one there
             # publishes an installable from the previous build beside
             # artefacts from this one, both labelled the same version. A
             # release with no xpi is a gap the notes already cover; a release
-            # with the wrong xpi is a lie. The same goes for the signature:
-            # it covers the previous SHA256SUMS, so it has to go until the
-            # maintainer signs this build.
+            # with the wrong xpi is a lie. The old signature goes too: it
+            # covers the previous SHA256SUMS. This runs BEFORE the upload,
+            # because this build brings its own signature, and deleting
+            # afterwards would take that with it.
             gh release view "$TAG" --json assets \
               --jq '.assets[].name | select(endswith(".xpi") or . == "SHA256SUMS.sig")' \
               | while read -r ASSET; do
                   echo "removing stale $ASSET from $TAG"
                   gh release delete-asset "$TAG" "$ASSET" --yes
                 done
+            gh release upload "$TAG" release/*.zip release/SHA256SUMS \
+              release/SHA256SUMS.sig --clobber
             gh release edit "$TAG" --title "$TAG" --notes-file "$NOTES" \
               --prerelease="$PRERELEASE"
           else
@@ -182,6 +186,7 @@ jobs:
             # artefacts came from the dispatched ref. On a tag push the tag
             # already exists and this is ignored.
             gh release create "$TAG" release/*.zip release/SHA256SUMS \
+              release/SHA256SUMS.sig \
               --target "$GITHUB_SHA" \
               --title "$TAG" --notes-file "$NOTES" $FLAGS
           fi

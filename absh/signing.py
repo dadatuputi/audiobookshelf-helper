@@ -2,8 +2,8 @@
 
 A release carries one manifest, SHA256SUMS, listing the sha256 and name of
 every archive the workflow built, and one detached signature over it,
-SHA256SUMS.sig, made by the maintainer on their own machine after CI has
-published. Signing the list rather than each file keeps it to one signature
+SHA256SUMS.sig, made by the release workflow with the key held in the
+RELEASE_SIGNING_KEY Actions secret. Signing the list rather than each file keeps it to one signature
 per release however many archives there are, and keeps the manifest readable
 by `sha256sum -c`, which ignores the "#" lines.
 

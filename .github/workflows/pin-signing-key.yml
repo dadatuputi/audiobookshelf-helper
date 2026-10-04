@@ -1,0 +1,49 @@
+name: Pin release-signing key
+
+# Run this once, after adding the RELEASE_SIGNING_KEY secret (Settings >
+# Secrets and variables > Actions; make the value with
+# `openssl rand -base64 32`). It works out the key's public half and commits
+# it to absh/release_keys.py, which is what every installed helper checks a
+# release's signature against. Running it again is harmless: if the key is
+# already pinned there is nothing to commit.
+#
+# The release workflow will not tag a release until this has run, because a
+# helper that pins no key - or the wrong one - can never update itself.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pin-signing-key
+  cancel-in-progress: false
+
+jobs:
+  pin:
+    name: pin the key
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Pin the public half of RELEASE_SIGNING_KEY
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: python3 tools/sign_release.py pin
+
+      - name: Commit it
+        run: |
+          if git diff --quiet -- absh/release_keys.py; then
+            echo "The key is already pinned; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add absh/release_keys.py
+          git commit -m "Pin the release-signing key held by GitHub Actions" \
+            -m "Its public half, worked out from the RELEASE_SIGNING_KEY secret by the Pin release-signing key workflow. Helpers installed from releases after this check signatures against it."
+          git push

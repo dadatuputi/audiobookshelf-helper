@@ -1,35 +1,38 @@
 #!/usr/bin/env python3
 """
-Sign a published release with a key GitHub never holds.
+Release signing: done by CI, with a key held as a GitHub Actions secret.
 
-    python3 tools/sign_release.py keygen                  # once, ever
-    python3 tools/sign_release.py sign v1.0.0-alpha.4     # each release, after CI
-    python3 tools/sign_release.py verify v1.0.0-alpha.4   # what `absh update` will see
+    python3 tools/sign_release.py pin                     # once: pin the CI key
+    python3 tools/sign_release.py ci-sign --tag vX        # each release, in CI
+    python3 tools/sign_release.py verify vX               # what `absh update` will see
 
 `absh update` installs a release only if its SHA256SUMS is signed by a key the
-installed copy pins in absh/release_keys.py. That is only worth anything if
-publishing a release is not enough to produce the signature, so the key is
-not an Actions secret - any workflow that runs can read those, and a malicious
-one would sign its own release. CI builds and publishes; the maintainer signs
-here, on their own machine, and uploads one small file.
+installed copy pins in absh/release_keys.py. The private key lives in the
+RELEASE_SIGNING_KEY repository secret; the release workflow signs each build's
+manifest with it and publishes the signature beside the archives, so releasing
+needs nothing from anyone's machine. `pin` (run by the "Pin release-signing
+key" workflow) commits the key's public half, which is what installed copies
+check against.
 
-Signing is the maintainer saying "this is the release", so `sign` checks
-before it signs rather than stamping whatever CI uploaded:
+What that buys, honestly: a signature proves the release came out of this
+repository's release workflow. It does not hold against someone who can run
+workflows here or controls the maintainer's GitHub account - they can read the
+secret and sign their own build. That was the maintainer's trade, made for a
+release process with no manual steps; the stronger arrangement keeps the key
+off GitHub, and these commands still support it:
 
-  - SHA256SUMS names the tag being signed;
-  - every archive on the release is listed in it, and matches its digest;
-  - the native archive - the code `absh update` installs and runs with the
-    user's rights - is the tagged source, file for file and byte for byte,
-    with only version.py's release stamp different.
+    python3 tools/sign_release.py keygen                  # a key on your own machine
+    python3 tools/sign_release.py sign vX                 # check a published release, then sign it
 
-The extension archives are checked against their digests and not rebuilt:
-they run inside the browser's sandbox and reach users through the stores or
-by hand, not through `absh update`.
-
-Nothing here needs GitHub credentials. Reading a public release does not, and
-the upload is left to you as one printed `gh release upload` command.
+`sign` checks before it signs rather than stamping whatever CI uploaded: the
+manifest names the tag; every archive on the release is listed and matches
+its digest; and the native archive - the code `absh update` installs and runs
+with the user's rights - is the tagged source file for file, with only
+version.py's release stamp different.
 """
 import argparse
+import base64
+import binascii
 import datetime
 import getpass
 import hashlib
@@ -257,7 +260,7 @@ def cmd_keygen(a):
     print(f"Private key written to {Path(a.out).expanduser()}\n"
           "  Back it up somewhere offline. It is the only thing that can ship a\n"
           "  helper update; lose it and every installed copy must be reinstalled\n"
-          "  by hand. Never commit it and never store it as a GitHub secret.\n\n"
+          "  by hand. Never commit it. (This is the off-GitHub route; the release\n  workflow's own key is the RELEASE_SIGNING_KEY secret instead.)\n\n"
           f"Now pin the public key. Add this line inside KEYS in {KEYS_FILE}:\n\n"
           f"{line}\n\n"
           "then commit and push that before tagging the next release. Copies\n"
@@ -306,6 +309,111 @@ def cmd_verify(a):
     return 0
 
 
+# ------------------------------------------------------------ CI-held key
+# The maintainer chose to let GitHub Actions hold the signing key, so that
+# releasing needs no step on anyone's machine. That trades the protection
+# against a compromised GitHub account or workflow for that convenience:
+# a signature now proves "built by this repository's release workflow",
+# not "vouched for by a key GitHub cannot reach". Said in README and in
+# docs/DEFICIENCIES.md too, so nobody mistakes one for the other.
+SECRET_ENV = "RELEASE_SIGNING_KEY"
+CI_LABEL = f"held by GitHub Actions as the {SECRET_ENV} secret"
+
+
+def ci_secret(env=None):
+    """The 32-byte private key from the RELEASE_SIGNING_KEY secret.
+
+    Taken as `ed25519:<base64>` or as bare base64 of 32 random bytes, so
+    `openssl rand -base64 32` is enough to make one. No message here repeats
+    the value: a secret printed into a build log is a published secret.
+    """
+    env = os.environ if env is None else env
+    raw = (env.get(SECRET_ENV) or "").strip()
+    if not raw:
+        raise SignError(
+            f"the {SECRET_ENV} secret is not set. Make one with "
+            f"`openssl rand -base64 32` and add it under Settings > Secrets and "
+            f"variables > Actions > New repository secret, named {SECRET_ENV}.")
+    text = raw[len(signing.KEY_PREFIX):] if raw.startswith(signing.KEY_PREFIX) else raw
+    try:
+        secret = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError):
+        raise SignError(f"{SECRET_ENV} is not base64. Replace it with the output "
+                        f"of `openssl rand -base64 32`.")
+    if len(secret) != 32:
+        raise SignError(f"{SECRET_ENV} decodes to {len(secret)} bytes; a signing key "
+                        f"is exactly 32. Replace it with the output of "
+                        f"`openssl rand -base64 32`.")
+    return secret
+
+
+def pin_line(public, label=CI_LABEL):
+    return f'    "{signing.format_key(public)}",  # {label}'
+
+
+def pin(public, keys_file=None, label=CI_LABEL):
+    """Add `public` to KEYS in release_keys.py. True if the file changed.
+
+    An edit to the one list line rather than a rewrite, so the file's
+    explanation stays where the maintainer reads it; and re-read afterwards
+    through the same parser the updater uses, so an edit that would leave
+    every copy unable to read its keys fails here instead.
+    """
+    path = Path(keys_file or ROOT / KEYS_FILE)
+    if public in signing.read_pinned(path):
+        return False
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    at = next((i for i, ln in enumerate(lines) if ln.startswith("KEYS = [")), None)
+    if at is None:
+        raise SignError(f"{path} has no `KEYS = [` line to add the key under")
+    lines.insert(at + 1, pin_line(public, label) + "\n")
+    path.write_text("".join(lines), encoding="utf-8")
+    if public not in signing.read_pinned(path):
+        raise SignError(f"pinned the key in {path}, but it does not read back")
+    return True
+
+
+def cmd_ci_sign(a):
+    """Sign this build's manifest in CI, and prove the result verifies."""
+    secret = ci_secret()
+    public = ed25519.public_key(secret)
+    keys_file = Path(a.keys_file or ROOT / KEYS_FILE)
+    pinned = signing.read_pinned(keys_file)
+    if public not in pinned:
+        raise SignError(
+            f"the key in {SECRET_ENV} is not pinned in {KEYS_FILE}, so no installed "
+            f"helper would accept what it signs. Run the \"Pin release-signing key\" "
+            f"workflow (Actions tab), or add this line inside KEYS:\n"
+            f"{pin_line(public)}")
+    manifest = Path(a.manifest).read_bytes()
+    tag, digests = signing.parse_manifest(manifest)
+    if tag != a.tag:
+        raise SignError(f"{a.manifest} is the manifest for {tag}, not {a.tag}")
+    sig = signing.sign_manifest([secret], manifest).encode("utf-8")
+    kid = signing.verify(manifest, sig, pinned)
+    out = Path(a.out)
+    out.write_bytes(sig)
+    print(f"signed {tag} ({len(digests)} assets) with key {kid}: {out}")
+    return 0
+
+
+def cmd_pin(a):
+    """Pin the CI-held key's public half, or with --check, say whether it is."""
+    public = ed25519.public_key(ci_secret())
+    keys_file = Path(a.keys_file or ROOT / KEYS_FILE)
+    if a.check:
+        if public in signing.read_pinned(keys_file):
+            print(f"key {signing.key_id(public)} is pinned in {KEYS_FILE}")
+            return 0
+        print(f"key {signing.key_id(public)} is NOT pinned in {KEYS_FILE}; it needs:\n"
+              f"{pin_line(public)}", file=sys.stderr)
+        return 1
+    changed = pin(public, keys_file)
+    print(f"{'pinned' if changed else 'already pinned'}: key "
+          f"{signing.key_id(public)} in {KEYS_FILE}")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -330,6 +438,19 @@ def main(argv=None):
     v = sub.add_parser("verify", help="check a published release as `absh update` would")
     v.add_argument("tag")
     v.set_defaults(fn=cmd_verify)
+
+    c = sub.add_parser("ci-sign", help=f"in CI: sign this build's SHA256SUMS with {SECRET_ENV}")
+    c.add_argument("--tag", required=True)
+    c.add_argument("--manifest", default="release/SHA256SUMS")
+    c.add_argument("--out", default="release/SHA256SUMS.sig")
+    c.add_argument("--keys-file", help=argparse.SUPPRESS)
+    c.set_defaults(fn=cmd_ci_sign)
+
+    pn = sub.add_parser("pin", help=f"pin the public half of {SECRET_ENV} in {KEYS_FILE}")
+    pn.add_argument("--check", action="store_true",
+                    help="only report whether it is pinned (exit 1 if not)")
+    pn.add_argument("--keys-file", help=argparse.SUPPRESS)
+    pn.set_defaults(fn=cmd_pin)
 
     a = ap.parse_args(argv)
     try:
