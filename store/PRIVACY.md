@@ -1,6 +1,6 @@
 # Privacy Policy — Audiobookshelf Helper
 
-Last updated: 2026-08-28
+Last updated: 2026-10-04
 
 ## The short version
 
@@ -19,6 +19,7 @@ Everything is kept in the browser's own extension storage, on your machine:
 | The path your player mounts at | To know where to copy books |
 | Folder name, folder template, rename and source preferences | Your settings |
 | The last library you picked | So the picker opens where you left it |
+| Chrome only, if you chose your player's folder instead of installing the helper: a reference to that folder | So Chrome can write books there. Chrome itself keeps the permission to use it |
 
 None of it leaves your computer. It is removed when you uninstall the add-on.
 
@@ -33,6 +34,11 @@ Two things, both yours:
    copies files onto your USB player. It receives the book details and the
    download URL for the books you selected, and reports back what it copied,
    what is already on the device, and what it deleted when you ask it to.
+
+In Chrome you can choose your player's folder instead of installing the helper.
+Then there is no second thing: the add-on downloads the books you select from
+your server itself and writes them into that folder, and uploads a book from it
+only when you ask.
 
 There is no third destination. The add-on has no ability to reach any server
 you have not configured: it ships with no host permissions at all and asks for
@@ -50,6 +56,9 @@ That means your API key appears in the download URL handed to the local helper.
 It stays on your machine and is not logged by the add-on. Treat it as you would
 any credential: if your server is exposed to the internet, prefer a scoped key.
 
+Without the helper, in Chrome, every request uses the header; the key is never
+put in a URL.
+
 ## Permissions, and why each is needed
 
 | Permission | Why |
@@ -57,7 +66,7 @@ any credential: if your server is exposed to the internet, prefer a scoped key.
 | `storage` | To keep the settings listed above |
 | `nativeMessaging` | To talk to the local helper, which is the only component able to write to a USB device |
 | `scripting` | To add the "Sync to device" button to your Audiobookshelf pages, registered only for your server |
-| Host access to your server | To read your library and download the books you pick |
+| Host access to your server | To read your library and download the books you pick, and, in Chrome without the helper, to upload a book you choose |
 
 Host access is **not** requested in the manifest. It is requested at runtime,
 for your server's origin only, when you press *Grant access*.

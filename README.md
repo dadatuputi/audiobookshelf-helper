@@ -83,6 +83,36 @@ Then load the extension:
 browser at a generated `.bat`, because Windows browsers cannot execute a `.py`
 directly.
 
+### Chrome, without the helper
+
+If you can't install the helper, or would rather not, Chrome can write to the
+player itself: Options → **Without the helper (Chrome only)** → **Choose the
+player's folder…**, and pick the player's top folder (the one `AUDIOBOOKS` is
+in). Grant access to your server too, because Chrome then makes the requests to
+it itself. Pull, upload, delete and the three-way status all work, with the
+same folder names, file names and matching as the helper - the two are held to
+one set of test vectors (see [Tests](#tests)).
+
+What you give up:
+
+- **Finding the player.** You pick its folder in a dialog; nothing lists what is
+  plugged in. If it mounts somewhere else next time, pick it again.
+- **Plug and unplug events.** Chrome isn't told. The library page checks again
+  when you come back to it, and the popup each time it opens.
+- **Lasting access.** Chrome keeps the extension's access only while one of its
+  tabs is open (the options page counts; the toolbar popup does not), and asks
+  again after it restarts. The popup and the library page say so and send you
+  to Options, where one click restores it. If Chrome offers *Allow on every
+  visit* when you do, choosing it makes access last.
+- **Free space**, which Chrome doesn't report for a folder.
+- **Some tags.** Books only on the player are recognised from MP3 and
+  M4A/M4B tags or their names - what the helper does without `mutagen`.
+- **The command line and the TUI**, which are the helper.
+
+The helper always wins when it is installed and answering, unless you tick
+*Use this folder even when the helper is installed*. Firefox has no folder
+picker and Mozilla does not plan one, so there the helper is the only way.
+
 ### Updating the helper
 
 In the extension: Options → **Helper** shows which version is installed and
@@ -296,15 +326,28 @@ away:
    containing back-references (`../`) will cause an error."* Everything lands
    under the browser's Downloads folder.
 2. **`showDirectoryPicker()`** — the File System Access API that would grant
-   write access to a chosen folder — is not implemented in Firefox. (On Chrome
-   alone you *could* drop the native helper; keeping one code path was a
-   deliberate trade.)
+   write access to a chosen folder — is not implemented in Firefox, and
+   Mozilla's position is that it should not be.
 
 So the extension is a UI and the Python engine does the work. The engine is the
-part that can destroy data, so it carries the heavier tests. The extension never
-talks to Audiobookshelf directly — it asks the helper, which uses the same
-client the command line does, so the two can never disagree about what is on
-your device.
+part that can destroy data, so it carries the heavier tests. With the helper,
+the extension never talks to Audiobookshelf directly — it asks the helper,
+which uses the same client the command line does, so the two can never disagree
+about what is on your device.
+
+Chrome does have the picker, so the Chrome build carries a second backend,
+`extension/src/folder.js`, for people who won't install the helper. It is a
+port of naming, matching, tag reading and sync, not a new design, and it cannot
+quietly drift: `tools/parity_vectors.py` records what the Python does with a few
+hundred inputs, the Python tests fail if the recording goes stale, and the
+JavaScript tests - in node and in a real Chromium filesystem - fail if the port
+disagrees with it. Where it runs was measured, not assumed (Chromium 141): the
+service worker can read and write through a handle the options page stored in
+IndexedDB but cannot show a picker or ask for permission; Chrome withdraws an
+extension's folder grant within a second or two of its last tab closing (the
+popup and an offscreen document do not count), and after a restart, unless the
+user chose *Allow on every visit*. So the folder is chosen and re-allowed on the
+options page, and the worker does the copying.
 </details>
 
 <details>
@@ -383,12 +426,14 @@ extension/
   identity.json   the add-on id, host name and Chrome key - one source of truth
   icons/          make_icons.py generates the PNG set with no dependencies
   src/            manifest.base.json, background, page-hook, content, popup, options
+                  folder.js, folder-options.js: Chrome only - the player as a chosen
+                  folder, without the helper
   build.py        emits dist/firefox and dist/chrome
 native/
   absh_host.py    thin shim: finds the absh package and runs absh.host
   install.py      registers the helper (6 OS x browser combinations)
 tools/            package.py, sign_release.py, release_version.py, publish_cws.py,
-                  check_upstream.py
+                  check_upstream.py, parity_vectors.py
 store/            privacy policy and store listing copy
 tests/            python (engine, protocol, build, packaging) | js | e2e
 docs/             the diagrams above, and DEFICIENCIES.md
@@ -409,6 +454,18 @@ built extension, spawns the real native helper, lists a stand-in Audiobookshelf,
 pulls a book to a temp "device", sees it move between tabs, side-loads a tagged
 file the server has never heard of, uploads it, and deletes — all asserted
 against files on disk and the bytes the server received.
+
+`tests/e2e/folder.spec.js` does the same for Chrome without the helper. A
+headless browser cannot answer the folder picker, so the tests hand the
+extension a folder of the browser's own private filesystem - a real
+`FileSystemDirectoryHandle` - through the same call the picker's answer goes
+through, and drop a real directory onto the options page to get a folder Chrome
+has paused access to. The same books then go through the real helper into a real
+directory, and the two results are compared file for file.
+
+If you change a naming, matching or tag rule in `absh/`, run
+`python3 tools/parity_vectors.py --write`, then make `extension/src/folder.js`
+agree until `npx vitest run` passes again.
 
 Headless Chromium draws no permission bubble, so `permissions.request()` never
 resolves there. The granted state is seeded into the test profile instead, and

@@ -72,3 +72,16 @@
   box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
 }
 #absh-note.absh-bad { border-left-color: #dc2626; color: #fca5a5; }
+
+/* Chrome without the helper: why the player's folder cannot be used, and the
+   way to fix it. Bottom left, clear of the panel and the note. */
+#absh-folder-notice {
+  position: fixed; left: 16px; bottom: 16px; z-index: 10000;
+  display: flex; align-items: center; gap: 10px;
+  max-width: 460px; padding: 9px 12px;
+  background: #111827; color: #fcd34d;
+  border: 1px solid #374151; border-left: 3px solid #d97706; border-radius: 6px;
+  font: 12px/1.4 system-ui, sans-serif;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+}
+#absh-folder-notice .absh-mini { flex: 0 0 auto; height: auto; padding: 3px 10px; }

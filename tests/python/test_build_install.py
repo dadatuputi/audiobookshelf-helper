@@ -114,6 +114,60 @@ class TestBuildOutput(unittest.TestCase):
             json.loads((BUILD.build(t) / "manifest.json").read_text())
 
 
+class TestFolderBackendIsChromeOnly(unittest.TestCase):
+    """Writing to a chosen folder without the helper rests on
+    showDirectoryPicker, which Firefox does not have and does not intend to
+    ship. So the Firefox bundle must not carry it in any form, and neither
+    bundle may need a permission for it."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ff = BUILD.build("firefox")
+        cls.cr = BUILD.build("chrome")
+
+    def test_firefox_carries_none_of_it(self):
+        for f in BUILD.CHROME_ONLY_FILES:
+            self.assertFalse((self.ff / f).exists(), f"firefox bundle has {f}")
+        for f in self.ff.rglob("*.js"):
+            text = f.read_text(encoding="utf-8")
+            for call in ("showDirectoryPicker({", "ABSH_FOLDER.", 'import "./folder.js"'):
+                self.assertFalse(call in text, f"firefox {f.name} contains {call!r}")
+
+    def test_firefox_pages_are_the_sources_untouched(self):
+        for f in BUILD.SHARED_FILES:
+            self.assertEqual((self.ff / f).read_bytes(), (BUILD.SRC / f).read_bytes(), f)
+
+    def test_chrome_carries_it_and_loads_it(self):
+        for f in BUILD.CHROME_ONLY_FILES:
+            self.assertTrue((self.cr / f).exists(), f)
+        bg = (self.cr / "background.js").read_text(encoding="utf-8")
+        self.assertIn('import "./folder.js";\n', bg.split("/*", 1)[0])
+        html = (self.cr / "options.html").read_text(encoding="utf-8")
+        # After options.js, which builds the page the section goes into.
+        self.assertLess(html.index('src="options.js"'), html.index('src="folder.js"'))
+        self.assertLess(html.index('src="folder.js"'), html.index('src="folder-options.js"'))
+
+    def test_no_permission_is_added_for_it(self):
+        """Measured in Chromium 141: an offscreen document keeps no folder
+        grant alive that the service worker lacks, so "offscreen" would buy
+        nothing; and the server is reached through the one-origin grant the
+        extension already asks for."""
+        for t in ("firefox", "chrome"):
+            m = BUILD.manifest_for(t)
+            self.assertEqual(m["permissions"], ["storage", "nativeMessaging", "scripting"], t)
+            self.assertNotIn("host_permissions", m)
+            self.assertEqual(m["optional_host_permissions"], ["*://*/*"])
+
+    def test_a_changed_options_page_fails_the_build_loudly(self):
+        """The script tags are added by text replacement; if options.html
+        stops loading options.js the way build.py expects, the build must
+        say so rather than ship a Chrome options page without the section."""
+        with mock.patch.object(BUILD, "OPTIONS_SCRIPT", '<script src="nope.js"></script>'):
+            with self.assertRaises(SystemExit):
+                BUILD.build("chrome")
+        BUILD.build("chrome")
+
+
 class TestPathReporting(unittest.TestCase):
     """The build used to print a path relative to extension/, so running it
     from the repo root reported "dist/firefox" for extension/dist/firefox -

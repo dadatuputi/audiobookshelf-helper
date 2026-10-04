@@ -40,8 +40,14 @@ Audiobookshelf Helper
 > by a small open-source helper program you install on your own computer. The
 > add-on is the interface; the helper does the work.
 >
-> Requires: an Audiobookshelf server you control, Python 3.9 or newer, and the
-> helper from the project's releases page.
+> In Chrome the helper is optional: you can instead choose the player's folder
+> once and let Chrome write to it. You then pick the folder yourself rather than
+> having the player found for you, and Chrome asks you to allow access again
+> after it restarts.
+>
+> Requires: an Audiobookshelf server you control. In Firefox, also Python 3.9 or
+> newer and the helper from the project's releases page; in Chrome, either that
+> or a folder you choose.
 >
 > This add-on has no servers of its own. It talks to your Audiobookshelf server
 > and to the local helper, and to nothing else. It collects no data whatsoever.
@@ -70,7 +76,10 @@ notes. Same answers, deliberately.
 > to a small Python helper the user installs themselves. The helper is
 > open-source and part of the same repository. It accepts four commands: ping,
 > list what is on the device, copy selected books, and delete a named book from
-> the device.
+> the device. In Chrome a user may instead choose the player's folder with
+> `showDirectoryPicker()`, but the helper remains the default there too: it
+> finds the player without the user browsing for it, notices it being plugged
+> in, and does not lose access when the browser restarts.
 
 **`storage`**
 > Stores the user's own settings: their Audiobookshelf server URL and API key,
@@ -154,6 +163,11 @@ timing cooperates.
 > 4. An Audiobookshelf server is needed for the library list. The repository's
 >    test suite includes a stand-in server
 >    (`tests/e2e/extension.spec.js`) that can be run instead.
+>
+> Chrome only: the flow can also be exercised without the helper. Options →
+> *Without the helper* → *Choose the player's folder…*, and pick any local
+> directory. The server's origin must be granted (*Grant access*) for this,
+> since Chrome then makes the requests itself.
 >
 > The helper's full source is `native/absh_host.py` (under 400 lines, no
 > dependencies beyond the Python standard library). It only ever writes beneath

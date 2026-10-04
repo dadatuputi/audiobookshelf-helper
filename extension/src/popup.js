@@ -159,6 +159,15 @@ async function refresh() {
   }
 }
 
+/* A line under the status that opens Options. Only the folder backend
+ * (Chrome) asks for one: what fixes its problems is a click there. */
+function optionsLink(text) {
+  const a = el("a", "update-hint", text);
+  a.href = "#";
+  a.addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
+  $("#status").after(a);
+}
+
 async function load() {
   status("checking helper…");
   let p;
@@ -167,6 +176,21 @@ async function load() {
     if (!p.ok) {
       status("Native helper not reachable.\nRun native/install.py, then restart the browser.\n"
              + (p.error || ""), "err");
+      if (p.folderAvailable) optionsLink("Or, in Chrome, choose your player's folder in Options");
+      return;
+    }
+    // Chrome without the helper: the folder has to be usable before anything
+    // on it can be listed. The popup cannot restore access itself - Chrome
+    // only renews it from one of the extension's tabs - so it sends you there.
+    if (p.backend === "folder" && p.access === "prompt") {
+      status(`Chrome has paused access to the folder “${p.folder}”. ` +
+             "Allow it again in Options.", "err");
+      optionsLink(`Allow access to “${p.folder}” in Options`);
+      return;
+    }
+    if (p.backend === "folder" && p.access === "missing") {
+      status(`The folder “${p.folder}” isn't there. Plug the player in, then press ↻.`, "err");
+      $("#refresh").addEventListener("click", () => load(), { once: true });
       return;
     }
     if (!p.configured) {
@@ -184,7 +208,9 @@ async function load() {
   // Set last: refresh() reports its own outcome, and this should be what
   // remains on screen when everything is fine.
   if (!$("#status").classList.contains("err")) {
-    status(`helper ok (${p.release || p.version}, tags: ${p.tags})`, "ok");
+    status(p.backend === "folder"
+      ? `using the folder “${p.folder}”, not the helper (tags: ${p.tags})`
+      : `helper ok (${p.release || p.version}, tags: ${p.tags})`, "ok");
   }
 }
 

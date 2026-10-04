@@ -1,0 +1,711 @@
+{
+ "cases": [
+  {
+   "expect": {
+    "both": [
+     {
+      "itemId": "li_m",
+      "matchedBy": "name",
+      "name": "Brian Jacques - Mossflower.mp3"
+     },
+     {
+      "itemId": "li_r",
+      "matchedBy": "id",
+      "name": "Brian Jacques - Redwall.m4a"
+     },
+     {
+      "itemId": "li_h",
+      "matchedBy": "tags",
+      "name": "Holes_rip.m4a"
+     },
+     {
+      "itemId": "li_d1",
+      "matchedBy": "name",
+      "name": "Twin - Duplicate.flac"
+     },
+     {
+      "itemId": "li_w",
+      "matchedBy": "tags",
+      "name": "Wrinkle.mp3"
+     }
+    ],
+    "deviceOnly": [
+     "Hobbit parts",
+     "Scruffy_rip.m4a",
+     "Untagged.WAV",
+     "Vol.2 of Something"
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4a": {
+      "author": "Brian Jacques",
+      "itemId": "li_r",
+      "series": "Redwall",
+      "title": "Redwall"
+     },
+     "Vol.2 of Something": {
+      "itemId": "li_gone",
+      "title": ""
+     }
+    },
+    "scan": [
+     {
+      "author": "",
+      "bytes": 14,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Brian Jacques - Mossflower.mp3",
+      "paths": [
+       "AUDIOBOOKS/Brian Jacques - Mossflower.mp3"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Brian Jacques - Mossflower"
+     },
+     {
+      "author": "Brian Jacques",
+      "bytes": 64,
+      "files": 1,
+      "itemId": "li_r",
+      "kind": "file",
+      "name": "Brian Jacques - Redwall.m4a",
+      "paths": [
+       "AUDIOBOOKS/Brian Jacques - Redwall.m4a"
+      ],
+      "series": "Redwall",
+      "source": "index",
+      "title": "Redwall"
+     },
+     {
+      "author": "",
+      "bytes": 289,
+      "files": 6,
+      "itemId": null,
+      "kind": "dir",
+      "name": "Hobbit parts",
+      "paths": [
+       "AUDIOBOOKS/Hobbit parts/._01.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 1/01.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 1.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 10/01.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 2/01.m4a"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Hobbit parts"
+     },
+     {
+      "author": "Louis Sachar",
+      "bytes": 117,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Holes_rip.m4a",
+      "paths": [
+       "AUDIOBOOKS/Holes_rip.m4a"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Holes"
+     },
+     {
+      "author": "J.R.R. Tolkien",
+      "bytes": 130,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Scruffy_rip.m4a",
+      "paths": [
+       "AUDIOBOOKS/Scruffy_rip.m4a"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "The Silmarillion"
+     },
+     {
+      "author": "",
+      "bytes": 13,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Twin - Duplicate.flac",
+      "paths": [
+       "AUDIOBOOKS/Twin - Duplicate.flac"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Twin - Duplicate"
+     },
+     {
+      "author": "",
+      "bytes": 14,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Untagged.WAV",
+      "paths": [
+       "AUDIOBOOKS/Untagged.WAV"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Untagged"
+     },
+     {
+      "author": "",
+      "bytes": 20,
+      "files": 1,
+      "itemId": "li_gone",
+      "kind": "dir",
+      "name": "Vol.2 of Something",
+      "paths": [
+       "AUDIOBOOKS/Vol.2 of Something/a.OPUS"
+      ],
+      "series": "",
+      "source": "index",
+      "title": "Vol"
+     },
+     {
+      "author": "Madeleine LEngle",
+      "bytes": 82,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Wrinkle.mp3",
+      "paths": [
+       "AUDIOBOOKS/Wrinkle.mp3"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Wrinkle in Time, A"
+     }
+    ],
+    "serverOnly": [
+     "li_t",
+     "li_d2"
+    ]
+   },
+   "name": "the full mix",
+   "readTags": true,
+   "subdir": "AUDIOBOOKS",
+   "template": "{author} - {title}",
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkJyaWFuIEphY3F1ZXMgLSBSZWR3YWxsLm00YSI6IHsiaXRlbUlkIjogImxpX3IiLCAidGl0bGUiOiAiUmVkd2FsbCIsICJhdXRob3IiOiAiQnJpYW4gSmFjcXVlcyIsICJzZXJpZXMiOiAiUmVkd2FsbCJ9LCAiVm9sLjIgb2YgU29tZXRoaW5nIjogeyJpdGVtSWQiOiAibGlfZ29uZSIsICJ0aXRsZSI6ICIifSwgIkRlbGV0ZWQgaW4gRmluZGVyLm00YSI6IHsiaXRlbUlkIjogImxpX2giLCAidGl0bGUiOiAiSG9sZXMifSwgIkVtcHR5IHJlY29yZC5tNGEiOiB7fX19",
+    "AUDIOBOOKS/.Hidden.mp3": "aA==",
+    "AUDIOBOOKS/.Trashes/x.mp3": "dA==",
+    "AUDIOBOOKS/Brian Jacques - Mossflower.mp3": "bm8gdGFncyBhdCBhbGw=",
+    "AUDIOBOOKS/Brian Jacques - Redwall.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3Q==",
+    "AUDIOBOOKS/Cover.jpg": "anBn",
+    "AUDIOBOOKS/Empty folder": null,
+    "AUDIOBOOKS/Hobbit parts/._01.m4a": "HyYtNA==",
+    "AUDIOBOOKS/Hobbit parts/Cover.JPG": "HyYtNDtCSVBX",
+    "AUDIOBOOKS/Hobbit parts/Disc 1.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAFJtb292AAAASnVkdGEAAABCbWV0YQAAAAAAAAA2aWxzdAAAAC6pbmFtAAAAJmRhdGEAAAABAAAAAFNvcnRzIGFmdGVyIHRoZSBmb2xkZXI=",
+    "AUDIOBOOKS/Hobbit parts/Disc 1/01.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAIttb292AAAAg3VkdGEAAAB7bWV0YQAAAAAAAABvaWxzdAAAACGpbmFtAAAAGWRhdGEAAAABAAAAAENoYXB0ZXIgMQAAACOpYWxiAAAAG2RhdGEAAAABAAAAAEhvYmJpdCwgVGhlAAAAI2FBUlQAAAAbZGF0YQAAAAEAAAAASlJSIFRvbGtpZW4=",
+    "AUDIOBOOKS/Hobbit parts/Disc 10/01.m4a": "HyYtNDtCSVBXXmU=",
+    "AUDIOBOOKS/Hobbit parts/Disc 2/01.m4a": "HyYtNDtCSVBXXmVs",
+    "AUDIOBOOKS/Holes_rip.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAGVtb292AAAAXXVkdGEAAABVbWV0YQAAAAAAAABJaWxzdAAAAB2pbmFtAAAAFWRhdGEAAAABAAAAAEhvbGVzAAAAJGFBUlQAAAAcZGF0YQAAAAEAAAAATG91aXMgU2FjaGFy",
+    "AUDIOBOOKS/Only a cover/cover.jpg": "Yw==",
+    "AUDIOBOOKS/Player.db": "ZGI=",
+    "AUDIOBOOKS/Scruffy_rip.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAHJtb292AAAAanVkdGEAAABibWV0YQAAAAAAAABWaWxzdAAAACipbmFtAAAAIGRhdGEAAAABAAAAAFRoZSBTaWxtYXJpbGxpb24AAAAmqUFSVAAAAB5kYXRhAAAAAQAAAABKLlIuUi4gVG9sa2llbg==",
+    "AUDIOBOOKS/Twin - Duplicate.flac": "HyYtNDtCSVBXXmVscw==",
+    "AUDIOBOOKS/Untagged.WAV": "HyYtNDtCSVBXXmVsc3o=",
+    "AUDIOBOOKS/Vol.2 of Something": null,
+    "AUDIOBOOKS/Vol.2 of Something/a.OPUS": "HyYtNDtCSVBXXmVsc3qBiI+WnaQ=",
+    "AUDIOBOOKS/Wrinkle.mp3": "SUQzAwAAAAAAOFRJVDIAAAATAAAAV3JpbmtsZSBpbiBUaW1lLCBBVFBFMgAAABEAAABNYWRlbGVpbmUgTEVuZ2xl//uQAP/7kAD/+5AA//uQAA==",
+    "elsewhere.mp3": "HyYtNDtCSVBXXmVsc3qB"
+   }
+  },
+  {
+   "expect": {
+    "both": [
+     {
+      "itemId": "li_m",
+      "matchedBy": "name",
+      "name": "Brian Jacques - Mossflower.mp3"
+     },
+     {
+      "itemId": "li_r",
+      "matchedBy": "id",
+      "name": "Brian Jacques - Redwall.m4a"
+     },
+     {
+      "itemId": "li_d1",
+      "matchedBy": "name",
+      "name": "Twin - Duplicate.flac"
+     }
+    ],
+    "deviceOnly": [
+     "Hobbit parts",
+     "Holes_rip.m4a",
+     "Scruffy_rip.m4a",
+     "Untagged.WAV",
+     "Vol.2 of Something",
+     "Wrinkle.mp3"
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4a": {
+      "author": "Brian Jacques",
+      "itemId": "li_r",
+      "series": "Redwall",
+      "title": "Redwall"
+     },
+     "Vol.2 of Something": {
+      "itemId": "li_gone",
+      "title": ""
+     }
+    },
+    "scan": [
+     {
+      "author": "",
+      "bytes": 14,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Brian Jacques - Mossflower.mp3",
+      "paths": [
+       "AUDIOBOOKS/Brian Jacques - Mossflower.mp3"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Brian Jacques - Mossflower"
+     },
+     {
+      "author": "Brian Jacques",
+      "bytes": 64,
+      "files": 1,
+      "itemId": "li_r",
+      "kind": "file",
+      "name": "Brian Jacques - Redwall.m4a",
+      "paths": [
+       "AUDIOBOOKS/Brian Jacques - Redwall.m4a"
+      ],
+      "series": "Redwall",
+      "source": "index",
+      "title": "Redwall"
+     },
+     {
+      "author": "",
+      "bytes": 289,
+      "files": 6,
+      "itemId": null,
+      "kind": "dir",
+      "name": "Hobbit parts",
+      "paths": [
+       "AUDIOBOOKS/Hobbit parts/._01.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 1/01.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 1.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 10/01.m4a",
+       "AUDIOBOOKS/Hobbit parts/Disc 2/01.m4a"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Hobbit parts"
+     },
+     {
+      "author": "",
+      "bytes": 117,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Holes_rip.m4a",
+      "paths": [
+       "AUDIOBOOKS/Holes_rip.m4a"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Holes_rip"
+     },
+     {
+      "author": "",
+      "bytes": 130,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Scruffy_rip.m4a",
+      "paths": [
+       "AUDIOBOOKS/Scruffy_rip.m4a"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Scruffy_rip"
+     },
+     {
+      "author": "",
+      "bytes": 13,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Twin - Duplicate.flac",
+      "paths": [
+       "AUDIOBOOKS/Twin - Duplicate.flac"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Twin - Duplicate"
+     },
+     {
+      "author": "",
+      "bytes": 14,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Untagged.WAV",
+      "paths": [
+       "AUDIOBOOKS/Untagged.WAV"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Untagged"
+     },
+     {
+      "author": "",
+      "bytes": 20,
+      "files": 1,
+      "itemId": "li_gone",
+      "kind": "dir",
+      "name": "Vol.2 of Something",
+      "paths": [
+       "AUDIOBOOKS/Vol.2 of Something/a.OPUS"
+      ],
+      "series": "",
+      "source": "index",
+      "title": "Vol"
+     },
+     {
+      "author": "",
+      "bytes": 82,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Wrinkle.mp3",
+      "paths": [
+       "AUDIOBOOKS/Wrinkle.mp3"
+      ],
+      "series": "",
+      "source": "name",
+      "title": "Wrinkle"
+     }
+    ],
+    "serverOnly": [
+     "li_h",
+     "li_t",
+     "li_w",
+     "li_d2"
+    ]
+   },
+   "name": "the full mix without reading tags",
+   "readTags": false,
+   "subdir": "AUDIOBOOKS",
+   "template": "{author} - {title}",
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkJyaWFuIEphY3F1ZXMgLSBSZWR3YWxsLm00YSI6IHsiaXRlbUlkIjogImxpX3IiLCAidGl0bGUiOiAiUmVkd2FsbCIsICJhdXRob3IiOiAiQnJpYW4gSmFjcXVlcyIsICJzZXJpZXMiOiAiUmVkd2FsbCJ9LCAiVm9sLjIgb2YgU29tZXRoaW5nIjogeyJpdGVtSWQiOiAibGlfZ29uZSIsICJ0aXRsZSI6ICIifSwgIkRlbGV0ZWQgaW4gRmluZGVyLm00YSI6IHsiaXRlbUlkIjogImxpX2giLCAidGl0bGUiOiAiSG9sZXMifSwgIkVtcHR5IHJlY29yZC5tNGEiOiB7fX19",
+    "AUDIOBOOKS/.Hidden.mp3": "aA==",
+    "AUDIOBOOKS/.Trashes/x.mp3": "dA==",
+    "AUDIOBOOKS/Brian Jacques - Mossflower.mp3": "bm8gdGFncyBhdCBhbGw=",
+    "AUDIOBOOKS/Brian Jacques - Redwall.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3Q==",
+    "AUDIOBOOKS/Cover.jpg": "anBn",
+    "AUDIOBOOKS/Empty folder": null,
+    "AUDIOBOOKS/Hobbit parts/._01.m4a": "HyYtNA==",
+    "AUDIOBOOKS/Hobbit parts/Cover.JPG": "HyYtNDtCSVBX",
+    "AUDIOBOOKS/Hobbit parts/Disc 1.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAFJtb292AAAASnVkdGEAAABCbWV0YQAAAAAAAAA2aWxzdAAAAC6pbmFtAAAAJmRhdGEAAAABAAAAAFNvcnRzIGFmdGVyIHRoZSBmb2xkZXI=",
+    "AUDIOBOOKS/Hobbit parts/Disc 1/01.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAIttb292AAAAg3VkdGEAAAB7bWV0YQAAAAAAAABvaWxzdAAAACGpbmFtAAAAGWRhdGEAAAABAAAAAENoYXB0ZXIgMQAAACOpYWxiAAAAG2RhdGEAAAABAAAAAEhvYmJpdCwgVGhlAAAAI2FBUlQAAAAbZGF0YQAAAAEAAAAASlJSIFRvbGtpZW4=",
+    "AUDIOBOOKS/Hobbit parts/Disc 10/01.m4a": "HyYtNDtCSVBXXmU=",
+    "AUDIOBOOKS/Hobbit parts/Disc 2/01.m4a": "HyYtNDtCSVBXXmVs",
+    "AUDIOBOOKS/Holes_rip.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAGVtb292AAAAXXVkdGEAAABVbWV0YQAAAAAAAABJaWxzdAAAAB2pbmFtAAAAFWRhdGEAAAABAAAAAEhvbGVzAAAAJGFBUlQAAAAcZGF0YQAAAAEAAAAATG91aXMgU2FjaGFy",
+    "AUDIOBOOKS/Only a cover/cover.jpg": "Yw==",
+    "AUDIOBOOKS/Player.db": "ZGI=",
+    "AUDIOBOOKS/Scruffy_rip.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAHJtb292AAAAanVkdGEAAABibWV0YQAAAAAAAABWaWxzdAAAACipbmFtAAAAIGRhdGEAAAABAAAAAFRoZSBTaWxtYXJpbGxpb24AAAAmqUFSVAAAAB5kYXRhAAAAAQAAAABKLlIuUi4gVG9sa2llbg==",
+    "AUDIOBOOKS/Twin - Duplicate.flac": "HyYtNDtCSVBXXmVscw==",
+    "AUDIOBOOKS/Untagged.WAV": "HyYtNDtCSVBXXmVsc3o=",
+    "AUDIOBOOKS/Vol.2 of Something": null,
+    "AUDIOBOOKS/Vol.2 of Something/a.OPUS": "HyYtNDtCSVBXXmVsc3qBiI+WnaQ=",
+    "AUDIOBOOKS/Wrinkle.mp3": "SUQzAwAAAAAAOFRJVDIAAAATAAAAV3JpbmtsZSBpbiBUaW1lLCBBVFBFMgAAABEAAABNYWRlbGVpbmUgTEVuZ2xl//uQAP/7kAD/+5AA//uQAA==",
+    "elsewhere.mp3": "HyYtNDtCSVBXXmVsc3qB"
+   }
+  },
+  {
+   "expect": {
+    "both": [
+     {
+      "itemId": "li_h",
+      "matchedBy": "name",
+      "name": "Holes.m4b"
+     },
+     {
+      "itemId": "li_r",
+      "matchedBy": "name",
+      "name": "Redwall"
+     }
+    ],
+    "deviceOnly": [],
+    "index": {},
+    "scan": [
+     {
+      "author": "",
+      "bytes": 5,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Holes.m4b",
+      "paths": [
+       "AUDIOBOOKS/Holes.m4b"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Holes"
+     },
+     {
+      "author": "",
+      "bytes": 6,
+      "files": 1,
+      "itemId": null,
+      "kind": "dir",
+      "name": "Redwall",
+      "paths": [
+       "AUDIOBOOKS/Redwall/1.mp3"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Redwall"
+     }
+    ],
+    "serverOnly": [
+     "li_t",
+     "li_m",
+     "li_w",
+     "li_d1",
+     "li_d2"
+    ]
+   },
+   "name": "a different template",
+   "readTags": true,
+   "subdir": "AUDIOBOOKS",
+   "template": "{title}",
+   "tree": {
+    "AUDIOBOOKS/Holes.m4b": "HyYtNDs=",
+    "AUDIOBOOKS/Redwall": null,
+    "AUDIOBOOKS/Redwall/1.mp3": "HyYtNDtC"
+   }
+  },
+  {
+   "expect": {
+    "both": [
+     {
+      "itemId": "li_h",
+      "matchedBy": "name",
+      "name": "Louis Sachar - Holes.m4a"
+     }
+    ],
+    "deviceOnly": [],
+    "index": {},
+    "scan": [
+     {
+      "author": "",
+      "bytes": 7,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Louis Sachar - Holes.m4a",
+      "paths": [
+       "Music/Books/Louis Sachar - Holes.m4a"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Louis Sachar - Holes"
+     }
+    ],
+    "serverOnly": [
+     "li_r",
+     "li_t",
+     "li_m",
+     "li_w",
+     "li_d1",
+     "li_d2"
+    ]
+   },
+   "name": "a nested books folder",
+   "readTags": true,
+   "subdir": "Music\\Books/./",
+   "template": null,
+   "tree": {
+    "Music/Books/Louis Sachar - Holes.m4a": "HyYtNDtCSQ==",
+    "Music/Other.m4a": "HyYtNDtCSVA="
+   }
+  },
+  {
+   "expect": {
+    "both": [],
+    "deviceOnly": [],
+    "index": {},
+    "scan": [],
+    "serverOnly": [
+     "li_r",
+     "li_h",
+     "li_t",
+     "li_m",
+     "li_w",
+     "li_d1",
+     "li_d2"
+    ]
+   },
+   "name": "no books folder",
+   "readTags": true,
+   "subdir": "AUDIOBOOKS",
+   "template": null,
+   "tree": {
+    "MUSIC/x.mp3": "HyYt"
+   }
+  },
+  {
+   "expect": {
+    "both": [
+     {
+      "itemId": "li_r",
+      "matchedBy": "name",
+      "name": "Brian Jacques - Redwall.m4a"
+     }
+    ],
+    "deviceOnly": [],
+    "index": {},
+    "scan": [
+     {
+      "author": "",
+      "bytes": 3,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "Brian Jacques - Redwall.m4a",
+      "paths": [
+       "AUDIOBOOKS/Brian Jacques - Redwall.m4a"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "Brian Jacques - Redwall"
+     }
+    ],
+    "serverOnly": [
+     "li_h",
+     "li_t",
+     "li_m",
+     "li_w",
+     "li_d1",
+     "li_d2"
+    ]
+   },
+   "name": "an unreadable index",
+   "readTags": true,
+   "subdir": "AUDIOBOOKS",
+   "template": null,
+   "tree": {
+    ".absh/index.json": "77u/eyJlbnRyaWVzIjoge319",
+    "AUDIOBOOKS/Brian Jacques - Redwall.m4a": "HyYt"
+   }
+  },
+  {
+   "expect": {
+    "both": [],
+    "deviceOnly": [
+     "x.mp3"
+    ],
+    "index": {},
+    "scan": [
+     {
+      "author": "",
+      "bytes": 3,
+      "files": 1,
+      "itemId": null,
+      "kind": "file",
+      "name": "x.mp3",
+      "paths": [
+       "AUDIOBOOKS/x.mp3"
+      ],
+      "series": "",
+      "source": "tags",
+      "title": "x"
+     }
+    ],
+    "serverOnly": [
+     "li_r",
+     "li_h",
+     "li_t",
+     "li_m",
+     "li_w",
+     "li_d1",
+     "li_d2"
+    ]
+   },
+   "name": "an index that is not an object",
+   "readTags": true,
+   "subdir": "AUDIOBOOKS",
+   "template": null,
+   "tree": {
+    ".absh/index.json": "WzEsIDIsIDNd",
+    "AUDIOBOOKS/x.mp3": "HyYt"
+   }
+  }
+ ],
+ "server": [
+  {
+   "author": "Brian Jacques",
+   "id": "li_r",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "Redwall",
+   "size": 1,
+   "title": "Redwall"
+  },
+  {
+   "author": "Louis Sachar",
+   "id": "li_h",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "",
+   "size": 1,
+   "title": "Holes"
+  },
+  {
+   "author": "J.R.R. Tolkien",
+   "id": "li_t",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "",
+   "size": 1,
+   "title": "The Hobbit"
+  },
+  {
+   "author": "Brian Jacques",
+   "id": "li_m",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "Redwall",
+   "size": 1,
+   "title": "Mossflower"
+  },
+  {
+   "author": "Madeleine L'Engle",
+   "id": "li_w",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "",
+   "size": 1,
+   "title": "A Wrinkle in Time"
+  },
+  {
+   "author": "Twin",
+   "id": "li_d1",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "",
+   "size": 1,
+   "title": "Duplicate"
+  },
+  {
+   "author": "Twin",
+   "id": "li_d2",
+   "numTracks": 1,
+   "relPath": "",
+   "series": "",
+   "size": 1,
+   "title": "Duplicate"
+  }
+ ]
+}

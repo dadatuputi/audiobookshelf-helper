@@ -44,6 +44,14 @@ SHARED_FILES = [
     "page-hook.js", "popup.html", "popup.css", "popup.js", "options.html", "options.js",
 ]
 
+# Chrome only: using the player's folder without the helper (folder.js), and
+# the options-page section that picks it. It rests on showDirectoryPicker,
+# which Firefox has never shipped and does not intend to, so the Firefox
+# bundle does not carry it at all - not even switched off - and stays exactly
+# what it was before this existed.
+CHROME_ONLY_FILES = ["folder.js", "folder-options.js"]
+OPTIONS_SCRIPT = '<script src="options.js"></script>'
+
 ICON_FILES = ["icon-16.png", "icon-32.png", "icon-48.png", "icon-96.png", "icon-128.png"]
 
 
@@ -110,11 +118,27 @@ def build(target: str, version: str = None) -> Path:
     )
 
     if target == "chrome":
+        for name in CHROME_ONLY_FILES:
+            src = SRC / name
+            if not src.exists():
+                raise SystemExit(f"missing source file: {src}")
+            shutil.copy2(src, out / name)
         # background.js is loaded as an ES module here, so it must import the
-        # shim itself rather than rely on a second "scripts" entry.
+        # shim itself rather than rely on a second "scripts" entry. folder.js
+        # comes last: background.js finds it as globalThis.ABSH_FOLDER, and
+        # on Firefox, where it is never imported, finds nothing.
         bg = out / "background.js"
         bg.write_text('import "./browser-polyfill.js";\nimport "./config.js";\n'
-                      'import "./lib.js";\n' + bg.read_text())
+                      'import "./lib.js";\nimport "./folder.js";\n' + bg.read_text())
+        opts = out / "options.html"
+        html = opts.read_text(encoding="utf-8")
+        if OPTIONS_SCRIPT not in html:
+            raise SystemExit(f"options.html no longer loads options.js as {OPTIONS_SCRIPT!r}; "
+                             "update build.py to add the folder section's scripts")
+        opts.write_text(html.replace(OPTIONS_SCRIPT, OPTIONS_SCRIPT +
+                                     '\n<script src="folder.js"></script>'
+                                     '\n<script src="folder-options.js"></script>'),
+                        encoding="utf-8")
 
     (out / "manifest.json").write_text(
         json.dumps(manifest_for(target, version), indent=2) + "\n"
@@ -162,7 +186,9 @@ def main():
     if "chrome" in built:
         print(f"  Chrome   chrome://extensions -> Developer mode -> Load unpacked")
         print(f"           {show(built['chrome'])}")
-    print("\nThe native helper is separate and required:  python3 native/install.py")
+    print("\nThe native helper is separate:  python3 native/install.py")
+    print("It is required in Firefox. In Chrome, Options can point the extension at the "
+          "player's folder instead.")
 
 
 if __name__ == "__main__":

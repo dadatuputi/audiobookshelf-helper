@@ -1,0 +1,2660 @@
+{
+ "clean": [
+  {
+   "in": "Brian Jacques",
+   "out": "Brian Jacques"
+  },
+  {
+   "in": "Pema Ch\u00f6dr\u00f6n",
+   "out": "Pema Chodron"
+  },
+  {
+   "in": "a/b\\c:d*e?f\"g<h>i|j",
+   "out": "abcdefghij"
+  },
+  {
+   "in": "",
+   "out": "Untitled"
+  },
+  {
+   "in": "   ",
+   "out": "Untitled"
+  },
+  {
+   "in": "///",
+   "out": "Untitled"
+  },
+  {
+   "in": "Tab\tand\nnewline",
+   "out": "Tabandnewline"
+  },
+  {
+   "in": "  spaced   out  ",
+   "out": "spaced out"
+  },
+  {
+   "in": "\u00c6r\u00f8sk\u00f8bing",
+   "out": "rskbing"
+  },
+  {
+   "in": "\ufb01ligree \ufb00",
+   "out": "filigree ff"
+  },
+  {
+   "in": "\uff26\uff55\uff4c\uff4c\uff57\uff49\uff44\uff54\uff48",
+   "out": "Fullwidth"
+  },
+  {
+   "in": "\u65e5\u672c\u8a9e",
+   "out": "Untitled"
+  },
+  {
+   "in": "Cr\u00e8me br\u00fbl\u00e9e \u2013 a novel",
+   "out": "Creme brulee a novel"
+  },
+  {
+   "in": "x\u007fy",
+   "out": "x\u007fy"
+  },
+  {
+   "in": "\u00fcber\u00a0alles",
+   "out": "uber alles"
+  },
+  {
+   "in": "A\u2003B",
+   "out": "A B"
+  },
+  {
+   "in": "\ud83d\ude00 emoji",
+   "out": "emoji"
+  },
+  {
+   "in": "\u0130stanbul",
+   "out": "Istanbul"
+  },
+  {
+   "in": "na\u00efve caf\u00e9",
+   "out": "naive cafe"
+  },
+  {
+   "in": "\u00c6sop",
+   "out": "sop"
+  },
+  {
+   "in": "L'Engle",
+   "out": "L'Engle"
+  },
+  {
+   "in": "1/2 \u00b7 3",
+   "out": "12 3"
+  },
+  {
+   "in": "\u001cfile\u001fsep",
+   "out": "filesep"
+  },
+  {
+   "in": "trailing dot.",
+   "out": "trailing dot."
+  },
+  {
+   "in": "..",
+   "out": ".."
+  },
+  {
+   "in": "\ufb00\u0301",
+   "out": "ff"
+  }
+ ],
+ "normKey": [
+  {
+   "author": "J.R.R. Tolkien",
+   "out": [
+    "hobbit",
+    "jrrtolkien"
+   ],
+   "title": "The Hobbit"
+  },
+  {
+   "author": "JRR Tolkien",
+   "out": [
+    "hobbit",
+    "jrrtolkien"
+   ],
+   "title": "Hobbit, The"
+  },
+  {
+   "author": "L'Engle",
+   "out": [
+    "wrinkle in time",
+    "lengle"
+   ],
+   "title": "A Wrinkle in Time"
+  },
+  {
+   "author": "LEngle",
+   "out": [
+    "wrinkle in time",
+    "lengle"
+   ],
+   "title": "Wrinkle in Time, A"
+  },
+  {
+   "author": "Brian Jacques",
+   "out": [
+    "redwall",
+    "brianjacques"
+   ],
+   "title": "Redwall"
+  },
+  {
+   "author": "brian  jacques",
+   "out": [
+    "redwall",
+    "brianjacques"
+   ],
+   "title": "redwall"
+  },
+  {
+   "author": "",
+   "out": [
+    "the",
+    ""
+   ],
+   "title": "The"
+  },
+  {
+   "author": "An",
+   "out": [
+    "a",
+    "an"
+   ],
+   "title": "A"
+  },
+  {
+   "author": "",
+   "out": [
+    "",
+    ""
+   ],
+   "title": ""
+  },
+  {
+   "author": "B. A.",
+   "out": [
+    "a team",
+    "b"
+   ],
+   "title": "The A Team"
+  },
+  {
+   "author": "Anne, The",
+   "out": [
+    "ant",
+    "anne"
+   ],
+   "title": "An Ant"
+  },
+  {
+   "author": "x",
+   "out": [
+    "tolkien j r r",
+    "x"
+   ],
+   "title": "Tolkien, J.R.R."
+  },
+  {
+   "author": "\u00c6r\u00f8",
+   "out": [
+    "creme brulee",
+    "r"
+   ],
+   "title": "Cr\u00e8me Br\u00fbl\u00e9e"
+  },
+  {
+   "author": null,
+   "out": [
+    "end",
+    ""
+   ],
+   "title": "  The  End  "
+  },
+  {
+   "author": "Tolstoy, Leo",
+   "out": [
+    "war and peace",
+    "tolstoyleo"
+   ],
+   "title": "War and Peace, the"
+  },
+  {
+   "author": "the",
+   "out": [
+    "the",
+    "the"
+   ],
+   "title": "the  "
+  },
+  {
+   "author": null,
+   "out": [
+    "",
+    ""
+   ],
+   "title": null
+  },
+  {
+   "author": "\u00dcn \u00cfcode",
+   "out": [
+    "title subtitle",
+    "unicode"
+   ],
+   "title": "Title \u2014 Subtitle"
+  },
+  {
+   "author": "a",
+   "out": [
+    "a",
+    "a"
+   ],
+   "title": "A, an"
+  }
+ ],
+ "normalizeItem": [
+  {
+   "in": {
+    "id": "li_1",
+    "media": {
+     "metadata": {
+      "authorName": "Brian Jacques",
+      "seriesName": "Redwall #1",
+      "title": "Redwall"
+     },
+     "numTracks": 1
+    },
+    "relPath": "Brian Jacques/Redwall",
+    "size": 100
+   },
+   "out": {
+    "author": "Brian Jacques",
+    "id": "li_1",
+    "numTracks": 1,
+    "relPath": "Brian Jacques/Redwall",
+    "series": "Redwall #1",
+    "size": 100,
+    "title": "Redwall"
+   }
+  },
+  {
+   "in": {
+    "id": "li_2",
+    "media": {
+     "audioFiles": [
+      {},
+      {}
+     ],
+     "metadata": {
+      "authors": [
+       {
+        "name": "A"
+       },
+       {
+        "name": ""
+       },
+       {
+        "name": "B"
+       }
+      ],
+      "series": [
+       {
+        "name": "S1"
+       },
+       "S2",
+       ""
+      ],
+      "title": ""
+     },
+     "size": 55
+    },
+    "relPath": "x"
+   },
+   "out": {
+    "author": "A, B",
+    "id": "li_2",
+    "numTracks": 2,
+    "relPath": "x",
+    "series": "S1, S2",
+    "size": 55,
+    "title": "x"
+   }
+  },
+  {
+   "in": {
+    "id": "li_3"
+   },
+   "out": {
+    "author": "",
+    "id": "li_3",
+    "numTracks": 0,
+    "relPath": "",
+    "series": "",
+    "size": 0,
+    "title": "(untitled)"
+   }
+  },
+  {
+   "in": {
+    "media": {
+     "metadata": {}
+    },
+    "relPath": "No id here"
+   },
+   "out": {
+    "author": "",
+    "id": null,
+    "numTracks": 0,
+    "relPath": "No id here",
+    "series": "",
+    "size": 0,
+    "title": "No id here"
+   }
+  },
+  {
+   "in": {
+    "id": "li_4",
+    "media": {
+     "metadata": {
+      "authorName": "",
+      "authors": [
+       {
+        "name": "Late"
+       }
+      ],
+      "title": "T"
+     },
+     "numTracks": 0
+    }
+   },
+   "out": {
+    "author": "Late",
+    "id": "li_4",
+    "numTracks": 0,
+    "relPath": "",
+    "series": "",
+    "size": 0,
+    "title": "T"
+   }
+  }
+ ],
+ "outExt": [
+  {
+   "in": "Book.m4b",
+   "out": ".m4a",
+   "rename": true
+  },
+  {
+   "in": "Book.m4b",
+   "out": ".m4b",
+   "rename": false
+  },
+  {
+   "in": "Book.M4B",
+   "out": ".m4a",
+   "rename": true
+  },
+  {
+   "in": "Book.m4a",
+   "out": ".m4a",
+   "rename": true
+  },
+  {
+   "in": "Book.mp3",
+   "out": ".mp3",
+   "rename": true
+  },
+  {
+   "in": "noext",
+   "out": "",
+   "rename": true
+  },
+  {
+   "in": ".m4b",
+   "out": "",
+   "rename": true
+  },
+  {
+   "in": "dir/x.M4b",
+   "out": ".m4a",
+   "rename": true
+  },
+  {
+   "in": "Book.M4A",
+   "out": ".m4a",
+   "rename": false
+  }
+ ],
+ "path": [
+  {
+   "in": "Book.m4b",
+   "name": "Book.m4b",
+   "stem": "Book",
+   "suffix": ".m4b"
+  },
+  {
+   "in": "Book.M4B",
+   "name": "Book.M4B",
+   "stem": "Book",
+   "suffix": ".M4B"
+  },
+  {
+   "in": ".hidden",
+   "name": ".hidden",
+   "stem": ".hidden",
+   "suffix": ""
+  },
+  {
+   "in": "noext",
+   "name": "noext",
+   "stem": "noext",
+   "suffix": ""
+  },
+  {
+   "in": "a.b.c",
+   "name": "a.b.c",
+   "stem": "a.b",
+   "suffix": ".c"
+  },
+  {
+   "in": "dir/x.mp3",
+   "name": "x.mp3",
+   "stem": "x",
+   "suffix": ".mp3"
+  },
+  {
+   "in": "Disc 1/01 - One.m4b",
+   "name": "01 - One.m4b",
+   "stem": "01 - One",
+   "suffix": ".m4b"
+  },
+  {
+   "in": "./a.mp3",
+   "name": "a.mp3",
+   "stem": "a",
+   "suffix": ".mp3"
+  },
+  {
+   "in": "a//b.mp3",
+   "name": "b.mp3",
+   "stem": "b",
+   "suffix": ".mp3"
+  },
+  {
+   "in": ".m4b",
+   "name": ".m4b",
+   "stem": ".m4b",
+   "suffix": ""
+  },
+  {
+   "in": "x.tar.gz",
+   "name": "x.tar.gz",
+   "stem": "x.tar",
+   "suffix": ".gz"
+  },
+  {
+   "in": "..",
+   "name": "..",
+   "stem": "..",
+   "suffix": ""
+  },
+  {
+   "in": "a/..",
+   "name": "..",
+   "stem": "..",
+   "suffix": ""
+  },
+  {
+   "in": "dir/",
+   "name": "dir",
+   "stem": "dir",
+   "suffix": ""
+  },
+  {
+   "in": "Caf\u00e9.Mp3",
+   "name": "Caf\u00e9.Mp3",
+   "stem": "Caf\u00e9",
+   "suffix": ".Mp3"
+  },
+  {
+   "in": "a/b/c/d.flac",
+   "name": "d.flac",
+   "stem": "d",
+   "suffix": ".flac"
+  }
+ ],
+ "pull": [
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Redwall.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.m4a",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4a": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Brian Jacques - Redwall.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".m4b",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Brian Jacques - Redwall.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "single m4b renamed",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Redwall.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.m4b",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4b": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Brian Jacques - Redwall.m4b",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".m4b",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Brian Jacques - Redwall.m4b": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "single m4b kept",
+   "opts": {
+    "renameM4b": false
+   }
+  },
+  {
+   "downloads": {
+    "bk_o": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mpeg",
+     "disposition": "attachment; filename*=UTF-8''Caf%C3%A9.mp3"
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_o",
+      "index": 1,
+      "op": "pull",
+      "title": "Who? Me: \"Yes\" <No>"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_o",
+      "title": "Who? Me: \"Yes\" <No>",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Pema Chodron - Who Me Yes No.mp3",
+      "id": "bk_o",
+      "title": "Who? Me: \"Yes\" <No>",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Pema Chodron - Who Me Yes No.mp3": {
+      "author": "Pema Ch\u00f6dr\u00f6n",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Pema Chodron - Who Me Yes No.mp3",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_o",
+      "kind": "file",
+      "series": "",
+      "sourceExt": ".mp3",
+      "title": "Who? Me: \"Yes\" <No>"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Pema Chodron - Who Me Yes No.mp3": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Pema Ch\u00f6dr\u00f6n",
+     "id": "bk_o",
+     "series": "",
+     "title": "Who? Me: \"Yes\" <No>"
+    }
+   ],
+   "name": "utf-8 disposition, mp3",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": null
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.bin",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Brian Jacques - Redwall.bin": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Brian Jacques - Redwall.bin",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".bin",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Brian Jacques - Redwall.bin": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "no disposition at all",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Redwall.M4B\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "RedwallRedwall by Brian Jacques.m4a",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "RedwallRedwall by Brian Jacques.m4a": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "RedwallRedwall by Brian Jacques.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".m4b",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "Music",
+      "Music/Books"
+     ],
+     "files": {
+      "Music/Books/RedwallRedwall by Brian Jacques.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "template and subdir",
+   "opts": {
+    "folderTemplate": "{series}/{title} by {author}",
+    "subdir": "../Music//Books"
+   }
+  },
+  {
+   "downloads": {
+    "bk_h": {
+     "body": "UEsDBBQAAAAAAAAAIVBijmKCeAAAAHgAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGI+RUxTWmFob3Z9hIuSmaCnrrW8w8rR2N/m7fQABw4VHCMqMTg/Rk1UW2JpcHd+hYyTmqGor7a9xMvS2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh45QSwMEFAAAAAAAAAAhUG/8wSiCAAAAggAAACYAAABUaGUgSG9iYml0L0Rpc2MgMS8wMiAtIENoYXB0ZXIgVHdvLk00Ql1ka3J5gIeOlZyjqrG4v8bN1Nvi6fD3AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQwTGiEoLzY9REtSWWBnbnV8g4qRmJ+mrbS7wsnQ197l7PNQSwMEFAAAAAAAAAAhUJ9AdBiMAAAAjAAAACYAAABUaGUgSG9iYml0L0Rpc2MgMi8xMCAtIENoYXB0ZXIgVGVuLm00YnyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdUEsDBBQAAAAAAAAAIVBK/73clgAAAJYAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDIvOSAtIENoYXB0ZXIgTmluZS5tNGKboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+QUMExohKC82PURLUllgZ251fIOKkZifpq20u8JQSwMEFAAAAAAAAAAhUDLLcuoEAAAABAAAABQAAABUaGUgSG9iYml0L2NvdmVyLmpwZ2pwZWdQSwMEFAAAAAAAAAAhUAAAAAAAAAAAAAAAAAsAAABUaGUgSG9iYml0L1BLAQIUAxQAAAAAAAAAIVBijmKCeAAAAHgAAAAmAAAAAAAAAAAAAACAAQAAAABUaGUgSG9iYml0L0Rpc2MgMS8wMSAtIENoYXB0ZXIgT25lLm00YlBLAQIUAxQAAAAAAAAAIVBv/MEoggAAAIIAAAAmAAAAAAAAAAAAAACAAbwAAABUaGUgSG9iYml0L0Rpc2MgMS8wMiAtIENoYXB0ZXIgVHdvLk00QlBLAQIUAxQAAAAAAAAAIVCfQHQYjAAAAIwAAAAmAAAAAAAAAAAAAACAAYIBAABUaGUgSG9iYml0L0Rpc2MgMi8xMCAtIENoYXB0ZXIgVGVuLm00YlBLAQIUAxQAAAAAAAAAIVBK/73clgAAAJYAAAAmAAAAAAAAAAAAAACAAVICAABUaGUgSG9iYml0L0Rpc2MgMi85IC0gQ2hhcHRlciBOaW5lLm00YlBLAQIUAxQAAAAAAAAAIVAyy3LqBAAAAAQAAAAUAAAAAAAAAAAAAACAASwDAABUaGUgSG9iYml0L2NvdmVyLmpwZ1BLAQIUAxQAAAAAAAAAIVAAAAAAAAAAAAAAAAALAAAAAAAAAAAAAACAAWIDAABUaGUgSG9iYml0L1BLBQYAAAAABgAGAMsBAACLAwAAAAA=",
+     "contentType": "application/zip",
+     "disposition": "attachment; filename=\"The Hobbit.zip\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_h",
+      "index": 1,
+      "op": "pull",
+      "title": "The Hobbit"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - 01 - Chapter One.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - 02 - Chapter Two.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     },
+     {
+      "done": 3,
+      "event": "progress",
+      "file": "003 - 10 - Chapter Ten.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     },
+     {
+      "done": 4,
+      "event": "progress",
+      "file": "004 - 9 - Chapter Nine.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     }
+    ],
+    "index": {
+     "J.R.R. Tolkien - The Hobbit": {
+      "author": "J.R.R. Tolkien",
+      "bytes": 540,
+      "files": [
+       {
+        "name": "001 - 01 - Chapter One.m4a",
+        "size": 120
+       },
+       {
+        "name": "002 - 02 - Chapter Two.m4a",
+        "size": 130
+       },
+       {
+        "name": "003 - 10 - Chapter Ten.m4a",
+        "size": 140
+       },
+       {
+        "name": "004 - 9 - Chapter Nine.m4a",
+        "size": 150
+       }
+      ],
+      "itemId": "bk_h",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".m4b",
+      "title": "The Hobbit"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 4,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4a": 120,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/002 - 02 - Chapter Two.m4a": 130,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/003 - 10 - Chapter Ten.m4a": 140,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/004 - 9 - Chapter Nine.m4a": 150
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.R.R. Tolkien",
+     "id": "bk_h",
+     "series": "",
+     "title": "The Hobbit"
+    }
+   ],
+   "name": "zip, stored, discs and a cover",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_h": {
+     "body": "UEsDBBQAAAAIAAAAIVBijmKCfQAAAHgAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGIBeACH/z5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjlBLAwQUAAAACAAAACFQb/zBKIcAAACCAAAAJgAAAFRoZSBIb2JiaXQvRGlzYyAxLzAyIC0gQ2hhcHRlciBUd28uTTRCAYIAff9dZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+QUMExohKC82PURLUllgZ251fIOKkZifpq20u8LJ0Nfe5ezzUEsDBBQAAAAIAAAAIVCfQHQYkQAAAIwAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDIvMTAgLSBDaGFwdGVyIFRlbi5tNGIBjABz/3yDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdUEsDBBQAAAAIAAAAIVBK/73cmwAAAJYAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDIvOSAtIENoYXB0ZXIgTmluZS5tNGIBlgBp/5uiqbC3vsXM09rh6O/2AgkQFx4lLDM6QUhPVl1ka3J5gIeOlZyjqrG4v8bN1Nvi6fD3AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQwTGiEoLzY9REtSWWBnbnV8g4qRmJ+mrbS7wlBLAwQUAAAACAAAACFQMsty6gYAAAAEAAAAFAAAAFRoZSBIb2JiaXQvY292ZXIuanBnyypITQcAUEsDBBQAAAAIAAAAIVAAAAAAAgAAAAAAAAALAAAAVGhlIEhvYmJpdC8DAFBLAQIUAxQAAAAIAAAAIVBijmKCfQAAAHgAAAAmAAAAAAAAAAAAAACAAQAAAABUaGUgSG9iYml0L0Rpc2MgMS8wMSAtIENoYXB0ZXIgT25lLm00YlBLAQIUAxQAAAAIAAAAIVBv/MEohwAAAIIAAAAmAAAAAAAAAAAAAACAAcEAAABUaGUgSG9iYml0L0Rpc2MgMS8wMiAtIENoYXB0ZXIgVHdvLk00QlBLAQIUAxQAAAAIAAAAIVCfQHQYkQAAAIwAAAAmAAAAAAAAAAAAAACAAYwBAABUaGUgSG9iYml0L0Rpc2MgMi8xMCAtIENoYXB0ZXIgVGVuLm00YlBLAQIUAxQAAAAIAAAAIVBK/73cmwAAAJYAAAAmAAAAAAAAAAAAAACAAWECAABUaGUgSG9iYml0L0Rpc2MgMi85IC0gQ2hhcHRlciBOaW5lLm00YlBLAQIUAxQAAAAIAAAAIVAyy3LqBgAAAAQAAAAUAAAAAAAAAAAAAACAAUADAABUaGUgSG9iYml0L2NvdmVyLmpwZ1BLAQIUAxQAAAAIAAAAIVAAAAAAAgAAAAAAAAALAAAAAAAAAAAAAACAAXgDAABUaGUgSG9iYml0L1BLBQYAAAAABgAGAMsBAACjAwAAAAA=",
+     "contentType": "application/zip",
+     "disposition": "attachment; filename=\"The Hobbit.zip\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_h",
+      "index": 1,
+      "op": "pull",
+      "title": "The Hobbit"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - 01 - Chapter One.m4b",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - 02 - Chapter Two.m4b",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     },
+     {
+      "done": 3,
+      "event": "progress",
+      "file": "003 - 10 - Chapter Ten.m4b",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     },
+     {
+      "done": 4,
+      "event": "progress",
+      "file": "004 - 9 - Chapter Nine.m4b",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 4
+     }
+    ],
+    "index": {
+     "J.R.R. Tolkien - The Hobbit": {
+      "author": "J.R.R. Tolkien",
+      "bytes": 540,
+      "files": [
+       {
+        "name": "001 - 01 - Chapter One.m4b",
+        "size": 120
+       },
+       {
+        "name": "002 - 02 - Chapter Two.m4b",
+        "size": 130
+       },
+       {
+        "name": "003 - 10 - Chapter Ten.m4b",
+        "size": 140
+       },
+       {
+        "name": "004 - 9 - Chapter Nine.m4b",
+        "size": 150
+       }
+      ],
+      "itemId": "bk_h",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".m4b",
+      "title": "The Hobbit"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 4,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4b": 120,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/002 - 02 - Chapter Two.m4b": 130,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/003 - 10 - Chapter Ten.m4b": 140,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/004 - 9 - Chapter Nine.m4b": 150
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.R.R. Tolkien",
+     "id": "bk_h",
+     "series": "",
+     "title": "The Hobbit"
+    }
+   ],
+   "name": "zip, deflated, not renamed",
+   "opts": {
+    "renameM4b": false
+   }
+  },
+  {
+   "downloads": {
+    "bk_h": {
+     "body": "UEsDBBQAAAAIAAAAIVBijmKCfQAAAHgAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGIBeACH/z5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjlBLAwQUAAAACAAAACFQb/zBKIcAAACCAAAAJgAAAFRoZSBIb2JiaXQvRGlzYyAxLzAyIC0gQ2hhcHRlciBUd28uTTRCAYIAff9dZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+QUMExohKC82PURLUllgZ251fIOKkZifpq20u8LJ0Nfe5ezzUEsBAhQDFAAAAAgAAAAhUGKOYoJ9AAAAeAAAACYAAAAAAAAAAAAAAIABAAAAAFRoZSBIb2JiaXQvRGlzYyAxLzAxIC0gQ2hhcHRlciBPbmUubTRiUEsBAhQDFAAAAAgAAAAhUG/8wSiHAAAAggAAACYAAAAAAAAAAAAAAIABwQAAAFRoZSBIb2JiaXQvRGlzYyAxLzAyIC0gQ2hhcHRlciBUd28uTTRCUEsFBgAAAAACAAIAqAAAAIwBAAAAAA==",
+     "contentType": "application/octet-stream",
+     "disposition": "attachment; filename=\"book.ZIP\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_h",
+      "index": 1,
+      "op": "pull",
+      "title": "The Hobbit"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - 01 - Chapter One.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 2
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - 02 - Chapter Two.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 2
+     }
+    ],
+    "index": {
+     "J.R.R. Tolkien - The Hobbit": {
+      "author": "J.R.R. Tolkien",
+      "bytes": 250,
+      "files": [
+       {
+        "name": "001 - 01 - Chapter One.m4a",
+        "size": 120
+       },
+       {
+        "name": "002 - 02 - Chapter Two.m4a",
+        "size": 130
+       }
+      ],
+      "itemId": "bk_h",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".m4b",
+      "title": "The Hobbit"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 2,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4a": 120,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/002 - 02 - Chapter Two.m4a": 130
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.R.R. Tolkien",
+     "id": "bk_h",
+     "series": "",
+     "title": "The Hobbit"
+    }
+   ],
+   "name": "zip found by its name, not its type",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_h": {
+     "body": "UEsDBC0AAAAIAAAAIVBijmKC//////////8mABQAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGIBABAAeAAAAAAAAAB9AAAAAAAAAAF4AIf/PkVMU1phaG92fYSLkpmgp661vMPK0djf5u30AAcOFRwjKjE4P0ZNVFtiaXB3foWMk5qhqK+2vcTL0tng5+71AQgPFh0kKzI5QEdOVVxjanF4f4aNlJuiqbC3vsXM09rh6O/2AgkQFx4lLDM6QUhPVl1ka3J5gIeOUEsDBC0AAAAIAAAAIVBv/MEo//////////8mABQAVGhlIEhvYmJpdC9EaXNjIDEvMDIgLSBDaGFwdGVyIFR3by5NNEIBABAAggAAAAAAAACHAAAAAAAAAAGCAH3/XWRrcnmAh46VnKOqsbi/xs3U2+Lp8PcDChEYHyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs81BLAwQtAAAACAAAACFQn0B0GP//////////JgAUAFRoZSBIb2JiaXQvRGlzYyAyLzEwIC0gQ2hhcHRlciBUZW4ubTRiAQAQAIwAAAAAAAAAkQAAAAAAAAABjABz/3yDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdUEsBAi0DLQAAAAgAAAAhUGKOYoJ9AAAAeAAAACYAAAAAAAAAAAAAAIABAAAAAFRoZSBIb2JiaXQvRGlzYyAxLzAxIC0gQ2hhcHRlciBPbmUubTRiUEsBAi0DLQAAAAgAAAAhUG/8wSiHAAAAggAAACYAAAAAAAAAAAAAAIAB1QAAAFRoZSBIb2JiaXQvRGlzYyAxLzAyIC0gQ2hhcHRlciBUd28uTTRCUEsBAi0DLQAAAAgAAAAhUJ9AdBiRAAAAjAAAACYAAAAAAAAAAAAAAIABtAEAAFRoZSBIb2JiaXQvRGlzYyAyLzEwIC0gQ2hhcHRlciBUZW4ubTRiUEsFBgAAAAADAAMA/AAAAJ0CAAAAAA==",
+     "contentType": "application/zip",
+     "disposition": null
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_h",
+      "index": 1,
+      "op": "pull",
+      "title": "The Hobbit"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - 01 - Chapter One.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 3
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - 02 - Chapter Two.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 3
+     },
+     {
+      "done": 3,
+      "event": "progress",
+      "file": "003 - 10 - Chapter Ten.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 3
+     }
+    ],
+    "index": {
+     "J.R.R. Tolkien - The Hobbit": {
+      "author": "J.R.R. Tolkien",
+      "bytes": 390,
+      "files": [
+       {
+        "name": "001 - 01 - Chapter One.m4a",
+        "size": 120
+       },
+       {
+        "name": "002 - 02 - Chapter Two.m4a",
+        "size": 130
+       },
+       {
+        "name": "003 - 10 - Chapter Ten.m4a",
+        "size": 140
+       }
+      ],
+      "itemId": "bk_h",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".m4b",
+      "title": "The Hobbit"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 3,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4a": 120,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/002 - 02 - Chapter Two.m4a": 130,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/003 - 10 - Chapter Ten.m4a": 140
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.R.R. Tolkien",
+     "id": "bk_h",
+     "series": "",
+     "title": "The Hobbit"
+    }
+   ],
+   "name": "zip64 records",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_o": {
+     "body": "UEsDBBQAAAAAAAAAIVDemuSWWgAAAFoAAAAKAAAAQ2FmgiCaLm1wMx8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQwTGiEoLzY9REtSWWBnbnV8g4qRmFBLAwQUAAAIAAAAACFQnnJcllAAAABQAAAAFwAAAENyw6htZS9icsO7bMOpZSDimJUubTRiHyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JQSwMEFAAAAAAAAAAhUI2oJytGAAAARgAAABEAAABhL2IvYy8uLi9EdXA/Lm1wMx8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQxQSwECFAMUAAAAAAAAACFQ3prklloAAABaAAAACgAAAAAAAAAAAAAAgAEAAAAAQ2FmgiCaLm1wM1BLAQIUAxQAAAgAAAAAIVCeclyWUAAAAFAAAAAXAAAAAAAAAAAAAACAAYIAAABDcsOobWUvYnLDu2zDqWUg4piVLm00YlBLAQIUAxQAAAAAAAAAIVCNqCcrRgAAAEYAAAARAAAAAAAAAAAAAACAAQcBAABhL2IvYy8uLi9EdXA/Lm1wM1BLBQYAAAAAAwADALwAAAB8AQAAAAA=",
+     "contentType": "application/zip",
+     "disposition": null
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_o",
+      "index": 1,
+      "op": "pull",
+      "title": "Who? Me: \"Yes\" <No>"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_o",
+      "title": "Who? Me: \"Yes\" <No>",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - Cafe U.mp3",
+      "id": "bk_o",
+      "title": "Who? Me: \"Yes\" <No>",
+      "total": 3
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - brulee.m4a",
+      "id": "bk_o",
+      "title": "Who? Me: \"Yes\" <No>",
+      "total": 3
+     },
+     {
+      "done": 3,
+      "event": "progress",
+      "file": "003 - Dup.mp3",
+      "id": "bk_o",
+      "title": "Who? Me: \"Yes\" <No>",
+      "total": 3
+     }
+    ],
+    "index": {
+     "Pema Chodron - Who Me Yes No": {
+      "author": "Pema Ch\u00f6dr\u00f6n",
+      "bytes": 240,
+      "files": [
+       {
+        "name": "001 - Cafe U.mp3",
+        "size": 90
+       },
+       {
+        "name": "002 - brulee.m4a",
+        "size": 80
+       },
+       {
+        "name": "003 - Dup.mp3",
+        "size": 70
+       }
+      ],
+      "itemId": "bk_o",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".mp3",
+      "title": "Who? Me: \"Yes\" <No>"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 3,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/Pema Chodron - Who Me Yes No"
+     ],
+     "files": {
+      "AUDIOBOOKS/Pema Chodron - Who Me Yes No/001 - Cafe U.mp3": 90,
+      "AUDIOBOOKS/Pema Chodron - Who Me Yes No/002 - brulee.m4a": 80,
+      "AUDIOBOOKS/Pema Chodron - Who Me Yes No/003 - Dup.mp3": 70
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Pema Ch\u00f6dr\u00f6n",
+     "id": "bk_o",
+     "series": "",
+     "title": "Who? Me: \"Yes\" <No>"
+    }
+   ],
+   "name": "zip names: legacy cp437 and utf-8",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_h": {
+     "body": "UEsDBBQAAAAAAAAAIVDXjikiBwAAAAcAAAAKAAAAcmVhZG1lLnR4dG5vdGhpbmdQSwECFAMUAAAAAAAAACFQ144pIgcAAAAHAAAACgAAAAAAAAAAAAAAgAEAAAAAcmVhZG1lLnR4dFBLBQYAAAAAAQABADgAAAAvAAAAAAA=",
+     "contentType": "application/zip",
+     "disposition": null
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_h",
+      "index": 1,
+      "op": "pull",
+      "title": "The Hobbit"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 1
+     }
+    ],
+    "index": {},
+    "report": {
+     "books": 0,
+     "copied": 0,
+     "errors": [
+      "The Hobbit: download contained no audio files"
+     ],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit"
+     ],
+     "files": {}
+    }
+   },
+   "items": [
+    {
+     "author": "J.R.R. Tolkien",
+     "id": "bk_h",
+     "series": "",
+     "title": "The Hobbit"
+    }
+   ],
+   "name": "zip with no audio",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Redwall.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 2,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.m4a",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "count": 2,
+      "event": "item",
+      "id": "bk_r",
+      "index": 2,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.m4a",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4a": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Brian Jacques - Redwall.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".m4b",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 1,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Brian Jacques - Redwall.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    },
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "pulled twice: the index skips the second",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Redwall.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.m4a",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4a": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Brian Jacques - Redwall.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".m4b",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 0,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 1,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Brian Jacques - Redwall.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "same name and size already there",
+   "opts": {},
+   "tree": {
+    "AUDIOBOOKS/Brian Jacques - Redwall.m4a": "HCMqMTg/Rk1UW2JpcHd+hYyTmqGor7a9xMvS2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh46VnKOqsbi/xs3U2+Lp8PcDChEYHyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2px"
+   }
+  },
+  {
+   "downloads": {
+    "bk_r": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Redwall.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_r",
+      "index": 1,
+      "op": "pull",
+      "title": "Redwall"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Brian Jacques - Redwall.m4a",
+      "id": "bk_r",
+      "title": "Redwall",
+      "total": 1
+     }
+    ],
+    "index": {
+     "Brian Jacques - Redwall.m4a": {
+      "author": "Brian Jacques",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "Brian Jacques - Redwall.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "bk_r",
+      "kind": "file",
+      "series": "Redwall",
+      "sourceExt": ".m4b",
+      "title": "Redwall"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/Brian Jacques - Redwall.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Brian Jacques",
+     "id": "bk_r",
+     "series": "Redwall",
+     "title": "Redwall"
+    }
+   ],
+   "name": "same name, different size, replaced",
+   "opts": {},
+   "tree": {
+    "AUDIOBOOKS/Brian Jacques - Redwall.m4a": "c2hvcnQ="
+   }
+  },
+  {
+   "downloads": {
+    "bk_h": {
+     "body": "UEsDBBQAAAAAAAAAIVBijmKCeAAAAHgAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGI+RUxTWmFob3Z9hIuSmaCnrrW8w8rR2N/m7fQABw4VHCMqMTg/Rk1UW2JpcHd+hYyTmqGor7a9xMvS2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh45QSwMEFAAAAAAAAAAhUG/8wSiCAAAAggAAACYAAABUaGUgSG9iYml0L0Rpc2MgMS8wMiAtIENoYXB0ZXIgVHdvLk00Ql1ka3J5gIeOlZyjqrG4v8bN1Nvi6fD3AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQwTGiEoLzY9REtSWWBnbnV8g4qRmJ+mrbS7wsnQ197l7PNQSwECFAMUAAAAAAAAACFQYo5igngAAAB4AAAAJgAAAAAAAAAAAAAAgAEAAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGJQSwECFAMUAAAAAAAAACFQb/zBKIIAAACCAAAAJgAAAAAAAAAAAAAAgAG8AAAAVGhlIEhvYmJpdC9EaXNjIDEvMDIgLSBDaGFwdGVyIFR3by5NNEJQSwUGAAAAAAIAAgCoAAAAggEAAAAA",
+     "contentType": "application/zip",
+     "disposition": null
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_h",
+      "index": 1,
+      "op": "pull",
+      "title": "The Hobbit"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - 01 - Chapter One.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 2
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - 02 - Chapter Two.m4a",
+      "id": "bk_h",
+      "title": "The Hobbit",
+      "total": 2
+     }
+    ],
+    "index": {
+     "J.R.R. Tolkien - The Hobbit": {
+      "author": "J.R.R. Tolkien",
+      "bytes": 137,
+      "files": [
+       {
+        "name": "001 - 01 - Chapter One.m4a",
+        "size": 7
+       },
+       {
+        "name": "002 - 02 - Chapter Two.m4a",
+        "size": 130
+       }
+      ],
+      "itemId": "bk_h",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".m4b",
+      "title": "The Hobbit"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 1,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4a": 7,
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/002 - 02 - Chapter Two.m4a": 130
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.R.R. Tolkien",
+     "id": "bk_h",
+     "series": "",
+     "title": "The Hobbit"
+    }
+   ],
+   "name": "zip into a folder that has some parts",
+   "opts": {},
+   "tree": {
+    "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4a": "cGFydGlhbA=="
+   }
+  }
+ ],
+ "push": [
+  {
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "index": 1,
+      "op": "push",
+      "title": "The Silmarillion"
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "scruffy_rip.m4b",
+      "title": "The Silmarillion",
+      "total": 1
+     }
+    ],
+    "report": {
+     "books": 1,
+     "copied": 0,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 1
+    },
+    "uploads": [
+     {
+      "author": "J.R.R. Tolkien",
+      "files": [
+       [
+        "scruffy_rip.m4b",
+        130
+       ]
+      ],
+      "folder": "fol1",
+      "library": "lib1",
+      "series": null,
+      "title": "The Silmarillion"
+     }
+    ]
+   },
+   "name": "tagged m4a, rename undone",
+   "push": [
+    "scruffy_rip.m4a"
+   ],
+   "tree": {
+    "AUDIOBOOKS/scruffy_rip.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAHJtb292AAAAanVkdGEAAABibWV0YQAAAAAAAABWaWxzdAAAACipbmFtAAAAIGRhdGEAAAABAAAAAFRoZSBTaWxtYXJpbGxpb24AAAAmYUFSVAAAAB5kYXRhAAAAAQAAAABKLlIuUi4gVG9sa2llbg=="
+   }
+  },
+  {
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "index": 1,
+      "op": "push",
+      "title": "The Silmarillion"
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "LOUD.m4b",
+      "title": "The Silmarillion",
+      "total": 1
+     }
+    ],
+    "report": {
+     "books": 1,
+     "copied": 0,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 1
+    },
+    "uploads": [
+     {
+      "author": "J.R.R. Tolkien",
+      "files": [
+       [
+        "LOUD.m4b",
+        130
+       ]
+      ],
+      "folder": "fol1",
+      "library": "lib1",
+      "series": null,
+      "title": "The Silmarillion"
+     }
+    ]
+   },
+   "name": "uppercase extension",
+   "push": [
+    "LOUD.M4A"
+   ],
+   "tree": {
+    "AUDIOBOOKS/LOUD.M4A": "AAAAEGZ0eXBNNEEgAAAAAAAAAHJtb292AAAAanVkdGEAAABibWV0YQAAAAAAAABWaWxzdAAAACipbmFtAAAAIGRhdGEAAAABAAAAAFRoZSBTaWxtYXJpbGxpb24AAAAmYUFSVAAAAB5kYXRhAAAAAQAAAABKLlIuUi4gVG9sa2llbg=="
+   }
+  },
+  {
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "index": 1,
+      "op": "push",
+      "title": "Some Book"
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Some Book.mp3",
+      "title": "Some Book",
+      "total": 1
+     }
+    ],
+    "report": {
+     "books": 1,
+     "copied": 0,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 1
+    },
+    "uploads": [
+     {
+      "author": "",
+      "files": [
+       [
+        "Some Book.mp3",
+        7
+       ]
+      ],
+      "folder": "fol1",
+      "library": "lib1",
+      "series": null,
+      "title": "Some Book"
+     }
+    ]
+   },
+   "name": "untagged mp3, titled from its name",
+   "push": [],
+   "tree": {
+    "AUDIOBOOKS/Some Book.mp3": "bm8gdGFncw=="
+   }
+  },
+  {
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "index": 1,
+      "op": "push",
+      "title": "Big"
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "01.m4b",
+      "title": "Big",
+      "total": 3
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "02.m4b",
+      "title": "Big",
+      "total": 3
+     },
+     {
+      "done": 3,
+      "event": "progress",
+      "file": "03.mp3",
+      "title": "Big",
+      "total": 3
+     }
+    ],
+    "report": {
+     "books": 1,
+     "copied": 0,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 1
+    },
+    "uploads": [
+     {
+      "author": "Au",
+      "files": [
+       [
+        "01.m4b",
+        135
+       ],
+       [
+        "02.m4b",
+        135
+       ],
+       [
+        "03.mp3",
+        7
+       ]
+      ],
+      "folder": "fol1",
+      "library": "lib1",
+      "series": null,
+      "title": "Big"
+     }
+    ]
+   },
+   "name": "folder of parts, album is the title",
+   "push": [
+    "Big Book"
+   ],
+   "tree": {
+    "AUDIOBOOKS/Big Book/01.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAHdtb292AAAAb3VkdGEAAABnbWV0YQAAAAAAAABbaWxzdAAAAB6pbmFtAAAAFmRhdGEAAAABAAAAAFBhcnQgMQAAABupYWxiAAAAE2RhdGEAAAABAAAAAEJpZwAAABphQVJUAAAAEmRhdGEAAAABAAAAAEF1",
+    "AUDIOBOOKS/Big Book/02.m4a": "AAAAEGZ0eXBNNEEgAAAAAAAAAHdtb292AAAAb3VkdGEAAABnbWV0YQAAAAAAAABbaWxzdAAAAB6pbmFtAAAAFmRhdGEAAAABAAAAAFBhcnQgMgAAABupYWxiAAAAE2RhdGEAAAABAAAAAEJpZwAAABphQVJUAAAAEmRhdGEAAAABAAAAAEF1",
+    "AUDIOBOOKS/Big Book/cover.jpg": "eA==",
+    "AUDIOBOOKS/Big Book/sub/03.mp3": "dGFnbGVzcw=="
+   }
+  },
+  {
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "index": 1,
+      "op": "push",
+      "title": "Holes"
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "Holes.m4b",
+      "title": "Holes",
+      "total": 1
+     }
+    ],
+    "report": {
+     "books": 1,
+     "copied": 0,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 1
+    },
+    "uploads": [
+     {
+      "author": "Louis Sachar",
+      "files": [
+       [
+        "Holes.m4b",
+        50
+       ]
+      ],
+      "folder": "fol1",
+      "library": "lib1",
+      "series": "Camp",
+      "title": "Holes"
+     }
+    ]
+   },
+   "name": "a book this tool put there keeps its index record",
+   "push": [
+    "Holes.m4a"
+   ],
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkhvbGVzLm00YSI6IHsiaXRlbUlkIjogImxpX3giLCAidGl0bGUiOiAiSG9sZXMiLCAiYXV0aG9yIjogIkxvdWlzIFNhY2hhciIsICJzZXJpZXMiOiAiQ2FtcCJ9fX0=",
+    "AUDIOBOOKS/Holes.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHs="
+   }
+  }
+ ],
+ "remove": [
+  {
+   "expect": {
+    "events": [
+     {
+      "event": "item",
+      "op": "remove",
+      "title": "A - One.m4a"
+     },
+     {
+      "event": "item",
+      "op": "remove",
+      "title": "B - Two"
+     }
+    ],
+    "index": {
+     "keep.mp3": {
+      "itemId": "i3"
+     }
+    },
+    "report": {
+     "books": 0,
+     "copied": 0,
+     "errors": [],
+     "freed": 65,
+     "removed": [
+      "A - One.m4a",
+      "B - Two"
+     ],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/keep.mp3": 7,
+      "outside.mp3": 3
+     }
+    }
+   },
+   "name": "a file and a folder",
+   "names": [
+    "A - One.m4a",
+    "B - Two"
+   ],
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkEgLSBPbmUubTRhIjogeyJpdGVtSWQiOiAiaTEifSwgIkIgLSBUd28iOiB7Iml0ZW1JZCI6ICJpMiJ9LCAia2VlcC5tcDMiOiB7Iml0ZW1JZCI6ICJpMyJ9fX0=",
+    "AUDIOBOOKS/A - One.m4a": "HyYtNDtCSVBXXg==",
+    "AUDIOBOOKS/B - Two/.hidden": "HyYtNDs=",
+    "AUDIOBOOKS/B - Two/001.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaQ=",
+    "AUDIOBOOKS/B - Two/sub/002.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq",
+    "AUDIOBOOKS/keep.mp3": "HyYtNDtCSQ==",
+    "outside.mp3": "HyYt"
+   }
+  },
+  {
+   "expect": {
+    "events": [
+     {
+      "event": "item",
+      "op": "remove",
+      "title": "keep.mp3"
+     }
+    ],
+    "index": {
+     "A - One.m4a": {
+      "itemId": "i1"
+     },
+     "B - Two": {
+      "itemId": "i2"
+     }
+    },
+    "report": {
+     "books": 0,
+     "copied": 0,
+     "errors": [
+      "..: refusing a name that is not a single entry",
+      ".: refusing a name that is not a single entry",
+      ": refusing a name that is not a single entry",
+      "a/b: refusing a name that is not a single entry",
+      "/outside.mp3: refusing a name that is not a single entry",
+      "../outside.mp3: refusing a name that is not a single entry",
+      "B - Two/001.m4a: refusing a name that is not a single entry",
+      "missing.m4a: not on the device"
+     ],
+     "freed": 7,
+     "removed": [
+      "keep.mp3"
+     ],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/B - Two",
+      "AUDIOBOOKS/B - Two/sub"
+     ],
+     "files": {
+      "AUDIOBOOKS/A - One.m4a": 10,
+      "AUDIOBOOKS/B - Two/.hidden": 5,
+      "AUDIOBOOKS/B - Two/001.m4a": 20,
+      "AUDIOBOOKS/B - Two/sub/002.m4a": 30,
+      "outside.mp3": 3
+     }
+    }
+   },
+   "name": "nothing that is not a single entry",
+   "names": [
+    "..",
+    ".",
+    "",
+    "a/b",
+    "/outside.mp3",
+    "../outside.mp3",
+    "B - Two/001.m4a",
+    "missing.m4a",
+    "keep.mp3"
+   ],
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkEgLSBPbmUubTRhIjogeyJpdGVtSWQiOiAiaTEifSwgIkIgLSBUd28iOiB7Iml0ZW1JZCI6ICJpMiJ9LCAia2VlcC5tcDMiOiB7Iml0ZW1JZCI6ICJpMyJ9fX0=",
+    "AUDIOBOOKS/A - One.m4a": "HyYtNDtCSVBXXg==",
+    "AUDIOBOOKS/B - Two/.hidden": "HyYtNDs=",
+    "AUDIOBOOKS/B - Two/001.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaQ=",
+    "AUDIOBOOKS/B - Two/sub/002.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq",
+    "AUDIOBOOKS/keep.mp3": "HyYtNDtCSQ==",
+    "outside.mp3": "HyYt"
+   }
+  },
+  {
+   "expect": {
+    "events": [],
+    "index": {},
+    "report": {
+     "books": 0,
+     "copied": 0,
+     "errors": [
+      "anything: not on the device"
+     ],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "other"
+     ],
+     "files": {
+      "other/x.mp3": 1
+     }
+    }
+   },
+   "name": "no books folder at all",
+   "names": [
+    "anything"
+   ],
+   "tree": {
+    "other/x.mp3": "eA=="
+   }
+  }
+ ],
+ "safeSubdir": [
+  {
+   "in": "AUDIOBOOKS",
+   "out": [
+    "AUDIOBOOKS"
+   ]
+  },
+  {
+   "in": "",
+   "out": [
+    "AUDIOBOOKS"
+   ]
+  },
+  {
+   "in": null,
+   "out": [
+    "AUDIOBOOKS"
+   ]
+  },
+  {
+   "in": "../../etc",
+   "out": [
+    "etc"
+   ]
+  },
+  {
+   "in": "../..",
+   "out": [
+    "AUDIOBOOKS"
+   ]
+  },
+  {
+   "in": "/etc/passwd",
+   "out": [
+    "etc",
+    "passwd"
+   ]
+  },
+  {
+   "in": "Music\\Books",
+   "out": [
+    "Music",
+    "Books"
+   ]
+  },
+  {
+   "in": "a//b/./c",
+   "out": [
+    "a",
+    "b",
+    "c"
+   ]
+  },
+  {
+   "in": "  Audio Books  ",
+   "out": [
+    "Audio Books"
+   ]
+  },
+  {
+   "in": "Untitled",
+   "out": [
+    "AUDIOBOOKS"
+   ]
+  },
+  {
+   "in": "Untitled/x",
+   "out": [
+    "x"
+   ]
+  },
+  {
+   "in": "...",
+   "out": [
+    "..."
+   ]
+  },
+  {
+   "in": "\u65e5\u672c",
+   "out": [
+    "AUDIOBOOKS"
+   ]
+  },
+  {
+   "in": "B\u00fccher/H\u00f6rb\u00fccher",
+   "out": [
+    "Bucher",
+    "Horbucher"
+   ]
+  },
+  {
+   "in": "a:b/c*d",
+   "out": [
+    "ab",
+    "cd"
+   ]
+  },
+  {
+   "in": "\\\\server\\share",
+   "out": [
+    "server",
+    "share"
+   ]
+  }
+ ],
+ "sourceExt": [
+  {
+   "in": "X.m4a",
+   "out": ".m4b"
+  },
+  {
+   "in": "X.M4A",
+   "out": ".m4b"
+  },
+  {
+   "in": "X.mp3",
+   "out": ".mp3"
+  },
+  {
+   "in": "X.m4b",
+   "out": ".m4b"
+  },
+  {
+   "in": "noext",
+   "out": ""
+  },
+  {
+   "in": "a/b.M4a",
+   "out": ".m4b"
+  }
+ ],
+ "targetName": [
+  {
+   "book": {
+    "author": "Brian Jacques",
+    "title": "Redwall"
+   },
+   "out": "Brian Jacques - Redwall",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "",
+    "title": "Holes"
+   },
+   "out": "Holes",
+   "template": "{author} - {title}"
+  },
+  {
+   "book": {
+    "author": "Louis Sachar",
+    "title": ""
+   },
+   "out": "Louis Sachar",
+   "template": "{author} - {title}"
+  },
+  {
+   "book": {
+    "author": "{title}",
+    "title": "Echo"
+   },
+   "out": "Echo - Echo",
+   "template": "{author} - {title}"
+  },
+  {
+   "book": {
+    "author": "A",
+    "title": "{author}"
+   },
+   "out": "A - {author}",
+   "template": "{author} - {title}"
+  },
+  {
+   "book": {
+    "author": "Brian Jacques",
+    "series": "Redwall 1",
+    "title": "Redwall"
+   },
+   "out": "Redwall 1Redwall",
+   "template": "{series}/{title}"
+  },
+  {
+   "book": {
+    "author": "Tolkien",
+    "series": null,
+    "title": "The Hobbit"
+   },
+   "out": "TolkienThe Hobbit",
+   "template": "{author}/{series}/{title}"
+  },
+  {
+   "book": {
+    "author": "X",
+    "title": "Y"
+   },
+   "out": "X - Y",
+   "template": ""
+  },
+  {
+   "book": {
+    "title": "Only a title"
+   },
+   "out": "Only a title ()",
+   "template": "{title} ({author})"
+  },
+  {
+   "book": {
+    "author": "  - - ",
+    "title": " - "
+   },
+   "out": "Untitled",
+   "template": "{author} - {title}"
+  },
+  {
+   "book": {
+    "author": "Pema Ch\u00f6dr\u00f6n",
+    "title": "When Things Fall Apart: Heart Advice"
+   },
+   "out": "Pema Chodron - When Things Fall Apart Heart Advice",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "N",
+    "title": "--Dashes--"
+   },
+   "out": "Dashes",
+   "template": "--{title}--"
+  },
+  {
+   "book": {
+    "author": "Ann",
+    "series": "S",
+    "title": "Book"
+   },
+   "out": "BookBook [S]",
+   "template": "{title}{title} [{series}]"
+  },
+  {
+   "book": {
+    "author": "Ann",
+    "title": "What? \"No\" <way> | maybe*"
+   },
+   "out": "Ann - What No way maybe",
+   "template": "{author} - {title}"
+  },
+  {
+   "book": {
+    "author": "\u65e5\u672c",
+    "title": "\u672c"
+   },
+   "out": "Untitled",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "A",
+    "title": "B"
+   },
+   "out": "{unknown} B",
+   "template": "{unknown} {title}"
+  },
+  {
+   "book": {
+    "author": "_",
+    "title": "_Under_."
+   },
+   "out": "_ - _Under_.",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "",
+    "title": "-.-"
+   },
+   "out": ".",
+   "template": "{author}--{title}--"
+  },
+  {
+   "book": {
+    "author": "'",
+    "title": "(Brackets)"
+   },
+   "out": "'(Brackets)",
+   "template": "{author}{title}"
+  }
+ ]
+}

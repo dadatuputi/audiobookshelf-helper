@@ -24,6 +24,7 @@
   const BTN_ID = "absh-sync-btn";
   const PANEL_ID = "absh-panel";
   const BADGE = "absh-badge";
+  const RESTORE_ID = "absh-folder-notice";
   const TAG = "ABSH_ITEMS";
 
   /* id -> {title, author}, learned from the page's own API traffic. */
@@ -37,7 +38,12 @@
   /* ------------------------------------------------------------ plumbing */
   function send(msg) {
     return browser.runtime.sendMessage(msg).then((r) => {
-      if (!r || !r.ok) throw new Error((r && r.error) || "no response");
+      if (!r || !r.ok) {
+        const e = new Error((r && r.error) || "no response");
+        // Set only by Chrome's folder backend; says what would fix it.
+        e.code = r && r.code;
+        throw e;
+      }
       return r.data;
     });
   }
@@ -62,12 +68,22 @@
      than waiting out the whole refresh interval - a transient failure used to
      leave the page bare for a full minute. */
   let statusRetry = 0;
+  /* Chrome, writing to a chosen folder instead of through the helper. No
+   * event says a player came or went, so the page looks again whenever the
+   * user returns to it. Never true on Firefox. */
+  let folderMode = false;
   async function loadStatus() {
     try {
       STATUS = await send({ type: "status", readTags: true });
       statusRetry = 0;
+      folderMode = STATUS.backend === "folder";
+      folderNotice(null);
     } catch (e) {
       STATUS = { error: String(e.message || e), both: [], serverOnly: [], deviceOnly: [] };
+      if (e.code && String(e.code).startsWith("folder-")) {
+        folderMode = true;
+        folderNotice(e);
+      }
       // Keep trying rather than giving up after a few goes: the status is the
       // card-to-book mapping, so while it is failing the page has no badges at
       // all, and stopping left it dead. The long tail is only a backstop now -
@@ -279,6 +295,32 @@
     return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)}${u[i]}`;
   }
 
+  /* Why the folder cannot be used, and the way to fix it, kept on screen
+   * until it is fixed - a passing note would be gone before anyone acted on
+   * it. Restoring access takes a click on one of the extension's own pages,
+   * so the button opens Options rather than trying from here. */
+  function folderNotice(err) {
+    let el = document.getElementById(RESTORE_ID);
+    if (!err) {
+      if (el) el.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement("div");
+      el.id = RESTORE_ID;
+      document.body.appendChild(el);
+    }
+    el.innerHTML = "";
+    const text = document.createElement("span");
+    text.textContent = `Audiobookshelf Helper: ${err.message}`;
+    el.appendChild(text);
+    if (err.code !== "folder-missing") {
+      el.appendChild(button("Open Options", "Open the extension's options", "absh-primary", () => {
+        browser.runtime.sendMessage({ type: "openFolderOptions" }).catch(() => {});
+      }));
+    }
+  }
+
   function note(text, bad) {
     let el = document.getElementById("absh-note");
     if (!el) {
@@ -327,7 +369,7 @@
      half of all page loads never learned the cards had appeared and sat with
      no badges at all. Judge each record instead. */
   function ownMutation(rec) {
-    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note`;
+    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note, #${RESTORE_ID}`;
     const el = rec.target && rec.target.nodeType === 1
       ? rec.target : rec.target && rec.target.parentElement;
     if (el && el.closest && el.closest(own)) return true;
@@ -359,6 +401,19 @@
       }
     });
   } catch (e) { /* no live extension context; the backstop still runs */ }
+
+  // The folder backend's stand-in for the helper's device events: coming back
+  // to this tab - from plugging the player in, or from allowing access in
+  // Options - is when something is likeliest to have changed.
+  let lastLook = 0;
+  const lookAgain = () => {
+    if (!folderMode || document.visibilityState !== "visible") return;
+    if (Date.now() - lastLook < 1000) return;      // focus and visibility arrive together
+    lastLook = Date.now();
+    loadStatus();
+  };
+  document.addEventListener("visibilitychange", lookAgain);
+  window.addEventListener("focus", lookAgain);
 
   render();
   loadStatus();

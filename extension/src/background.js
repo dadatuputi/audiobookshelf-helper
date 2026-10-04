@@ -7,6 +7,11 @@
  * So the filesystem work is delegated to the native messaging host, and this
  * script is only an API client plus a bridge.
  *
+ * Chrome does implement it, so the Chrome build carries a second way for a
+ * user who will not install the helper: folder.js, against a folder they
+ * chose. It sits beside the helper rather than replacing it - see "the
+ * player's folder" below for which one answers.
+ *
  * Pure logic lives in lib.js (globalThis.ABSH) so it can be unit tested
  * without a browser.
  */
@@ -300,9 +305,89 @@ async function installUpdate(tag, onProgress) {
   return r;
 }
 
+/* ---------------------------------------------------- the player's folder
+ *
+ * Chrome only. build.py imports folder.js into the Chrome bundle and nowhere
+ * else, so on Firefox FOLDER is null and every request below goes to the
+ * helper exactly as it always has.
+ *
+ * On Chrome a user who cannot install the helper can choose the player's
+ * folder instead. The helper still wins whenever it answers: it finds the
+ * player by itself, hears it plugged in, and needs no permission renewed.
+ * The folder is used when the helper does not answer, or when the user asked
+ * for it outright, and never before a folder has been chosen. */
+const FOLDER = globalThis.ABSH_FOLDER || null;
+
+async function folderChosen() {
+  try {
+    return !!(await FOLDER.loadHandle());
+  } catch {
+    return false;
+  }
+}
+
+/** Which one answers a request about the device: "helper" or "folder". */
+async function backend() {
+  if (!FOLDER || !(await folderChosen())) return "helper";
+  const { folderMode } = await browser.storage.local.get({ folderMode: "auto" });
+  if (folderMode === "always") return "folder";
+  return (await ping()).ok ? "helper" : "folder";
+}
+
+/* The settings each command takes from the request - the same picks call()
+ * makes for the helper below. */
+const FOLDER_ARGS = {
+  status: (m) => ({ libraryId: m.libraryId, readTags: m.readTags !== false }),
+  pull: (m) => ({ ids: m.ids, libraryId: m.libraryId }),
+  push: (m) => ({ names: m.names, libraryId: m.libraryId, folderId: m.folderId }),
+  remove: (m) => ({ names: m.names }),
+  libraries: () => ({}),
+  folders: (m) => ({ libraryId: m.libraryId }),
+};
+
+async function viaFolder(type, msg, onProgress) {
+  // A copy runs here, in the worker, and a book can take minutes. Calling an
+  // extension API resets the worker's idle timer, which is the documented
+  // way to keep it alive through work that makes no other API calls.
+  const keepAlive = setInterval(() => {
+    Promise.resolve(browser.runtime.getPlatformInfo()).catch(() => {});
+  }, 20_000);
+  try {
+    const r = await FOLDER.run(type, { ...(await cfg()), ...FOLDER_ARGS[type](msg) },
+                               onProgress || undefined);
+    if (type === "libraries") return r.libraries;
+    if (type === "folders") return r.folders;
+    return r;
+  } finally {
+    clearInterval(keepAlive);
+  }
+}
+
+/** ping, from whichever backend would answer. When neither can, the helper's
+ *  error - plus, on Chrome, word that a folder would do instead. */
+async function pingEither() {
+  if (!FOLDER) return ping();
+  if ((await backend()) === "folder") return FOLDER.run("ping", await cfg());
+  const p = await ping();
+  return p.ok ? p : { ...p, folderAvailable: true };
+}
+
 /* --------------------------------------------------------------- routing */
 async function route(msg, onProgress) {
-  switch (msg && msg.type) {
+  const type = msg && msg.type;
+  if (FOLDER) {
+    if (FOLDER_ARGS[type] && (await backend()) === "folder") {
+      return { ok: true, data: await viaFolder(type, msg, onProgress) };
+    }
+    if (type === "ping") return { ok: true, data: await pingEither() };
+    if (type === "openFolderOptions") {
+      // Restoring access needs a click on one of the extension's own pages;
+      // the library page can only send the user there.
+      await browser.runtime.openOptionsPage();
+      return { ok: true };
+    }
+  }
+  switch (type) {
     case "libraries": return { ok: true, data: (await call("libraries")).libraries };
     case "folders":   return { ok: true, data: (await call("folders", { libraryId: msg.libraryId })).folders };
     case "devices":   return { ok: true, data: (await call("devices")).devices };
@@ -348,13 +433,19 @@ async function onHostEvent(msg) {
   }
 }
 
+/* A refusal can carry a code saying what would fix it - the folder backend's
+ * "Chrome needs your OK again", say - so the page can offer the fix rather
+ * than only the sentence. The helper's refusals carry none. */
+const failure = (e) => ({ ok: false, error: String((e && e.message) || e),
+                          ...(e && e.code ? { code: e.code } : {}) });
+
 /* Chrome does NOT support returning a promise from an onMessage listener - the
  * sender just receives undefined. Firefox does. Answering through
  * sendResponse and returning true works in both. */
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   route(msg).then(
     (r) => sendResponse(r),
-    (e) => sendResponse({ ok: false, error: String((e && e.message) || e) })
+    (e) => sendResponse(failure(e))
   );
   return true;
 });
@@ -371,7 +462,7 @@ browser.runtime.onConnect.addListener((p) => {
     try {
       reply(await route(msg, onProgress));
     } catch (e) {
-      reply({ ok: false, error: String((e && e.message) || e) });
+      reply(failure(e));
     }
   });
 });

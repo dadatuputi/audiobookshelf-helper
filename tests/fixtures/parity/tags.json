@@ -1,0 +1,383 @@
+{
+ "books": [
+  {
+   "files": [
+    "basic.m4a"
+   ],
+   "out": {
+    "album": "",
+    "author": "Brian Jacques",
+    "title": "Redwall"
+   }
+  },
+  {
+   "files": [
+    "album artist wins.m4a",
+    "basic.m4a"
+   ],
+   "out": {
+    "album": "Alb",
+    "author": "Author",
+    "title": "Alb"
+   }
+  },
+  {
+   "files": [
+    "basic.m4a",
+    "album artist wins.m4a"
+   ],
+   "out": {
+    "album": "",
+    "author": "Brian Jacques",
+    "title": "Redwall"
+   }
+  },
+  {
+   "files": [
+    "garbage.m4a"
+   ],
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "garbage"
+   }
+  },
+  {
+   "files": [
+    "no moov.m4a",
+    "basic.m4a"
+   ],
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "no moov"
+   }
+  },
+  {
+   "files": [
+    "empty.m4a"
+   ],
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "empty"
+   }
+  },
+  {
+   "files": [],
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  }
+ ],
+ "files": [
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAGhtb292AAAAYHVkdGEAAABYbWV0YQAAAAAAAABMaWxzdAAAAB+pbmFtAAAAF2RhdGEAAAABAAAAAFJlZHdhbGwAAAAlYUFSVAAAAB1kYXRhAAAAAQAAAABCcmlhbiBKYWNxdWVz",
+   "name": "basic.m4a",
+   "out": {
+    "album": "",
+    "author": "Brian Jacques",
+    "title": "Redwall"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAF1tb292AAAAVXVkdGEAAABNbWV0YQAAAAAAAABBaWxzdAAAABmpbmFtAAAAEWRhdGEAAAABAAAAAFQAAAAgqUFSVAAAABhkYXRhAAAAAQAAAABOYXJyYXRvcg==",
+   "name": "artist only.m4b",
+   "out": {
+    "album": "",
+    "author": "Narrator",
+    "title": "T"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAJ1tb292AAAAlXVkdGEAAACNbWV0YQAAAAAAAACBaWxzdAAAACCpQVJUAAAAGGRhdGEAAAABAAAAAE5hcnJhdG9yAAAAHmFBUlQAAAAWZGF0YQAAAAEAAAAAQXV0aG9yAAAAIKl3cnQAAAAYZGF0YQAAAAEAAAAAQ29tcG9zZXIAAAAbqWFsYgAAABNkYXRhAAAAAQAAAABBbGI=",
+   "name": "album artist wins.m4a",
+   "out": {
+    "album": "Alb",
+    "author": "Author",
+    "title": ""
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAF1tb292AAAAVXVkdGEAAABNbWV0YQAAAAAAAABBaWxzdAAAABmpbmFtAAAAEWRhdGEAAAABAAAAAEMAAAAgqXdydAAAABhkYXRhAAAAAQAAAABDb21wb3Nlcg==",
+   "name": "composer only.mp4",
+   "out": {
+    "album": "",
+    "author": "Composer",
+    "title": "C"
+   }
+  },
+  {
+   "b64": "AAAADGZ0eXBNNEEgAAAAX21vb3YAAABXdWR0YQAAAE9tZXRhAAAAAAAAAENpbHN0AAAAHaluYW0AAAAVZGF0YQAAAAEAAAAARmlyc3QAAAAeqW5hbQAAABZkYXRhAAAAAQAAAABTZWNvbmQ=",
+   "name": "later atom wins.m4p",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Second"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAAFtb292AAAAAAAAAGUAAABVdWR0YQAAAE1tZXRhAAAAAAAAAEFpbHN0AAAAIKluYW0AAAAYZGF0YQAAAAEAAAAAQmlnIHNpemUAAAAZYUFSVAAAABFkYXRhAAAAAQAAAABR",
+   "name": "64-bit moov.m4a",
+   "out": {
+    "album": "",
+    "author": "Q",
+    "title": "Big size"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAE5BtZGF0BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcAAABtbW9vdgAAAGV1ZHRhAAAAXW1ldGEAAAAAAAAAUWlsc3QAAAAoqW5hbQAAACBkYXRhAAAAAQAAAABBZnRlciBhIGJpZyBtZGF0AAAAIWFBUlQAAAAZZGF0YQAAAAEAAAAATGF0ZSBNb292",
+   "name": "moov at the end.m4a",
+   "out": {
+    "album": "",
+    "author": "Late Moov",
+    "title": "After a big mdat"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAFxtb292AAAAVHVkdGEAAABMbWV0YQAAAAAAAABAaWxzdAAAABupbmFtAAAAE2RhdGEAAAABAAAAAEN1dAAAAB1hQVJUAAAAFWRhdGEAAAABAAAA",
+   "name": "truncated.m4a",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "AAAADGZ0eXBNNEEgAAAAd21vb3YAAABvdWR0YQAAAGdtZXRhAAAAAAAAAFtpbHN0AAAAOKluYW0AAAAQZGF0YQAAAAEAAAAAAAAAIGRhdGEAAAABAAAAAFNlY29uZCBkYXRhIHdpbnMAAAAbYUFSVAAAABNkYXRhAAAAAQAAAABSYXc=",
+   "name": "short data atom.m4a",
+   "out": {
+    "album": "",
+    "author": "Raw",
+    "title": "Second data wins"
+   }
+  },
+  {
+   "b64": "AAAADGZ0eXBNNEEgAAAAAG1vb3YAAAA4dWR0YQAAADBtZXRhAAAAAAAAACRpbHN0AAAAHKluYW0AAAAUZGF0YQAAAAEAAAAAWmVybw==",
+   "name": "size zero atom.m4a",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Zero"
+   }
+  },
+  {
+   "b64": "AAAADGZ0eXBNNEEgAAAAEG1vb3YAAAAIdHJhawAAAEdtb292AAAAP3VkdGEAAAA3bWV0YQAAAAAAAAAraWxzdAAAACOpbmFtAAAAG2RhdGEAAAABAAAAAFNlY29uZCBtb292",
+   "name": "first moov has no tags.m4a",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAG1tb292AAAAZXVkdGEAAABdbWV0YQAAAAAAAABRaWxzdAAAACypbmFtAAAAJGRhdGEAAAABAAAAAG9rIP/+IGJhZCDtoIAgZW5kIOKCAAAAHWFBUlQAAAAVZGF0YQAAAAEAAAAAw6l0w6k=",
+   "name": "bad utf-8.m4a",
+   "out": {
+    "album": "",
+    "author": "\u00e9t\u00e9",
+    "title": "ok \ufffd\ufffd bad \ufffd\ufffd\ufffd end \ufffd"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAG1tb292AAAAZXVkdGEAAABdbWV0YQAAAAAAAABRaWxzdAAAACepbmFtAAAAH2RhdGEAAAABAAAAACAc77u/VGl0bGXCoMKFIAAAACJhQVJUAAAAGmRhdGEAAAABAAAAAOOAgFdpZGXigIM=",
+   "name": "whitespace.m4a",
+   "out": {
+    "album": "",
+    "author": "Wide",
+    "title": "\ufeffTitle"
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAEFtb292AAAAOXVkdGEAAAAxbWV0YQAAAAAAAAAlaWxzdAAAAB2pbmFtAAAAFWRhdGEAAAABAAAAAFVwcGVy",
+   "name": "UPPER.M4A",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Upper"
+   }
+  },
+  {
+   "b64": "AAAADGZ0eXBNNEEgAAAAMG1kYXR4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4",
+   "name": "no moov.m4a",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "AAAAAmp1bms=",
+   "name": "garbage.m4a",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "",
+   "name": "empty.m4a",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAMFRJVDIAAAAGAAAAQ2Fm6SBUUEUxAAAABgAAAICTn+n/VEFMQgAAAAYAAABBbGJ1bf/7kAD/+5AA//uQAP/7kAA=",
+   "name": "latin1.mp3",
+   "out": {
+    "album": "Album",
+    "author": "\u0080\u0093\u009f\u00e9\u00ff",
+    "title": "Caf\u00e9"
+   }
+  },
+  {
+   "b64": "SUQzBAAAAAAAL1RJVDIAAAAPAAADw5xuw69jb2RlIHYyLjRUUEUyAAAADAAAA++7v0JPTSBrZXB0//uQAP/7kAD/+5AA//uQAA==",
+   "name": "v24.mp3",
+   "out": {
+    "album": "",
+    "author": "\ufeffBOM kept",
+    "title": "\u00dcn\u00efcode v2.4"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAALFRJVDIAAAAPAAAB//5MAGkAdAB0AGwAZQBUUEUxAAAACQAAAf7/AEIAaQBn//uQAP/7kAD/+5AA//uQAA==",
+   "name": "utf16 le bom.mp3",
+   "out": {
+    "album": "",
+    "author": "Big",
+    "title": "Little"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAGFRJVDIAAAAOAAABTgBhAHQAaQB2AGUAQf/7kAD/+5AA//uQAP/7kAA=",
+   "name": "utf16 no bom.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Native\ufffd"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAANFRJVDIAAAAbAAAC/v8AQgBFACAAawBlAGUAcABzACAAQgBPAE1UUEUxAAAABQAAAtgAAEH/+5AA//uQAP/7kAD/+5AA",
+   "name": "utf16be.mp3",
+   "out": {
+    "album": "",
+    "author": "\ufffdA",
+    "title": "\ufeffBE keeps BOM"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAI1RJVDIAAAAJAAAAT25lAFR3bwBUUEUxAAAABgAAAwBMZWFk//uQAP/7kAD/+5AA//uQAA==",
+   "name": "nuls.mp3",
+   "out": {
+    "album": "",
+    "author": "Lead",
+    "title": "One Two"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAL1RJVDIAAAAHAAAAQmVmb3JlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uQAP/7kAD/+5AA//uQAA==",
+   "name": "padding stops it.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Before"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAGVRJVDIAAAAFAAAAS2VwdFRQRTEAAAAAAAD/+5AA//uQAP/7kAD/+5AA",
+   "name": "zero size frame.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Kept"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAE1RJVDIAAAAJAAAAS2VwdA==",
+   "name": "oversized frame.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAALVRQRTEAAAAFAAAATmFyclRQRTIAAAAFAAAAQXV0aFRSQ0sAAAAFAAAAMy8xMP/7kAD/+5AA//uQAP/7kAA=",
+   "name": "album artist wins.mp3",
+   "out": {
+    "album": "",
+    "author": "Auth",
+    "title": ""
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAH1RJVDIAAAAVAAAHVHJlYXRlZCBhcyBVVEYtOCDinJP/+5AA//uQAP/7kAD/+5AA",
+   "name": "unknown encoding.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Treated as UTF-8 \u2713"
+   }
+  },
+  {
+   "b64": "SUQzAgAAAAAAHlRJVDIAAAAUAAAAdjIuMiBwYXJzZWQgYXMgdjIuM//7kAD/+5AA//uQAP/7kAA=",
+   "name": "v22.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "v2.2 parsed as v2.3"
+   }
+  },
+  {
+   "b64": "SUQzAwAAAAAAFFRJVDIAAAAKAAAAVXBwZXIgbXAz//uQAP/7kAD/+5AA//uQAA==",
+   "name": "UPPER.MP3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": "Upper mp3"
+   }
+  },
+  {
+   "b64": "//uQAP/7kAD/+5AA//uQAP/7kAD/+5AA//uQAP/7kAD/+5AA//uQAA==",
+   "name": "not id3.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "SUQzAw==",
+   "name": "short.mp3",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAEZtb292AAAAPnVkdGEAAAA2bWV0YQAAAAAAAAAqaWxzdAAAACKpbmFtAAAAGmRhdGEAAAABAAAAAE5ldmVyIHJlYWQ=",
+   "name": "tagged.flac",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  },
+  {
+   "b64": "AAAAEGZ0eXBNNEEgAAAAAAAAAE1tb292AAAARXVkdGEAAAA9bWV0YQAAAAAAAAAxaWxzdAAAACmpbmFtAAAAIWRhdGEAAAABAAAAAE5ldmVyIHJlYWQgZWl0aGVy",
+   "name": "noext",
+   "out": {
+    "album": "",
+    "author": "",
+    "title": ""
+   }
+  }
+ ]
+}
