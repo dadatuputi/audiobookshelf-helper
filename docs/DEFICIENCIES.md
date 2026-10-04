@@ -6,9 +6,9 @@ and can be wrong in public. Every claim here was checked against the code or
 a real run on the date noted; where something is believed rather than
 verified, it says so.
 
-Last reviewed: 2026-10-03, against `0138d94`. Status lines record what
+Last reviewed: 2026-10-04, against `4c76f2f`. Status lines record what
 changed since the list was written, with the commit that did it. CI at
-`0138d94` is green on every job, including the helper's suite on Windows,
+`4c76f2f` is green on every job, including the helper's suite on Windows,
 macOS and Linux under Python 3.9, 3.11 and 3.13.
 
 ---
@@ -56,8 +56,10 @@ and never install Python. What that loses:
   sanctioned mechanism, which is exactly what this project uses.
 - **Finding the device.** `devices.py` lists and scores removable volumes so
   the user picks from a list. The web API has no equivalent — the user
-  navigates a native dialog to the mount point themselves, every time the
-  grant is lost.
+  navigates a native dialog to the mount point themselves, and has to
+  restore access whenever the grant lapses - which, measured in Chromium
+  141, is on every restart and within about 1.5 seconds of the extension's
+  last tab closing, unless the user chose "Allow on every visit".
 - **Mount and unmount events.** There is no web API for this. The work in
   `absh/mounts.py` (POLLPRI on `/proc/self/mountinfo`, kqueue on
   `/Volumes`) has no browser counterpart, so the page would be back to
@@ -160,6 +162,12 @@ against the old code.
 **Status:** `0138d94`. `__pycache__` is cleared wherever a file lands; only
 the execute bits an archive records are restored, on POSIX.
 
+### N4. The privacy policy misdescribed the API key — FIXED (`c9ffff0`)
+It said the key goes in download URLs and that nothing is written to the
+server. Neither was true: every request authenticates with a header, and
+uploads write to the server on request. The unused function that could
+build a key-bearing URL is gone, and a test holds the code to the policy.
+
 ---
 
 ## Todo
@@ -190,8 +198,17 @@ Over Firefox's remote debugging protocol. Proven in CI: all five tests ran
 and passed in a real Firefox. The Grant button still needs a trusted user
 gesture, so permission granting is covered only in Chromium.
 
-### T7. Optional helper-free mode on Chromium — IN PROGRESS
-See the research section. Being built as a second backend beside the helper.
+### T7. Optional helper-free mode on Chromium — DONE (`6e80c35`)
+Chrome users can pick the player's folder instead of installing the helper.
+The helper still wins whenever it answers; Firefox's bundle carries none of
+it and no manifest gained a permission. Every helper operation a browser can
+do is ported (status, copy, remove, upload, and the MP4/ID3 tag readers),
+held to the helper's exact results by shared test vectors that both the
+Python and JS suites check. The cost is the grant lifecycle above: without
+"Allow on every visit", the options tab has to stay open while copying.
+**Unverified:** a real removable disk, Chrome's real permission prompts
+(including whether "Allow on every visit" is offered to an extension), real
+Chrome rather than Chromium, and Windows/macOS.
 
 ### T8. Surface that Windows is polling — DONE (`0138d94`)
 
