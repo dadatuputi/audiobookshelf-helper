@@ -137,7 +137,9 @@ class CiSign(unittest.TestCase):
         self.assertFalse(self.out.exists())
 
 
-@unittest.skipIf(W.BASH is None, "needs bash, as Actions has")
+# The release workflow only ever runs on Linux runners, so its bash is tested
+# where it runs - the same guard the other workflow-step tests use.
+@unittest.skipUnless(W.CAN_RUN, "runs the workflow's bash; not on Windows")
 class Workflow(unittest.TestCase):
     """The package job's guard and sign steps, and github-release's re-cut path."""
 

@@ -123,8 +123,14 @@ def run_step(job, name, env, cwd, path_prepend=(), allow=()):
     if undeclared:
         raise AssertionError(f"{name} does not declare {sorted(undeclared)} in env:")
     cwd = Path(cwd)
-    outputs_file = Path(tempfile.mkstemp(prefix="gh-output-")[1])
-    script = Path(tempfile.mkstemp(prefix="step-", suffix=".sh")[1])
+    # mkstemp hands back an open descriptor as well as the name; close it, or
+    # the file cannot be deleted afterwards on Windows (WinError 32).
+    fd, name = tempfile.mkstemp(prefix="gh-output-")
+    os.close(fd)
+    outputs_file = Path(name)
+    fd, name = tempfile.mkstemp(prefix="step-", suffix=".sh")
+    os.close(fd)
+    script = Path(name)
     script.write_text(s["run"])
     full = {
         "PATH": os.pathsep.join([*map(str, path_prepend), os.environ.get("PATH", "")]),
