@@ -28,12 +28,14 @@ None of it leaves your computer. It is removed when you uninstall the add-on.
 Two things, both yours:
 
 1. **Your Audiobookshelf server**, at the address you enter. The add-on reads
-   your libraries and book list, and downloads books you select. Nothing is
-   written back to the server.
+   your libraries and book list, and downloads books you select. The only
+   thing it ever writes to the server is a book you explicitly ask it to
+   upload from your player.
 2. **A native helper program on your own computer**, installed by you, which
-   copies files onto your USB player. It receives the book details and the
-   download URL for the books you selected, and reports back what it copied,
-   what is already on the device, and what it deleted when you ask it to.
+   copies files onto your USB player. It receives your server address, your
+   API key and which books you selected, downloads them from your server
+   itself, and reports back what it copied, what is already on the device, and
+   what it deleted or uploaded when you ask it to.
 
 In Chrome you can choose your player's folder instead of installing the helper.
 Then there is no second thing: the add-on downloads the books you select from
@@ -46,18 +48,13 @@ access to exactly one origin — yours — which you grant explicitly.
 
 ## Your API key
 
-Your API key is stored in extension storage and sent to your own server in two
-ways: as an `Authorization: Bearer` header on API requests, and as a `?token=`
-query parameter on download URLs. The second form exists because the browser
-cannot attach headers to the download the helper performs, and Audiobookshelf
-accepts the token either way.
-
-That means your API key appears in the download URL handed to the local helper.
-It stays on your machine and is not logged by the add-on. Treat it as you would
-any credential: if your server is exposed to the internet, prefer a scoped key.
-
-Without the helper, in Chrome, every request uses the header; the key is never
-put in a URL.
+Your API key is stored in extension storage and sent only to your own server,
+only as an `Authorization: Bearer` header - for API requests and downloads
+alike, with or without the helper. It is never put in a URL, so it does not
+end up in your server's access log or any proxy's. The helper receives it over
+the browser's local connection to it and keeps it in memory only. Treat it as
+you would any credential: if your server is exposed to the internet, prefer a
+scoped key.
 
 ## Permissions, and why each is needed
 

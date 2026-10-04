@@ -191,13 +191,40 @@ class TestClient(unittest.TestCase):
             with self.assertRaises(AbsError):
                 Client(bad, "k")
 
-    def test_download_url_carries_the_token(self):
-        c = Client("http://x:13378/", "tok")
-        self.assertEqual(c.download_url("li_1"),
-                         "http://x:13378/api/items/li_1/download?token=tok")
+    def test_a_download_sends_the_key_in_a_header_and_never_in_the_url(self):
+        """What store/PRIVACY.md promises. A key in a URL is written to the
+        server's access log and to any proxy between, so it must not be one."""
+        import threading
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        seen = {}
 
-    def test_download_url_escapes(self):
-        self.assertIn("token=a%20b", Client("http://x", "a b").download_url("i"))
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                seen["path"] = self.path
+                seen["auth"] = self.headers.get("Authorization")
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+        srv = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            key = "s3cret key"
+            c = Client(f"http://127.0.0.1:{srv.server_address[1]}", key)
+            with c.open_download("li_1") as r:
+                self.assertEqual(r.read(), b"ok")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+        self.assertEqual(seen["auth"], f"Bearer {key}")
+        self.assertNotIn("token", seen["path"])
+        self.assertNotIn("s3cret", seen["path"])
+        self.assertFalse(hasattr(Client, "download_url"),
+                         "a helper that builds a key-bearing URL is back")
 
     def test_multipart_is_valid_and_binary_survives(self):
         body, ctype = _encode_multipart(

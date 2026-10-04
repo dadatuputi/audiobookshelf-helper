@@ -69,10 +69,11 @@ def _encode_multipart(fields, files):
 class Client:
     """A thin Audiobookshelf client.
 
-    Auth is an API key from Settings -> API Keys. It goes in the Authorization
-    header for API calls, and as ?token= on download URLs - Audiobookshelf
-    accepts both, which is what lets a plain URL be handed to a downloader that
-    cannot set headers.
+    Auth is an API key from Settings -> API Keys, sent only in the
+    Authorization header - downloads included. Audiobookshelf would also take
+    it as ?token= in a URL, and this used to build such URLs; nothing used
+    them, and a key in a URL ends up in server logs and proxies, so it never
+    goes in one. store/PRIVACY.md says so, and a test holds the code to it.
     """
 
     def __init__(self, url, api_key, timeout=DEFAULT_TIMEOUT, opener=None):
@@ -153,11 +154,6 @@ class Client:
                 f"/items?limit=0&minified=1")
         d = self._json(path)
         return [normalize_item(it) for it in (d.get("results") or [])]
-
-    def download_url(self, item_id):
-        """A URL that authenticates itself, for handing to a plain downloader."""
-        return (f"{self.base}/api/items/{urllib.parse.quote(str(item_id))}"
-                f"/download?token={urllib.parse.quote(self.api_key)}")
 
     def open_download(self, item_id, timeout=DOWNLOAD_TIMEOUT):
         """Open the download stream for an item. Caller closes it."""
