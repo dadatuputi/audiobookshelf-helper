@@ -217,7 +217,7 @@ async function configure(ctx, { absUrl, dev, lib }) {
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
   await page.click("#save");
-  await expect(page.locator("#msg")).toHaveText("saved");
+  await expect(page.locator("#msg")).toContainText("Saved URL and API key");
   // The player is chosen in the popup now; the popup tests below drive that.
   // Setup only needs it set, so it goes straight into storage.
   await page.evaluate((d) => chrome.storage.local.set({ devicePath: d }), dev);
@@ -356,8 +356,12 @@ test.describe("full loop in a real browser", () => {
       await page.fill("#devicePath", elsewhere);
       await expect.poll(() => stored(page, "devicePath"), { timeout: 5_000 }).toBe(elsewhere);
       await page.close();
+      // Reopened, it is still the player on record: the card names it as the
+      // one that isn't plugged in, and the suggestion beside it is only that.
       const again = await popupPage(env.ctx);
-      await expect(again.locator("#devicePath")).toHaveValue(elsewhere);
+      await expect(again.locator("#playerWas")).toHaveText(basename(elsewhere),
+                                                           { timeout: 20_000 });
+      expect(await stored(again, "devicePath")).toBe(elsewhere);
       await again.close();
     } finally {
       const fix = await env.ctx.newPage();
@@ -378,8 +382,19 @@ test.describe("full loop in a real browser", () => {
       await expect(page.locator("#playerPanel")).toBeVisible({ timeout: 20_000 });
       await expect(page.locator("#playerName")).toHaveClass(/missing/);
       await expect(page.locator("#playerNote")).toContainText("isn't plugged in");
-      // One click puts the real one back, and the shelf comes back with it.
-      await page.locator(`.player-pick[title="${env.dev}"]`).click({ timeout: 20_000 });
+      // The one plugged in is offered, in the machine's colour - offered, not
+      // taken: nothing is saved until Use.
+      const pick = page.locator(`.player-pick[title="${env.dev}"]`);
+      await expect(pick).toHaveClass(/guess/, { timeout: 20_000 });
+      await expect(page.locator("#devicePath")).toHaveValue(env.dev);
+      await expect(page.locator("#devicePath")).toHaveClass(/machine/);
+      expect(await stored(page, "devicePath")).not.toBe(env.dev);
+      // Choosing it is yours, and Use puts it back, with the shelf.
+      await pick.click();
+      await expect(pick).toHaveClass(/picked/);
+      await expect(page.locator("#devicePath")).not.toHaveClass(/machine/);
+      await expect(page.locator("#use")).toContainText(`Use ${basename(env.dev)}`);
+      await page.click("#use");
       await expect.poll(() => stored(page, "devicePath")).toBe(env.dev);
       await expect(page.locator("#playerPanel")).toBeHidden();
       await expect(page.locator("#playerName")).toHaveText(basename(env.dev));
@@ -411,7 +426,7 @@ test.describe("full loop in a real browser", () => {
     await page.locator("#list li", { hasText: "Redwall" })
       .locator("input[type=checkbox]").check();
     await expect(page.locator("#act")).toBeEnabled();
-    await expect(page.locator("#act")).toContainText("Copy 1 to device");
+    await expect(page.locator("#act")).toContainText(`Copy 1 to ${basename(env.dev)} →`);
     await page.click("#act");
 
     await expect(page.locator("#status")).toContainText("copied 1 file", { timeout: 30_000 });
@@ -453,7 +468,7 @@ test.describe("full loop in a real browser", () => {
     await expect(row).toContainText("J.R.R. Tolkien");
 
     await row.locator("input[type=checkbox]").check();
-    await expect(page.locator("#act")).toContainText("Upload 1 to server");
+    await expect(page.locator("#act")).toContainText(`← Upload 1 to ${new URL(env.absUrl).host}`);
     await page.click("#act");
     await expect(page.locator("#status")).toContainText("uploaded 1", { timeout: 30_000 });
 
@@ -510,7 +525,7 @@ test.describe("full loop in a real browser", () => {
 
     await page.locator("#list li", { hasText: "Redwall" })
       .locator("input[type=checkbox]").check();
-    await expect(page.locator("#act")).toContainText("Remove 1 from device");
+    await expect(page.locator("#act")).toContainText(`Remove 1 from ${basename(env.dev)}`);
     await page.click("#act");
     await expect(page.locator("#status")).toContainText("removed", { timeout: 20_000 });
 
@@ -554,7 +569,7 @@ test.describe("when the device is not mounted", () => {
     // And it must not claim an empty player - or claim anything about one:
     // the shelf below used to say everything was already on the device.
     await expect(page.locator("#n-device")).toHaveText("");
-    await expect(page.locator("#list")).toHaveText("Pick your player above to see what is on it.");
+    await expect(page.locator("#list")).toHaveText("Choose your player to see what is on it.");
     await page.close();
   });
 });
@@ -662,9 +677,15 @@ test.describe("before access is granted", () => {
     await page.waitForFunction(
       () => (document.getElementById("permState")?.textContent || "") !== "",
       null, { timeout: 15_000 });
+    // Naming works, so its row starts closed.
+    await expect(page.locator("#sec-naming")).toHaveAttribute("data-state", "ok");
+    await expect(page.locator("#folderTemplate")).toBeHidden();
+    await page.click("#sec-naming .sec-head");
     await page.fill("#folderTemplate", "{title}");
-    await page.click("#save");
-    await expect(page.locator("#msg")).toHaveText("saved");
+    await page.click("#saveNaming");
+    // Saying what changed, not just that something did.
+    await expect(page.locator("#msgNaming")).toHaveText("Saved folder template.");
+    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a");
 
     await page.reload();
     await expect(page.locator("#folderTemplate")).toHaveValue("{title}");
@@ -823,6 +844,8 @@ test.describe("the helper's version, from a checkout", () => {
     await expect(page.locator("#updateState")).toContainText("git checkout");
     await expect(page.locator("#updateState")).toContainText("v1.0.0-alpha.9");
     // No button that could only fail.
+    await expect(page.locator("#sum-helper")).toHaveText("dev · can't update itself");
+    await page.click("#sec-helper .sec-head");
     await expect(page.locator("#update")).toBeHidden();
     await expect(page.locator("#checkUpdate")).toBeVisible();
     await page.close();
@@ -842,6 +865,7 @@ test.describe("the helper's version, from a checkout", () => {
     // Asking is always allowed.
     const page = await optionsPage(ctx);
     await expect(page.locator("#checkUpdate")).toBeEnabled({ timeout: 20_000 });
+    await page.click("#sec-helper .sec-head");
     await page.click("#checkUpdate");
     await expect.poll(() => feed.listings(), { timeout: 20_000 }).toBe(2);
     await expect(page.locator("#checkedAt")).toContainText("Checked");

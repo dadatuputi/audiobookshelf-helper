@@ -25,14 +25,32 @@
     return n;
   };
 
+  /** The row's chevron, built rather than parsed. */
+  function chevron() {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    for (const [k, v] of Object.entries({ class: "chev", width: 16, height: 16, viewBox: "0 0 24 24",
+      fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round",
+      "stroke-linejoin": "round" })) svg.setAttribute(k, v);
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", "m9 6 6 6-6 6");
+    svg.append(path);
+    return svg;
+  }
+
   function build() {
-    const box = h("div", { class: "grant", id: "folderBox" },
-      h("strong", {}, "Chrome can copy to your player itself"),
+    const head = h("button", { class: "sec-head", "aria-expanded": "false",
+                               "aria-controls": "folderBox" },
+      h("span", { class: "dot" }),
+      h("span", { class: "sec-name", id: "folder" }, "Folder"),
+      h("span", { class: "sec-sum", id: "sum-folder" }, "Chrome only"),
+      chevron());
+    const box = h("div", { class: "sec-body", id: "folderBox", hidden: "" },
       h("div", { class: "hint" },
-        "If you can't install the helper, or would rather not, choose the player's top " +
-        "folder - the one your books folder is in - and Chrome writes there directly. The " +
-        "popup and your library page then work without the helper. Whenever the helper is " +
-        "installed and answering, it is used instead."),
+        "Chrome can copy to your player itself. If you can't install the helper, or would " +
+        "rather not, choose the player's top folder - the one your books folder is in - and " +
+        "Chrome writes there directly. Whenever the helper is installed and answering, it " +
+        "is used instead."),
       h("details", {},
         h("summary", { class: "hint" }, "What you give up without the helper"),
         h("ul", { class: "hint" },
@@ -53,20 +71,40 @@
           h("li", {}, "The absh command line and full-screen picker, which come with the " +
                       "helper."))),
       h("div", { class: "actions" },
-        h("button", { id: "folderPick" }, "Choose the player's folder…"),
-        h("button", { id: "folderAllow", class: "hidden" }, "Allow access"),
+        h("button", { id: "folderPick", class: "primary" }, "Choose the player's folder…"),
+        h("button", { id: "folderAllow", class: "primary hidden" }, "Allow access"),
         h("button", { id: "folderForget", class: "secondary hidden" }, "Forget this folder")),
       h("div", { id: "folderState", class: "note" }),
       h("div", { id: "folderServer", class: "note" }),
       h("div", { id: "folderUse", class: "hint" }),
-      h("div", { class: "chk" },
+      h("label", { class: "chk" },
         h("input", { type: "checkbox", id: "folderAlways" }),
-        h("label", { for: "folderAlways", style: "margin:0" },
-          "Use this folder even when the helper is installed")));
-    const naming = [...document.querySelectorAll("h2")].find((x) => x.textContent === "Naming");
-    const title = h("h2", { id: "folder" }, "Without the helper (Chrome only)");
-    naming.before(title, box);
+        h("span", {}, "Use this folder even when the helper is installed")));
+    const sec = h("section", { class: "sec", id: "sec-folder", "data-state": "off" }, head, box);
+    const group = $("optional");
+    group.append(sec);
+    group.classList.remove("hidden");
   }
+
+  /** The row's one line: whether the folder is in use, and why not. Without
+   *  the helper this is the way to copy at all, so then it asks for you. */
+  function row(st) {
+    let state = "off";
+    let text;
+    if (st.state === "none") {
+      text = HELPER_UP ? "Not used" : "Not chosen · the helper isn't answering";
+      if (!HELPER_UP) state = "warn";
+    } else if (st.state === "granted") {
+      text = `“${st.name}” · ` + (USING ? "in use" : "not used");
+      if (USING) state = "ok";
+    } else {
+      text = `“${st.name}” · ` + (st.state === "prompt" ? "access paused" : "not there");
+      if (USING || !HELPER_UP) state = "err";
+    }
+    globalThis.ABSH_SETTINGS.setRow("folder", state, text, { counted: false });
+  }
+  let USING = false;                   // Chrome is copying to this folder
+  let HELPER_UP = true;
 
   function say(id, text, cls) {
     $(id).textContent = text;
@@ -133,11 +171,16 @@
       ? "Grant access to your server above as well: without the helper, Chrome itself " +
         "has to reach it." : "", "warn");
 
+    // Which of the two is copying: the helper when it answers, unless told
+    // otherwise. The helper's own row on this page follows the answer.
+    const r = await browser.runtime.sendMessage({ type: "ping" }).catch(() => null);
+    const p = r && r.ok ? r.data : null;
+    USING = !!(p && p.backend === "folder");
+    HELPER_UP = !!(p && p.ok && !USING);
+    globalThis.ABSH_SETTINGS.helperUnused(USING);
     let use = "";
     if (st.state !== "none") {
-      const r = await browser.runtime.sendMessage({ type: "ping" }).catch(() => null);
-      const p = r && r.ok ? r.data : null;
-      if (p && p.backend === "folder") {
+      if (USING) {
         use = folderMode === "always"
           ? "Books go to this folder, as you chose, even though the helper may be installed."
           : "The helper isn't answering, so books go to this folder.";
@@ -146,6 +189,7 @@
       }
     }
     $("folderUse").textContent = use;
+    row(st);
     return st;
   }
 
@@ -201,6 +245,7 @@
     // Sent here from the library page or the popup to restore access: put
     // the button where the eye lands.
     if (st.state === "prompt") {
+      globalThis.ABSH_SETTINGS.openRow("folder", true);
       $("folderBox").scrollIntoView({ block: "center" });
       $("folderAllow").focus();
     }

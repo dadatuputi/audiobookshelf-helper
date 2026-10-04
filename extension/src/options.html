@@ -1,76 +1,109 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Audiobookshelf Helper — Options</title>
-<style>
-body{font:14px/1.5 system-ui,sans-serif;max-width:640px;margin:2rem auto;padding:0 1rem;background:#1f1f1f;color:#e5e7eb}
-h1{font-size:1.2rem} h2{font-size:.95rem;margin-top:1.6rem;color:#9ca3af;text-transform:uppercase;letter-spacing:.04em}
-label{display:block;margin:.7rem 0 .2rem}
-input[type=text],input[type=password],select{width:100%;box-sizing:border-box;background:#111827;color:#e5e7eb;
- border:1px solid #374151;border-radius:4px;padding:6px 8px;font:inherit}
-.hint{color:#9ca3af;font-size:12px;margin-top:.2rem}
-.chk{display:flex;gap:.5rem;align-items:center;margin:.6rem 0}
-button{margin-top:1.2rem;padding:8px 16px;background:#2563eb;color:#fff;border:0;border-radius:4px;font:inherit;cursor:pointer}
-button:disabled{opacity:.45;cursor:default}
-button.secondary{background:none;border:1px solid #374151;color:#e5e7eb}
-button.inline{margin-top:0;white-space:nowrap}
-.row{display:flex;gap:.5rem;align-items:center}
-.hidden{display:none}
-select[size]{margin-top:.4rem}
-option{padding:2px 4px}
-#msg{margin-left:.8rem;color:#86efac}
-code{background:#111827;padding:1px 4px;border-radius:3px}
-.note{font-size:12px;margin-top:.5rem;color:#9ca3af}
-.note.ok{color:#86efac} .note.warn{color:#fcd34d} .note.err{color:#fca5a5}
-.grant{border:1px solid #374151;border-radius:6px;padding:.8rem 1rem;margin-top:.8rem;background:#171717}
-.actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
-.actions button{margin-top:.8rem}
-#updateSteps{margin:.6rem 0 0;padding-left:1.2rem;font-size:12px;color:#9ca3af}
-#updateSteps:empty{display:none}
-</style></head><body>
-<h1>Audiobookshelf Helper</h1>
+<!doctype html><html><head><meta charset="utf-8"><title>Audiobookshelf Helper settings</title>
+<link rel="stylesheet" href="theme.css"><link rel="stylesheet" href="options.css">
+</head><body>
+<main>
+<header class="page-head">
+  <h1>Settings</h1>
+  <span id="ready" class="ready"></span>
+</header>
 
-<h2>Helper</h2>
-<div class="grant" id="helper">
-  <div id="helperVersion">Asking the helper which version it is…</div>
-  <div id="updateState" class="note"></div>
-  <div class="actions">
-    <button id="update" class="hidden">Update helper</button>
-    <button id="checkUpdate" class="secondary hidden">Check for updates</button>
+<!-- Each row says whether that part works before you open it. Rows that need
+     something from you open by themselves; the rest stay one line. -->
+<section class="sec" id="sec-helper" data-state="">
+  <button class="sec-head" aria-expanded="false" aria-controls="body-helper">
+    <span class="dot"></span><span class="sec-name">Helper</span>
+    <span class="sec-sum" id="sum-helper">Asking…</span>
+    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+  </button>
+  <div class="sec-body" id="body-helper" hidden>
+    <div id="helperVersion">Asking the helper which version it is…</div>
+    <div id="updateState" class="note"></div>
+    <div class="actions">
+      <button id="update" class="primary hidden">Update helper</button>
+      <button id="checkUpdate" class="secondary hidden">Check for updates</button>
+    </div>
+    <ol id="updateSteps"></ol>
+    <div id="checkedAt" class="hint"></div>
   </div>
-  <ol id="updateSteps"></ol>
-  <div id="checkedAt" class="hint"></div>
+</section>
+
+<section class="sec" id="sec-server" data-state="">
+  <button class="sec-head" aria-expanded="false" aria-controls="body-server">
+    <span class="dot"></span><span class="sec-name">Server</span>
+    <span class="sec-sum" id="sum-server"></span>
+    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+  </button>
+  <div class="sec-body" id="body-server" hidden>
+    <div class="field">
+      <label for="absUrl">URL</label>
+      <input type="text" id="absUrl" placeholder="http://media.local:13378" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="apiKey">API key</label>
+      <div class="field-row">
+        <input type="password" id="apiKey" placeholder="from Settings → API Keys" spellcheck="false" autocomplete="off">
+        <button id="showKey" class="secondary" aria-controls="apiKey">Show</button>
+      </div>
+      <div class="hint">Sent only to your server, as a Bearer header - never in a URL.</div>
+    </div>
+    <div class="actions end">
+      <span id="msg" class="msg" role="status"></span>
+      <button class="secondary cancel">Cancel <kbd>Esc</kbd></button>
+      <button id="save" class="primary">Save <kbd class="kbd-save">Ctrl S</kbd></button>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="sec-access" data-state="">
+  <button class="sec-head" aria-expanded="false" aria-controls="body-access">
+    <span class="dot"></span><span class="sec-name">Access</span>
+    <span class="sec-sum" id="sum-access"></span>
+    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+  </button>
+  <div class="sec-body" id="body-access" hidden>
+    <div class="hint">This add-on ships with no site access at all. It needs permission for
+      your own Audiobookshelf server - and nothing else - to read your library and to
+      put the sync button on its pages.</div>
+    <div class="actions">
+      <button id="grant" class="primary">Grant access</button>
+    </div>
+    <div id="permState" class="note"></div>
+    <div id="regState" class="note"></div>
+  </div>
+</section>
+
+<section class="sec" id="sec-naming" data-state="">
+  <button class="sec-head" aria-expanded="false" aria-controls="body-naming">
+    <span class="dot"></span><span class="sec-name">Naming</span>
+    <span class="sec-sum" id="sum-naming"></span>
+    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+  </button>
+  <div class="sec-body" id="body-naming" hidden>
+    <div class="field">
+      <label for="folderTemplate">Folder template</label>
+      <input type="text" id="folderTemplate" value="{author} - {title}" spellcheck="false" autocomplete="off">
+      <div class="hint">Placeholders: <code>{author}</code> <code>{title}</code> <code>{series}</code>.
+        This also decides how a book is recognised on the player, so changing it makes
+        books already copied look absent.</div>
+    </div>
+    <label class="chk"><input type="checkbox" id="renameM4b" checked>
+      <span>Rename <code>.m4b</code> → <code>.m4a</code>. Same audio, no re-encode; leave it on
+        unless your player plays .m4b.</span></label>
+    <div class="actions end">
+      <span id="msgNaming" class="msg" role="status"></span>
+      <button class="secondary cancel">Cancel <kbd>Esc</kbd></button>
+      <button id="saveNaming" class="primary">Save <kbd class="kbd-save">Ctrl S</kbd></button>
+    </div>
+  </div>
+</section>
+
+<p class="aside">The player, and the folder on it, are chosen from the toolbar button:
+  they change more often than anything here.</p>
+
+<div id="optional" class="hidden">
+  <h2 class="group">Optional</h2>
 </div>
-
-<h2>Server</h2>
-<label for="absUrl">Audiobookshelf URL</label>
-<input type="text" id="absUrl" placeholder="http://media.local:13378">
-<label for="apiKey">API key</label>
-<input type="password" id="apiKey" placeholder="from Settings → API Keys">
-<div class="hint">Sent only to your server, as a Bearer header - never in a URL.</div>
-
-<div class="grant">
-  <strong>Access to your server</strong>
-  <div class="hint">This add-on ships with no site access at all. It needs permission for
-    your own Audiobookshelf origin — and nothing else — to read your library and
-    to put the sync button on its pages.</div>
-  <button id="grant" class="secondary">Grant access</button>
-  <div id="regState" class="note"></div>
-<div id="permState" class="note"></div>
-</div>
-
-<h2>Player</h2>
-<div class="hint">Choose your player, and the folder on it, from the toolbar
-  button: it changes more often than anything here, so it lives where the
-  copying happens.</div>
-
-<h2>Naming</h2>
-<label for="folderTemplate">Folder template</label>
-<input type="text" id="folderTemplate" value="{author} - {title}">
-<div class="hint">Placeholders: <code>{author}</code> <code>{title}</code> <code>{series}</code>.
-  This also decides how a book is recognised on the device, so changing it makes
-  already-synced books look absent.</div>
-<div class="chk"><input type="checkbox" id="renameM4b" checked><label for="renameM4b" style="margin:0">
-  Rename <code>.m4b</code> → <code>.m4a</code> (leave on unless your player handles .m4b; same container, no re-encode)</label></div>
-
-<button id="save">Save</button><span id="msg"></span>
+</main>
 <script src="browser-polyfill.js"></script>
 <script src="lib.js"></script>
 <script src="options.js"></script>

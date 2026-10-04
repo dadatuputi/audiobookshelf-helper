@@ -1,121 +1,131 @@
-:root {
-  --bg: #1f1f1f; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151;
-  --panel: #111827; --accent: #4f46e5; --ok: #86efac; --err: #fca5a5;
-}
-* { box-sizing: border-box; }
+/* Popup: library on the left, player on the right, the books between them,
+   and one button that says exactly what it will do. Colours are in theme.css. */
 body {
-  font: 13px/1.45 system-ui, sans-serif; margin: 0; width: 390px;
-  background: var(--bg); color: var(--fg);
+  width: 390px; max-height: 600px; padding: 8px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 8px 10px; border-bottom: 1px solid var(--line);
-}
-header a { color: var(--muted); text-decoration: none; font-size: 15px; }
-header a:hover { color: var(--fg); }
 
-.status { padding: 6px 10px; white-space: pre-wrap; font-size: 12px; color: var(--muted); }
+/* ------------------------------------------------------------ the two ends */
+.ends { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }
+.end {
+  min-height: 64px; display: grid; align-content: center; gap: 2px; padding: 8px 12px;
+  background: var(--surface); border: 0; border-radius: 8px; text-align: left; min-width: 0;
+}
+.end-label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.end-name, .end-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.end-name { font-weight: 600; }
+.end-sub { font-size: 12px; color: var(--muted); }
+.end-sub:empty { display: none; }
+.ends-arrow { display: grid; place-items: center; color: var(--muted); }
+#playerToggle[aria-expanded="true"]:not(.missing) { box-shadow: 0 0 0 2px var(--accent); }
+/* The player that was chosen isn't there: say so in the card itself. */
+#playerToggle.missing { background: var(--err-soft); color: var(--err); }
+#playerToggle.missing .end-label, #playerToggle.missing .end-sub { color: var(--err); }
+.end-sub s:empty { display: none; }
+
+/* ------------------------------------------------------- status, one line */
+.status { white-space: pre-wrap; font-size: 12px; color: var(--muted); padding: 0 4px; }
 .status:empty { display: none; }
-.status.ok { color: var(--ok); }
-.status.err { color: var(--err); }
-.update-hint {
-  display: block; padding: 0 10px 6px; font-size: 11px; color: #fcd34d; text-decoration: none;
-}
-.update-hint:hover { text-decoration: underline; }
-.update-hint.hidden { display: none; }
+.status.err { color: var(--err); background: var(--err-soft); padding: 8px 12px; border-radius: 8px; }
+.note-link { display: block; padding: 0 4px; font-size: 12px; text-decoration: none; }
+.note-link:hover { text-decoration: underline; }
 
-.tabs { display: flex; align-items: center; gap: 4px; padding: 0 8px; border-bottom: 1px solid var(--line); }
+/* ------------------------------------------------------------ the shelf */
+.view { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.tabs {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px;
+  background: var(--track); border-radius: 8px;
+}
 .tab {
-  background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
-  font: inherit; padding: 7px 8px; cursor: pointer;
+  height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  background: none; border: 0; border-radius: 6px; color: var(--muted); white-space: nowrap;
 }
-.tab.active { color: var(--fg); border-bottom-color: var(--accent); }
-.badge {
-  display: none; background: var(--line); color: var(--fg); border-radius: 9px;
-  padding: 0 6px; font-size: 11px; margin-left: 2px;
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
+.n:empty { display: none; }
+
+.card { background: var(--surface); border-radius: 8px; overflow: hidden; }
+.shelf { display: flex; flex-direction: column; min-height: 0; }
+.filter-row {
+  display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--line);
 }
-.badge.show { display: inline-block; }
-.free { margin-left: auto; font-size: 11px; color: var(--muted); padding-right: 4px; }
-
-.pane.hidden, .hidden { display: none; }
-.row { display: flex; gap: 6px; align-items: center; padding: 8px 10px 4px; }
-.row.small { font-size: 12px; color: var(--muted); padding-top: 2px; }
-.muted { color: var(--muted); }
-select, input[type=search] {
-  background: var(--panel); color: var(--fg); border: 1px solid var(--line);
-  border-radius: 4px; padding: 5px 6px; font: inherit; min-width: 0;
+.filter-row input[type=search] {
+  flex: 1 1 auto; border: 0; background: none; padding: 0; font: inherit; height: 44px;
 }
-select { flex: 0 1 45%; } input[type=search] { flex: 1 1 auto; }
-
-ul { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
-li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 10px; border-top: 1px solid #2a2a2a; }
-li:hover { background: #262626; }
-.meta { flex: 1 1 auto; min-width: 0; }
-.t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.a { display: block; font-size: 11px; color: var(--muted);
-     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.chip {
-  display: inline-block; font-size: 10px; padding: 0 5px; border-radius: 8px;
-  border: 1px solid var(--line); color: var(--muted); margin-left: 6px; vertical-align: 1px;
+.filter-row input[type=search]:focus-visible { outline: none; }
+button.icon {
+  height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 0 8px; background: none; border: 0; border-radius: 6px; color: var(--muted);
 }
-.chip.on { color: var(--ok); border-color: #14532d; }
-.chip.working { color: #fcd34d; border-color: #78350f; }
+button.icon:hover { color: var(--ink); }
 
-.bar { height: 3px; background: var(--line); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+ul { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
+li + li { border-top: 1px solid var(--line); }
+.book {
+  min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 6px 12px;
+  cursor: pointer;
+}
+.book:hover { background: var(--bg); }
+.book.sel { background: var(--accent-soft); }
+.meta { flex: 1 1 auto; min-width: 0; display: grid; }
+.t, .a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t { font-weight: 600; }
+.a { font-size: 12px; color: var(--muted); }
+.size { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.empty { padding: 16px 12px; color: var(--muted); }
+.chip { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+.bar { height: 3px; background: var(--track); border-radius: 2px; margin-top: 4px; overflow: hidden; }
 .bar > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .15s linear; }
 
-button {
-  background: var(--accent); color: #fff; border: 0; border-radius: 4px;
-  padding: 7px 14px; font: inherit; cursor: pointer;
+/* --------------------------------------------------------- choosing a player */
+.chooser { display: grid; }
+.card-head {
+  height: 44px; display: flex; align-items: center; padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--line);
 }
-button:disabled { opacity: .45; cursor: default; }
-button.ghost { background: none; border: 1px solid var(--line); color: var(--muted); padding: 6px 10px; }
-#act.danger { background: #b91c1c; }
-#act.danger:hover:not(:disabled) { background: #991b1b; }
-
-footer { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--line); }
-footer #sync { flex: 1 1 auto; }
-.orphan-head { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; }
-.empty { padding: 14px 10px; color: var(--muted); font-size: 12px; }
-
-/* The player strip: what you are copying to, and the one place to change it. */
-.player { border-bottom: 1px solid var(--line); }
-.player-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
-.player-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.player-name {
-  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-weight: 600;
+.card-title { flex: 1 1 auto; font-weight: 600; }
+button.link {
+  height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
+  background: none; border: 0; border-radius: 6px; color: var(--accent);
 }
-.player-name.missing { color: var(--err); font-weight: 400; }
-button.small { padding: 3px 9px; font-size: 12px; }
-.player-panel { display: grid; gap: 4px; padding: 0 10px 10px; }
-/* .hidden is declared earlier with the same specificity, so without this
-   the grid above wins and the panel can never be closed. */
-.player-panel.hidden { display: none; }
-.player-panel label { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.player-panel input[type=text] {
-  background: var(--panel); color: var(--fg); border: 1px solid var(--line);
-  border-radius: 4px; padding: 5px 6px; font: inherit; width: 100%; min-width: 0;
-}
-.player-panel input[type=text]:focus, .player-pick:focus-visible, button:focus-visible {
-  outline: 2px solid var(--accent); outline-offset: 1px;
-}
-.field-row { display: flex; gap: 6px; }
-.field-row input { flex: 1 1 auto; }
-.player-note { font-size: 12px; color: var(--muted); }
+button.link:disabled { color: var(--muted); }
+.player-note { padding: 10px 12px 0; color: var(--muted); }
 .player-note:empty { display: none; }
 .player-note.err { color: var(--err); }
-.player-list { display: grid; gap: 4px; }
+.player-list { display: grid; padding-top: 4px; }
 .player-list:empty { display: none; }
 .player-pick {
-  display: flex; align-items: baseline; gap: 6px; width: 100%; text-align: left;
-  background: var(--panel); border: 1px solid var(--line); color: var(--fg);
-  border-radius: 4px; padding: 6px 8px; font: inherit; cursor: pointer;
+  min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 6px 12px; cursor: pointer;
 }
-.player-pick:hover { border-color: var(--accent); }
-.player-pick.current { border-color: var(--ok); }
-.player-pick .n { font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.player-pick .d { font-size: 11px; color: var(--muted); margin-left: auto; white-space: nowrap; }
-.hint { font-size: 11px; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .bar > i { transition: none; } }
+.player-pick:hover { background: var(--bg); }
+.player-pick .who { flex: 1 1 auto; min-width: 0; display: grid; }
+.player-pick .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-pick .why { font-size: 12px; color: var(--muted); }
+.player-pick .d { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.player-pick.picked { background: var(--accent-soft); }
+/* Pre-selected by the extension, not by you: the machine's colour. */
+.player-pick.guess { background: var(--machine-soft); }
+.player-pick.guess input { accent-color: var(--machine); }
+.player-pick.guess .n, .player-pick.guess .why { color: var(--machine); }
+.player-pick .in-use { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+
+.fields {
+  display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 8px;
+  padding: 10px 12px 4px; border-top: 1px solid var(--line); margin-top: 4px;
+}
+.fields:has(#pathField.hidden) { grid-template-columns: 1fr; }
+.field { display: grid; gap: 4px; }
+.field label { font-size: 12px; color: var(--muted); }
+.hint { padding: 0 12px 8px; font-size: 12px; color: var(--muted); }
+.chooser .note-link { padding: 0 12px 12px; }
+
+/* --------------------------------------------------------------- footer */
+footer { display: flex; gap: 8px; }
+footer .primary { flex: 1 1 auto; }
+.act-text { flex: 1 1 auto; min-width: 0; display: grid; }
+#actLabel, #useLabel {
+  font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.act-sub { font-size: 12px; opacity: .8; }
+.act-sub:empty { display: none; }
+footer .secondary { min-height: 56px; border-radius: 8px; }

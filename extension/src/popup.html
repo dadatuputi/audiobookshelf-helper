@@ -1,58 +1,77 @@
-<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="popup.css"></head>
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="theme.css"><link rel="stylesheet" href="popup.css"></head>
 <body>
-<header>
-  <strong>Audiobookshelf Helper</strong>
-  <a id="opts" href="#" title="Options">⚙</a>
-</header>
-<div id="status" class="status"></div>
-<a id="updateHint" class="update-hint hidden" href="#"></a>
-
-<!-- The player is the setting that changes between visits - a different
-     player, or the same one mounted somewhere new - so it lives here, where
-     the copying happens, rather than in Options. -->
-<section id="player" class="player">
-  <div class="player-row">
-    <span class="player-label">Player</span>
-    <span id="playerName" class="player-name">not chosen</span>
-    <button id="playerToggle" class="ghost small" aria-expanded="false" aria-controls="playerPanel">Change</button>
-  </div>
-  <div id="playerPanel" class="player-panel hidden">
-    <div id="playerNote" class="player-note"></div>
-    <div id="playerList" class="player-list" role="list"></div>
-    <div id="pathField">
-      <label for="devicePath">Where it is mounted</label>
-      <div class="field-row">
-        <input id="devicePath" type="text" placeholder="/Volumes/PLAYER" spellcheck="false" autocomplete="off">
-        <button id="detect" class="ghost">Detect</button>
-      </div>
-    </div>
-    <a id="folderChange" class="update-hint hidden" href="#">Choose a different folder from the options page</a>
-    <label for="subdir">Folder on the player</label>
-    <input id="subdir" type="text" placeholder="AUDIOBOOKS" spellcheck="false" autocomplete="off">
-    <div class="hint">Some players only resume and bookmark inside a named folder - check your manual.</div>
-    <div id="pollNote" class="hint hidden">On this computer a player you plug in
-      can take a couple of seconds to appear: the helper checks for new players
-      on a timer here rather than being told the moment one connects.</div>
-  </div>
-</section>
-
-<nav class="tabs">
-  <button class="tab active" data-tab="server">To pull <span id="n-server" class="badge"></span></button>
-  <button class="tab" data-tab="device">On device <span id="n-device" class="badge"></span></button>
-  <button class="tab" data-tab="only">To push <span id="n-only" class="badge"></span></button>
-  <span id="free" class="free"></span>
-</nav>
-
-<div class="row">
-  <input id="filter" type="search" placeholder="filter…">
-  <label class="small"><input type="checkbox" id="all"> all</label>
+<!-- The two ends of every copy: where books come from, and where they go. The
+     player is the setting that changes between visits, so it is chosen here,
+     where the copying happens, rather than in Settings. -->
+<div class="ends">
+  <button id="opts" class="end" title="Settings">
+    <span class="end-label">Library</span>
+    <span id="libName" class="end-name">Audiobookshelf</span>
+    <span id="libCount" class="end-sub"></span>
+  </button>
+  <span class="ends-arrow" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h14"/><path d="m15 5 3 3-3 3"/><path d="M20 16H6"/><path d="m9 13-3 3 3 3"/></svg></span>
+  <button id="playerToggle" class="end" aria-expanded="false" aria-controls="playerPanel" title="Change player">
+    <span class="end-label">Player</span>
+    <span id="playerName" class="end-name">…</span>
+    <span class="end-sub"><span id="free"></span><s id="playerWas"></s></span>
+  </button>
 </div>
 
-<ul id="list"></ul>
+<div id="status" class="status"></div>
+<a id="updateHint" class="note-link hidden" href="#"></a>
+
+<div id="shelfView" class="view">
+  <div class="tabs" role="tablist" aria-label="Direction">
+    <button class="tab" role="tab" data-tab="server" aria-selected="true">To player <span id="n-server" class="n"></span> <span aria-hidden="true">→</span></button>
+    <button class="tab" role="tab" data-tab="device" aria-selected="false">Both <span id="n-device" class="n"></span></button>
+    <button class="tab" role="tab" data-tab="only" aria-selected="false"><span aria-hidden="true">←</span> To library <span id="n-only" class="n"></span></button>
+  </div>
+
+  <section class="card shelf">
+    <div class="filter-row">
+      <input type="checkbox" id="all" aria-label="Select all shown">
+      <input id="filter" type="search" placeholder="Filter" aria-label="Filter" spellcheck="false" autocomplete="off">
+      <kbd>/</kbd>
+      <button id="refresh" class="icon" title="Read the player again (R)" aria-label="Read the player again">↻ <kbd>R</kbd></button>
+    </div>
+    <ul id="list"></ul>
+  </section>
+</div>
+
+<section id="playerPanel" class="card chooser hidden">
+  <div class="card-head">
+    <span class="card-title">Choose player</span>
+    <button id="detect" class="link"><span class="lbl">Detect</span> <kbd>D</kbd></button>
+  </div>
+  <div id="playerNote" class="player-note"></div>
+  <div id="playerList" class="player-list" role="radiogroup" aria-label="Players plugged in"></div>
+  <div class="fields">
+    <div id="pathField" class="field">
+      <label for="devicePath">Path</label>
+      <input id="devicePath" type="text" placeholder="/Volumes/PLAYER" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="subdir">Books folder</label>
+      <input id="subdir" type="text" placeholder="AUDIOBOOKS" spellcheck="false" autocomplete="off">
+    </div>
+  </div>
+  <div class="hint">Some players only resume and bookmark inside a named folder.</div>
+  <div id="pollNote" class="hint hidden">A player you plug in can take a couple of
+    seconds to appear: on this computer the helper looks for new players on a timer.</div>
+  <a id="folderChange" class="note-link hidden" href="#">Choose a different folder in Settings</a>
+</section>
 
 <footer>
-  <button id="act" disabled>Select books</button>
-  <button id="refresh" class="ghost" title="Re-read the device">↻</button>
+  <button id="act" class="primary" disabled>
+    <span class="act-text"><span id="actLabel">Select books</span><span id="actSub" class="act-sub"></span></span>
+    <kbd>⏎</kbd>
+  </button>
+  <button id="cancelPlayer" class="secondary hidden">Cancel <kbd>Esc</kbd></button>
+  <button id="use" class="primary hidden" disabled>
+    <span class="act-text"><span id="useLabel">Use this player</span></span>
+    <kbd>⏎</kbd>
+  </button>
 </footer>
 <script src="browser-polyfill.js"></script>
 <script src="lib.js"></script>

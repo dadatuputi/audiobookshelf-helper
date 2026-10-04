@@ -41,7 +41,8 @@ FIREFOX_MIN = "128.0"
 
 SHARED_FILES = [
     "background.js", "browser-polyfill.js", "lib.js", "content.js", "content.css",
-    "page-hook.js", "popup.html", "popup.css", "popup.js", "options.html", "options.js",
+    "page-hook.js", "theme.css", "popup.html", "popup.css", "popup.js", "options.html",
+    "options.css", "options.js",
 ]
 
 # Chrome only: using the player's folder without the helper (folder.js), and

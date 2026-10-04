@@ -192,12 +192,13 @@ test.describe("Firefox options page, driven", () => {
         const b = [...document.querySelectorAll(".player-pick")].find((x) => x.title === dev);
         return b ? { text: b.textContent } : null;
       }, [device], { timeout: 30_000 });
-    expect(offered.text).toContain("has your books");
-    expect(await popTab.evaluate(() => document.getElementById("detect").textContent)).toBe("Detect");
+    expect(offered.text).toContain("AUDIOBOOKS/ · ");
+    expect(await popTab.evaluate(() => document.querySelector("#detect .lbl").textContent)).toBe("Detect");
 
-    // Picking it, and the folder on it, is the whole choice: there is no Save
-    // in a popup, which closes the moment it loses focus.
+    // Picking it and pressing Use is the choice; the folder on it is kept as
+    // it is typed, since a popup closes the moment it loses focus.
     await popTab.click(`.player-pick[title="${device}"]`);
+    await popTab.click("#use");
     await popTab.click("#playerToggle");
     await popTab.fill("#subdir", "BOOKS");
     const stored = await until(() => {
@@ -219,7 +220,7 @@ test.describe("Firefox options page, driven", () => {
 
     await tab.click("#save");
     await tab.waitFor("the page saying it saved",
-      () => document.getElementById("msg").textContent === "saved");
+      () => document.getElementById("msg").textContent.startsWith("Saved "));
 
     // The add-on's storage, read from the profile: proof the values left the
     // form, independent of the page reading them back.

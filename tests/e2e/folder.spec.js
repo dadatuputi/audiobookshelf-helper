@@ -205,7 +205,7 @@ async function configure(ctx, absUrl, devicePath = "") {
   await page.fill("#absUrl", absUrl);
   await page.fill("#apiKey", "test-key");
   await page.click("#save");
-  await expect(page.locator("#msg")).toHaveText("saved");
+  await expect(page.locator("#msg")).toContainText("Saved");
   // The helper's player path is chosen in the popup now; setup sets it directly.
   await page.evaluate((d) => chrome.storage.local.set({ devicePath: d }), devicePath);
   return page;
@@ -295,7 +295,10 @@ test.describe("without the helper, the folder backend does what the helper does"
   test("the options page offers it to Chrome users, and says what they give up", async () => {
     const page = await optionsPage(folderCtx);
     const box = page.locator("#folderBox");
-    await expect(page.locator("h2#folder")).toHaveText("Without the helper (Chrome only)");
+    await expect(page.locator("#folder")).toHaveText("Folder");
+    // Without the helper this is the only way to copy, so its row asks for you.
+    await expect(page.locator("#sum-folder")).toHaveText("Not chosen · the helper isn't answering");
+    await expect(box).toBeVisible();
     await expect(box).toContainText("If you can't install the helper, or would rather not");
     await expect(box).toContainText("Whenever the helper is installed and answering, it is used instead");
     await page.locator("#folderBox summary").click();
@@ -418,7 +421,7 @@ test.describe("without the helper, the folder backend does what the helper does"
     await popup.goto(POPUP);
     await expect(popup.locator("#n-device")).toHaveText("3", { timeout: 20_000 });
     await expect(popup.locator("#n-only")).toHaveText("1");
-    await expect(popup.locator("#n-server")).toHaveText("");
+    await expect(popup.locator("#n-server")).toHaveText("0");
     await expect(popup.locator("#free")).toHaveText("");
     await popup.close();
     await opts.close();
@@ -457,7 +460,7 @@ test.describe("without the helper, the folder backend does what the helper does"
     await expect(page.locator("#n-device")).toHaveText("3", { timeout: 20_000 });
     await page.locator('.tab[data-tab="device"]').click();
     await page.locator("#list li", { hasText: "The Hobbit" }).locator("input[type=checkbox]").check();
-    await expect(page.locator("#act")).toContainText("Remove 1 from device");
+    await expect(page.locator("#act")).toContainText("Remove 1 from ");
     await page.click("#act");
     await expect(page.locator("#status")).toContainText("removed 1", { timeout: 20_000 });
 
@@ -633,6 +636,9 @@ test.describe("with the helper installed, the helper is used", () => {
 
   test("unless the user asks for the folder outright", async () => {
     const page = await optionsPage(ctx);
+    // The helper answers, so the folder is not in use and its row starts closed.
+    await expect(page.locator("#sum-folder")).toContainText("not used");
+    await page.click("#sec-folder .sec-head");
     await page.check("#folderAlways");
     await expect(page.locator("#folderUse")).toHaveText(
       "Books go to this folder, as you chose, even though the helper may be installed.");

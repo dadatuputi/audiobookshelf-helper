@@ -27,7 +27,7 @@ Audiobookshelf Helper
 > idea what a media server is.
 >
 > Pick books from your library in a filterable list, press Sync, and they are
-> written to the device with tidy folder names. An "On device" shelf shows what
+> written to the device with tidy folder names. A "Both" shelf shows what
 > is already there, how much space it uses, and lets you delete a book from the
 > player without hunting through folders.
 >
@@ -138,11 +138,11 @@ which matches the above.
 Chrome wants at least one 1280×800 or 640×400; AMO wants at least one. Take
 them against a real library:
 
-1. The popup's **Library** tab — filtered list, a couple of books ticked, the
-   "on device" chip visible on one row.
-2. The popup's **On device** tab — two or three books with sizes, free space
-   showing in the tab bar.
-3. The **options page**, with *Access granted* showing.
+1. The popup's **To player** tab — a couple of books ticked, the button reading
+   "Copy 2 to …" with the size against the free space.
+2. The popup's **Both** tab — two or three books with sizes, free space on the
+   Player card.
+3. The **settings page**, reading *4 of 4 ready*.
 4. The **Sync to device** button in the Audiobookshelf toolbar.
 
 A sync in progress, with the progress bar mid-copy, makes a good fifth if the

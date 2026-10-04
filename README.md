@@ -156,7 +156,7 @@ which is the same trust decision as your first install.
 
 ## Configure
 
-Toolbar icon → ⚙, or `absh config`, or <kbd>s</kbd> in the TUI. All three write
+Toolbar icon → the **Library** card, or `absh config`, or <kbd>s</kbd> in the TUI. All three write
 the same file.
 
 | Setting | Notes |
@@ -217,8 +217,15 @@ appear in a panel with an **Upload** button.
 
 ### In the popup
 
-Three tabs over the same status: **To pull**, **On device**, **To push**. Tick
-and act. Progress streams per file. A line under the status says when a helper
+Your library on the left, your player on the right, and three directions
+between them: **To player**, **Both**, **To library**, each with its count. Tick
+and press the button, which names what it will do and where ("Copy 2 to
+AGPTEK A02", with the size against the free space). Progress streams per file.
+Click the **Player** card to change player: the one that looks most like yours
+is offered in purple, and nothing is saved until you press **Use**. Every action
+has a key, printed on it: <kbd>/</kbd> filter, <kbd>⏎</kbd> the main button,
+<kbd>R</kbd> re-read, <kbd>D</kbd> detect, <kbd>Esc</kbd> cancel. Light or dark
+follows your system. A line under the status says when a helper
 update is waiting — see [Updating the helper](#updating-the-helper).
 
 ## Finding the device

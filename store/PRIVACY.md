@@ -72,7 +72,7 @@ for your server's origin only, when you press *Grant access*.
 
 Uninstalling the add-on removes everything it stored. The helper can be removed
 with `python3 install.py --uninstall`. Books already copied to your player are
-files on your player; delete them there, or from the add-on's *On device* shelf.
+files on your player; delete them there, or from the add-on's *Both* shelf.
 
 ## Contact
 

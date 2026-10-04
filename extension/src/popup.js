@@ -1,4 +1,4 @@
-/* Popup: one list, three views, over the same status the CLI shows.
+/* Popup: one list, three directions, over the same status the CLI shows.
  *
  * The helper does the work and owns the Audiobookshelf client; this only picks
  * things and renders what came back. */
@@ -6,11 +6,17 @@ const $ = (s) => document.querySelector(s);
 
 let TAB = "server";                    // server | device | only
 let ST = { both: [], serverOnly: [], deviceOnly: [] };
+// Whether ST is a real answer. Counts are shown only then: an unknown is
+// blank, never a zero.
+let KNOWN = false;
 let SEL = new Set();
 let PROGRESS = null;
 let BUSY = false;
 // No usable player: the shelf has nothing true to say about "the device".
 let NO_PLAYER = false;
+let PANEL_OPEN = false;
+let LIB = "";                          // the server's host, as the Library card names it
+let FOLDER = "";                       // Chrome's folder, when that is what is in use
 
 /* ----------------------------------------------------------- transport */
 const PORT = browser.runtime.connect({ name: "absh" });
@@ -51,23 +57,55 @@ function el(tag, cls, text) {
   return n;
 }
 
+/** "17.6 GB" - formatBytes with the space a reader expects. */
+const size = (n) => ABSH.formatBytes(n).replace(/^([\d.]+)/, "$1 ");
+
+/** "17.6 of 29.7 GB free": the denominator, without saying the unit twice. */
+function freeOf(f) {
+  if (!f || !f.free) return "";
+  if (!f.total) return `${size(f.free)} free`;
+  const [a, ua] = size(f.free).split(" ");
+  const [b, ub] = size(f.total).split(" ");
+  return ua === ub ? `${a} of ${b} ${ub} free` : `${a} ${ua} of ${b} ${ub} free`;
+}
+
+function baseName(path) {
+  const parts = String(path || "").replace(/[\\/]+$/, "").split(/[\\/]/);
+  return parts[parts.length - 1] || String(path || "");
+}
+
+/** What the Player card, and the button that copies to it, call the player. */
+function playerLabel() {
+  if (BACKEND === "folder") return FOLDER || "the folder";
+  return PLAYER.devicePath ? baseName(PLAYER.devicePath) : "the player";
+}
+
 const rowsFor = {
   server: () => ST.serverOnly.map((i) => ({ key: i.id, id: i.id, title: i.title,
-    sub: [i.author, ABSH.formatBytes(i.size)].filter(Boolean).join(" · "), bytes: i.size })),
+    sub: i.author || "", bytes: i.size })),
   device: () => ST.both.map((b) => ({ key: b.name, name: b.name, id: b.itemId, title: b.title,
-    sub: [b.author, ABSH.formatBytes(b.bytes), b.matchedBy && b.matchedBy !== "id"
-      ? `matched by ${b.matchedBy}` : ""].filter(Boolean).join(" · "), bytes: b.bytes })),
+    sub: [b.author, b.matchedBy && b.matchedBy !== "id" ? `matched by ${b.matchedBy}` : ""]
+      .filter(Boolean).join(" · "), bytes: b.bytes })),
   only: () => ST.deviceOnly.map((e) => ({ key: e.name, name: e.name, title: e.title || e.name,
-    sub: [e.author || "unknown author", ABSH.formatBytes(e.bytes)].join(" · "), bytes: e.bytes })),
+    sub: e.author || "unknown author", bytes: e.bytes })),
 };
 
 const ACTION = {
-  server: { label: (n) => `Copy ${n} to device`, run: (rows) =>
-    send({ type: "pull", ids: rows.map((r) => r.id) }, onProgress) },
-  device: { label: (n) => `Remove ${n} from device`, run: (rows) =>
-    send({ type: "remove", names: rows.map((r) => r.name) }) },
-  only: { label: (n) => `Upload ${n} to server`, run: (rows) =>
-    send({ type: "push", names: rows.map((r) => r.name) }, onProgress) },
+  server: {
+    none: "Select books to copy",
+    label: (n) => `Copy ${n} to ${playerLabel()} →`,
+    run: (rows) => send({ type: "pull", ids: rows.map((r) => r.id) }, onProgress),
+  },
+  device: {
+    none: "Select books to remove",
+    label: (n) => `Remove ${n} from ${playerLabel()}`,
+    run: (rows) => send({ type: "remove", names: rows.map((r) => r.name) }),
+  },
+  only: {
+    none: "Select books to upload",
+    label: (n) => `← Upload ${n} to ${LIB || "the library"}`,
+    run: (rows) => send({ type: "push", names: rows.map((r) => r.name) }, onProgress),
+  },
 };
 
 function onProgress(ev) {
@@ -87,50 +125,58 @@ function visible() {
 
 function render() {
   for (const b of document.querySelectorAll(".tab")) {
-    b.classList.toggle("active", b.dataset.tab === TAB);
+    const on = b.dataset.tab === TAB;
+    b.setAttribute("aria-selected", String(on));
+    b.tabIndex = on ? 0 : -1;
   }
+  const counted = KNOWN && !NO_PLAYER;
   for (const [tab, n] of [["server", ST.serverOnly.length], ["device", ST.both.length],
                           ["only", ST.deviceOnly.length]]) {
-    const badge = $("#n-" + tab);
-    badge.textContent = n || "";
-    badge.classList.toggle("show", n > 0);
+    $("#n-" + tab).textContent = counted ? String(n) : "";
   }
-  $("#free").textContent = ST.free && ST.free.free ? `${ABSH.formatBytes(ST.free.free)} free` : "";
+  $("#libCount").textContent = counted
+    ? `${ST.serverOnly.length + ST.both.length} books` : "";
+  if (!NO_PLAYER) $("#free").textContent = counted ? freeOf(ST.free) : "";
 
   const rows = visible();
   const ul = $("#list");
   ul.innerHTML = "";
   if (NO_PLAYER) {
-    ul.appendChild(el("li", "empty", "Pick your player above to see what is on it."));
-  } else if (!rows.length) {
-    ul.appendChild(el("li", "empty", {
-      server: "Everything on the server is already on the device.",
-      device: "Nothing from this library is on the device yet.",
-      only: "Nothing on the device that the server does not have.",
+    ul.appendChild(el("li", "empty", "Choose your player to see what is on it."));
+  } else if (!rows.length && KNOWN) {
+    ul.appendChild(el("li", "empty", $("#filter").value.trim() ? "Nothing matches." : {
+      server: "Everything in the library is already on the player.",
+      device: "Nothing from this library is on the player yet.",
+      only: "Nothing on the player that the library does not have.",
     }[TAB]));
   }
   for (const r of rows) {
     const li = el("li");
+    const row = el("label", "book" + (SEL.has(r.key) ? " sel" : ""));
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = SEL.has(r.key);
     cb.disabled = BUSY;
     cb.addEventListener("change", () => {
       cb.checked ? SEL.add(r.key) : SEL.delete(r.key);
+      row.classList.toggle("sel", cb.checked);
       updateAction();
     });
-    const meta = el("div", "meta");
+    const meta = el("span", "meta");
     const t = el("span", "t", r.title);
-    if (PROGRESS && PROGRESS.title === r.title) t.appendChild(el("span", "chip working", "…"));
-    meta.append(t, el("span", "a", r.sub));
-    if (PROGRESS && PROGRESS.title === r.title && PROGRESS.total > 1) {
-      const bar = el("div", "bar");
+    const working = PROGRESS && PROGRESS.title === r.title;
+    if (working) t.appendChild(el("span", "chip", "copying…"));
+    meta.append(t);
+    if (r.sub) meta.append(el("span", "a", r.sub));
+    if (working && PROGRESS.total > 1) {
+      const bar = el("span", "bar");
       const i = document.createElement("i");
       i.style.width = `${Math.round(100 * PROGRESS.done / PROGRESS.total)}%`;
       bar.appendChild(i);
       meta.appendChild(bar);
     }
-    li.append(cb, meta);
+    row.append(cb, meta, el("span", "size", r.bytes ? size(r.bytes) : ""));
+    li.append(row);
     ul.appendChild(li);
   }
   const all = $("#all");
@@ -142,8 +188,23 @@ function render() {
 function updateAction() {
   const rows = visible().filter((r) => SEL.has(r.key));
   const btn = $("#act");
+  const bytes = rows.reduce((n, r) => n + (Number(r.bytes) || 0), 0);
+  const free = ST.free && ST.free.free;
+  let sub = "";
+  if (rows.length) {
+    if (TAB === "server") {
+      sub = !free ? size(bytes)
+        : bytes > free ? `${size(bytes)} - ${size(bytes - free)} more than is free`
+        : `${size(bytes)} of ${size(free)} free`;
+    } else if (TAB === "device") {
+      sub = `Frees ${size(bytes)}`;
+    } else {
+      sub = size(bytes);
+    }
+  }
   btn.disabled = BUSY || !rows.length;
-  btn.textContent = rows.length ? ACTION[TAB].label(rows.length) : "Select books";
+  $("#actLabel").textContent = rows.length ? ACTION[TAB].label(rows.length) : ACTION[TAB].none;
+  $("#actSub").textContent = sub;
   btn.classList.toggle("danger", TAB === "device" && rows.length > 0);
 }
 
@@ -151,6 +212,7 @@ function updateAction() {
 async function refresh() {
   try {
     ST = await send({ type: "status" });
+    KNOWN = true;
     NO_PLAYER = false;
     SEL.clear();
     render();
@@ -160,6 +222,7 @@ async function refresh() {
   } catch (e) {
     const msg = String(e.message || e);
     ST = { both: [], serverOnly: [], deviceOnly: [] };
+    KNOWN = false;
     render();
     if (BACKEND === "helper" && /device not mounted at|no device path is set/.test(msg)) {
       status("");
@@ -172,10 +235,10 @@ async function refresh() {
   }
 }
 
-/* A line under the status that opens Options. Only the folder backend
+/* A line under the status that opens Settings. Only the folder backend
  * (Chrome) asks for one: what fixes its problems is a click there. */
 function optionsLink(text) {
-  const a = el("a", "update-hint", text);
+  const a = el("a", "note-link", text);
   a.href = "#";
   a.addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
   $("#status").after(a);
@@ -183,22 +246,30 @@ function optionsLink(text) {
 
 /* -------------------------------------------------------------- the player
  * The device is the one setting that changes between visits, so it is chosen
- * here rather than in Options. Every change is saved as it is made: a popup
- * closes the moment it loses focus, and a Save button would lose whatever was
- * typed before it was pressed. */
+ * here rather than in Settings.
+ *
+ * What you type is saved as you type it: a popup closes the moment it loses
+ * focus, and a Save button would lose whatever was typed before it was
+ * pressed. What the extension suggests is only a suggestion - it is
+ * pre-selected, in the machine's colour, and nothing is saved until you
+ * press Use. */
 const PLAYER = { devicePath: "", subdir: ABSH.DEFAULTS.subdir || "AUDIOBOOKS" };
 let BACKEND = "helper";                // or "folder" (Chrome without the helper)
+let DEVICES = [];
 
-function baseName(path) {
-  const parts = String(path || "").replace(/[\\/]+$/, "").split(/[\\/]/);
-  return parts[parts.length - 1] || String(path || "");
-}
-
-function showPlayer(name, missing = false) {
+function showPlayer(name, { missing = false, was = "" } = {}) {
   const n = $("#playerName");
   n.textContent = name;
-  n.title = BACKEND === "folder" ? "" : PLAYER.devicePath;
   n.classList.toggle("missing", missing);
+  $("#playerToggle").classList.toggle("missing", missing);
+  $("#playerToggle").title = BACKEND === "folder" ? "Change player" : (PLAYER.devicePath || "Choose player");
+  $("#playerWas").textContent = was;
+  if (missing) $("#free").textContent = "";
+}
+
+function showSavedPlayer() {
+  if (BACKEND === "folder") return;
+  showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "Not chosen");
 }
 
 function playerNote(text, cls = "") {
@@ -208,112 +279,193 @@ function playerNote(text, cls = "") {
 }
 
 function openPlayer(open) {
+  PANEL_OPEN = open;
   $("#playerPanel").classList.toggle("hidden", !open);
-  $("#playerToggle").textContent = open ? "Done" : "Change";
+  $("#shelfView").classList.toggle("hidden", open);
+  $("#act").classList.toggle("hidden", open);
+  $("#use").classList.toggle("hidden", !open);
+  // Cancel goes back to a shelf - there is none to go back to without a player.
+  $("#cancelPlayer").classList.toggle("hidden", !open || NO_PLAYER);
   $("#playerToggle").setAttribute("aria-expanded", String(open));
+  if (open) updateUse();
+}
+
+async function closePlayer() {
+  openPlayer(false);
+  playerNote("");
+  await load();
 }
 
 async function readPlayer() {
-  const s = await browser.storage.local.get({ devicePath: "", subdir: PLAYER.subdir });
+  const s = await browser.storage.local.get({ devicePath: "", subdir: PLAYER.subdir, absUrl: "" });
   PLAYER.devicePath = s.devicePath || "";
   PLAYER.subdir = s.subdir;
   $("#devicePath").value = PLAYER.devicePath;
   $("#subdir").value = PLAYER.subdir;
+  try {
+    LIB = s.absUrl ? new URL(s.absUrl).host : "";
+  } catch {
+    LIB = "";
+  }
+  $("#libName").textContent = LIB || "Not set";
 }
 
 async function savePlayer(patch) {
   Object.assign(PLAYER, patch);
   await browser.storage.local.set(patch);
-  if (BACKEND === "helper") {
-    showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "not chosen");
-  }
 }
 
-/* Saved as you type (so closing the popup loses nothing), re-read once you
- * stop: Enter, or leaving the field. */
 function debounce(fn, ms) {
   let t;
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 const saveTyped = debounce((patch) => savePlayer(patch), 250);
 
-function freeText(d) {
-  return d.free ? `${ABSH.formatBytes(d.free)} free` : "";
+/** Mark one detected player as chosen. `how` is "picked" when you chose it,
+ *  "guess" when the extension did. */
+function choose(d, how) {
+  for (const row of document.querySelectorAll(".player-pick")) {
+    const on = !!d && row.title === d.path;
+    row.classList.toggle("picked", on && how === "picked");
+    row.classList.toggle("guess", on && how === "guess");
+    row.querySelector("input").checked = on;
+  }
+  const path = $("#devicePath");
+  if (d) path.value = d.path;
+  path.classList.toggle("machine", !!d && how === "guess");
+  updateUse();
+}
+
+function updateUse() {
+  const btn = $("#use");
+  if (BACKEND === "folder") {
+    btn.disabled = false;
+    $("#useLabel").textContent = `Use ${playerLabel()}`;
+    return;
+  }
+  const path = $("#devicePath").value.trim();
+  const d = DEVICES.find((x) => x.path === path);
+  // The player that just went missing is not a choice; plug it in and Detect.
+  const gone = NO_PLAYER && !d && path === PLAYER.devicePath;
+  btn.disabled = !path || gone;
+  $("#useLabel").textContent = !path ? "Choose a player"
+    : gone ? `${baseName(path)} isn't plugged in` : `Use ${d ? d.name : baseName(path)}`;
+}
+
+/** What makes a detected player look like yours, in a few words. */
+function evidence(d) {
+  if (!d.hasSubdir) return "No books folder";
+  return `${PLAYER.subdir || "AUDIOBOOKS"}/ · ${d.books} book${d.books === 1 ? "" : "s"}`;
+}
+
+function pickRow(d) {
+  const row = el("label", "player-pick" + (d.path === PLAYER.devicePath ? " current" : ""));
+  row.title = d.path;
+  const radio = document.createElement("input");
+  radio.type = "radio";
+  radio.name = "player";
+  // click, not change: clicking the suggestion that is already selected is
+  // still you choosing it, and that fires no change.
+  radio.addEventListener("click", () => choose(d, "picked"));
+  const who = el("span", "who");
+  const n = el("span", "n", d.name || d.path);
+  if (d.path === PLAYER.devicePath) n.append(el("span", "in-use", "in use"));
+  who.append(n, el("span", "why", evidence(d)));
+  const free = d.total ? `${size(d.free).split(" ")[0]} / ${size(d.total)}` : "";
+  row.append(radio, who, el("span", "d", free));
+  return row;
 }
 
 async function detect() {
   const btn = $("#detect");
+  const lbl = $("#detect .lbl");
+  if (btn.disabled) return DEVICES;
   btn.disabled = true;
-  btn.textContent = "Looking…";
+  lbl.textContent = "Looking…";
   const list = $("#playerList");
   try {
     const devices = await send({ type: "devices" });
+    DEVICES = devices || [];
     list.innerHTML = "";
-    if (!devices || !devices.length) {
+    if (!DEVICES.length) {
       playerNote("No player is plugged in. Some players have to be switched to " +
                  "USB storage (MSC) mode before they show up as a drive.", "err");
+      updateUse();
       return [];
     }
-    for (const d of devices) {
-      const b = el("button", "player-pick" + (d.path === PLAYER.devicePath ? " current" : ""));
-      b.type = "button";
-      b.setAttribute("role", "listitem");
-      b.title = d.path;
-      b.append(el("span", "n", d.name || d.path));
-      if (d.hasSubdir) b.append(el("span", "chip on", "has your books"));
-      b.append(el("span", "d", freeText(d)));
-      b.addEventListener("click", async () => {
-        $("#devicePath").value = d.path;
-        await savePlayer({ devicePath: d.path });
-        openPlayer(false);
-        playerNote("");
-        await load();
-      });
-      list.appendChild(b);
-    }
-    return devices;
+    for (const d of DEVICES) list.appendChild(pickRow(d));
+    // The player you chose before, if it is here; otherwise the one most like
+    // a player - or the only one there is - offered rather than taken. A path
+    // you typed that matches nothing here is left as you typed it.
+    const typed = $("#devicePath").value.trim();
+    const current = DEVICES.find((d) => d.path === typed);
+    const likely = DEVICES[0].score > 0 || DEVICES.length === 1;
+    if (current) choose(current, "picked");
+    else if ((NO_PLAYER || !typed) && likely) choose(DEVICES[0], "guess");
+    else updateUse();
+    return DEVICES;
   } catch (e) {
     playerNote("Couldn't ask the helper for players: " + (e.message || e), "err");
     return [];
   } finally {
     btn.disabled = false;
-    btn.textContent = "Detect";
+    lbl.textContent = "Detect";
   }
 }
 
-/* The player isn't usable: open the strip with what is plugged in, so picking
- * the right one is a click rather than a trip to Options. */
+/* The player isn't usable: open the chooser with what is plugged in, so
+ * picking the right one is a click rather than a trip to Settings. */
 async function needPlayer(why) {
   NO_PLAYER = true;
+  KNOWN = false;
   ST = { both: [], serverOnly: [], deviceOnly: [] };
   render();
-  showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "not chosen", true);
-  playerNote(why, "err");
+  if (PLAYER.devicePath) {
+    showPlayer("Not connected", { missing: true, was: baseName(PLAYER.devicePath) });
+  } else {
+    showPlayer("Not chosen");
+  }
+  playerNote(why, PLAYER.devicePath ? "err" : "");
   openPlayer(true);
   await detect();
 }
 
 $("#playerToggle").addEventListener("click", async () => {
-  const open = $("#playerPanel").classList.contains("hidden");
-  openPlayer(open);
-  if (open && BACKEND === "helper" && !$("#playerList").children.length) await detect();
-  if (!open) await load();
+  if (PANEL_OPEN) {
+    // Nothing to go back to without a player; stay on the chooser.
+    if (!NO_PLAYER) await closePlayer();
+    return;
+  }
+  openPlayer(true);
+  if (BACKEND === "helper" && !$("#playerList").children.length) await detect();
 });
 $("#detect").addEventListener("click", detect);
-$("#devicePath").addEventListener("input", () => saveTyped({ devicePath: $("#devicePath").value.trim() }));
-$("#devicePath").addEventListener("change", async () => {
-  await savePlayer({ devicePath: $("#devicePath").value.trim() });
-  await load();
-});
-$("#subdir").addEventListener("input", () => saveTyped({ subdir: $("#subdir").value.trim() }));
-$("#subdir").addEventListener("change", async () => {
+$("#cancelPlayer").addEventListener("click", closePlayer);
+$("#use").addEventListener("click", async () => {
+  if (BACKEND === "helper") {
+    const path = $("#devicePath").value.trim();
+    if (!path) return;
+    await savePlayer({ devicePath: path });
+  }
   await savePlayer({ subdir: $("#subdir").value.trim() });
-  await refresh();
+  NO_PLAYER = false;
+  showSavedPlayer();
+  await closePlayer();
 });
+$("#devicePath").addEventListener("input", () => {
+  const path = $("#devicePath").value.trim();
+  saveTyped({ devicePath: path });
+  // Typed by you, so no longer the machine's suggestion.
+  const d = DEVICES.find((x) => x.path === path);
+  choose(d || null, "picked");
+});
+$("#devicePath").addEventListener("change", () => savePlayer({ devicePath: $("#devicePath").value.trim() }));
+$("#subdir").addEventListener("input", () => saveTyped({ subdir: $("#subdir").value.trim() }));
+$("#subdir").addEventListener("change", () => savePlayer({ subdir: $("#subdir").value.trim() }));
 $("#folderChange").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
 
 async function load() {
-  status("checking helper…");
+  status("Checking the helper…");
   let p;
   try {
     p = await send({ type: "ping" });
@@ -324,11 +476,17 @@ async function load() {
       return;
     }
     BACKEND = p.backend === "folder" ? "folder" : "helper";
+    FOLDER = p.folder || "";
     $("#pathField").classList.toggle("hidden", BACKEND === "folder");
+    $("#detect").classList.toggle("hidden", BACKEND === "folder");
     $("#folderChange").classList.toggle("hidden", BACKEND !== "folder");
     $("#pollNote").classList.toggle("hidden", !(BACKEND === "helper" && p.polls === true));
-    if (BACKEND === "folder") showPlayer(`folder “${p.folder}”`, p.access === "prompt" || p.access === "missing");
-    else showPlayer(PLAYER.devicePath ? baseName(PLAYER.devicePath) : "not chosen");
+    if (BACKEND === "folder") {
+      const gone = p.access === "prompt" || p.access === "missing";
+      showPlayer(gone ? "Not available" : FOLDER, { missing: gone, was: gone ? FOLDER : "" });
+    } else {
+      showSavedPlayer();
+    }
     // Chrome without the helper: the folder has to be usable before anything
     // on it can be listed. The popup cannot restore access itself - Chrome
     // only renews it from one of the extension's tabs - so it sends you there.
@@ -365,7 +523,7 @@ async function load() {
   await refresh();
   // Set last: refresh() reports its own outcome, and this should be what
   // remains on screen when everything is fine.
-  if (!$("#status").classList.contains("err")) {
+  if (!$("#status").classList.contains("err") && !NO_PLAYER) {
     status(p.backend === "folder"
       ? `using the folder “${p.folder}”, not the helper (tags: ${p.tags})`
       : `helper ok (${p.release || p.version}, tags: ${p.tags})`, "ok");
@@ -373,9 +531,9 @@ async function load() {
 }
 
 /* One line, and only when there is something to do. The popup is where people
- * actually are, so it is where a waiting update gets noticed; the options page
- * is where it is explained and installed. Nothing is said on the library page
- * itself - that is Audiobookshelf's screen, not ours to nag on. */
+ * actually are, so it is where a waiting update gets noticed; the settings
+ * page is where it is explained and installed. Nothing is said on the library
+ * page itself - that is Audiobookshelf's screen, not ours to nag on. */
 async function updateHint() {
   try {
     const { helper, check } = await send({ type: "updateStatus" });
@@ -385,12 +543,12 @@ async function updateHint() {
     a.textContent = `Helper ${s.latest} is available - ` +
                     (s.canUpdate ? "update it in Options" : "see Options");
     a.classList.remove("hidden");
-  } catch { /* a failed check says nothing here; Options says why */ }
+  } catch { /* a failed check says nothing here; Settings says why */ }
 }
 
 /* ---------------------------------------------------------------- wiring */
 $("#filter").addEventListener("input", render);
-$("#opts").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
+$("#opts").addEventListener("click", () => browser.runtime.openOptionsPage());
 $("#updateHint").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
 $("#refresh").addEventListener("click", refresh);
 $("#all").addEventListener("change", () => {
@@ -398,8 +556,23 @@ $("#all").addEventListener("change", () => {
   rows.forEach((r) => $("#all").checked ? SEL.add(r.key) : SEL.delete(r.key));
   render();
 });
-for (const b of document.querySelectorAll(".tab")) {
-  b.addEventListener("click", () => { TAB = b.dataset.tab; SEL.clear(); render(); });
+const TABS = [...document.querySelectorAll(".tab")];
+function selectTab(name) {
+  TAB = name;
+  SEL.clear();
+  render();
+}
+for (const b of TABS) {
+  b.addEventListener("click", () => selectTab(b.dataset.tab));
+  // A tablist moves with the arrow keys.
+  b.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    const next = TABS[(TABS.indexOf(b) + step + TABS.length) % TABS.length];
+    selectTab(next.dataset.tab);
+    next.focus();
+  });
 }
 $("#act").addEventListener("click", async () => {
   const rows = visible().filter((r) => SEL.has(r.key));
@@ -424,6 +597,39 @@ $("#act").addEventListener("click", async () => {
   } finally {
     BUSY = false;
     await refresh();
+  }
+});
+
+/* Every action has a key, and the key is printed on it. */
+document.addEventListener("keydown", (e) => {
+  if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (e.key === "Enter") {
+    // A focused button or link does its own thing on Enter.
+    if (t.closest && t.closest("button, a")) return;
+    const btn = PANEL_OPEN ? $("#use") : $("#act");
+    if (!btn.disabled) {
+      e.preventDefault();
+      btn.click();
+    }
+    return;
+  }
+  if (e.key === "Escape" && PANEL_OPEN && !NO_PLAYER) {
+    e.preventDefault();
+    closePlayer();
+    return;
+  }
+  if (t.matches && t.matches("input[type=text], input[type=search]")) return;
+  const k = e.key.toLowerCase();
+  if (k === "/" && !PANEL_OPEN) {
+    e.preventDefault();
+    $("#filter").focus();
+  } else if (k === "d" && PANEL_OPEN && BACKEND === "helper") {
+    e.preventDefault();
+    detect();
+  } else if (k === "r" && !PANEL_OPEN) {
+    e.preventDefault();
+    $("#refresh").click();
   }
 });
 

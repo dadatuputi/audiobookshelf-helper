@@ -10,6 +10,78 @@ const CHECKS = ["renameM4b"];
 
 const $ = (id) => document.getElementById(id);
 
+/* -------------------------------------------------------------- the rows
+ *
+ * One row per thing that has to work, each with a dot and a line saying
+ * whether it does. A row opens by itself when it starts needing you; after
+ * that, opening and closing it is yours. */
+const ROWS = {};                       // name -> { state, counted }
+const BAD = new Set(["err", "warn"]);
+
+function openRow(name, open) {
+  const sec = $("sec-" + name);
+  if (!sec) return;
+  sec.classList.toggle("open", open);
+  sec.querySelector(".sec-head").setAttribute("aria-expanded", String(open));
+  sec.querySelector(".sec-body").hidden = !open;
+}
+
+/** state: ok | warn | err | off. An "off" row, or one not counted, is not
+ *  part of what has to be ready. */
+function setRow(name, state, summary, { counted = true } = {}) {
+  const sec = $("sec-" + name);
+  if (!sec) return;
+  const was = sec.dataset.state;
+  sec.dataset.state = state;
+  $("sum-" + name).textContent = summary;
+  ROWS[name] = { state, counted: counted && state !== "off" };
+  if (BAD.has(state) && !BAD.has(was)) openRow(name, true);
+  tally();
+}
+
+function tally() {
+  const rows = Object.values(ROWS).filter((r) => r.counted);
+  const ok = rows.filter((r) => r.state === "ok" || r.state === "warn").length;
+  const out = $("ready");
+  out.replaceChildren(Object.assign(document.createElement("b"),
+                                    { textContent: `${ok} of ${rows.length}` }), " ready");
+  out.classList.toggle("short", ok < rows.length);
+}
+
+document.addEventListener("click", (e) => {
+  const head = e.target.closest(".sec-head");
+  if (!head) return;
+  const name = head.closest(".sec").id.replace(/^sec-/, "");
+  openRow(name, head.getAttribute("aria-expanded") !== "true");
+});
+
+// Other scripts on this page (the Chrome folder section) add rows of their own.
+globalThis.ABSH_SETTINGS = { setRow, openRow };
+
+function hostOf(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
+
+async function serverRow() {
+  const s = await browser.storage.local.get({ absUrl: "", apiKey: "" });
+  const host = hostOf(s.absUrl);
+  if (!s.absUrl) setRow("server", "err", "Not set");
+  else if (!host) setRow("server", "err", "The URL isn't a full address");
+  else if (!s.apiKey) setRow("server", "err", `${host} · no API key`);
+  else setRow("server", "ok", `${host} · key saved`);
+}
+
+async function namingRow() {
+  const s = await browser.storage.local.get({ folderTemplate: ABSH.DEFAULTS.folderTemplate,
+                                              renameM4b: true });
+  setRow("naming", "ok", `${s.folderTemplate} · ` +
+                         (s.renameM4b ? ".m4b → .m4a" : "keeps .m4b"));
+}
+
 function note(el, msg, cls) {
   el.textContent = msg;
   el.className = "note " + (cls || "");
@@ -33,6 +105,7 @@ async function refreshPermissionState() {
     btn.disabled = true;
     note(out, url ? "Enter a full URL, e.g. http://media.local:13378" : "Set the server URL first.",
          url ? "err" : "");
+    setRow("access", "err", "Set the server first");
     return false;
   }
   const granted = await browser.permissions.contains({ origins: [pattern] });
@@ -45,8 +118,11 @@ async function refreshPermissionState() {
   // Say which pages the script is actually registered for, and say so loudly
   // when registering failed.
   const reg = $("regState");
+  const st = await browser.storage.local.get(["registrationError", "registeredPattern"]);
+  if (!granted) setRow("access", "err", `Not granted · ${pattern}`);
+  else if (st.registrationError) setRow("access", "err", "Granted · library page button missing");
+  else setRow("access", "ok", `Granted · ${pattern}`);
   if (reg) {
-    const st = await browser.storage.local.get(["registrationError", "registeredPattern"]);
     if (st.registrationError) {
       note(reg, `In-page UI not registered - ${st.registrationError}`, "err");
     } else if (st.registeredPattern) {
@@ -73,7 +149,13 @@ async function load() {
   // the default back over the user's choice.
   for (const k of FIELDS) if ($(k) && !$(k).dataset.touched) $(k).value = d[k] || "";
   for (const k of CHECKS) if (!$(k).dataset.touched) $(k).checked = !!d[k];
-  await refreshPermissionState();
+  await Promise.all([refreshPermissionState(), serverRow(), namingRow()]);
+}
+
+/** Put the fields back to what is saved. */
+async function revert() {
+  for (const k of [...FIELDS, ...CHECKS]) delete $(k).dataset.touched;
+  await load();
 }
 
 $("grant").addEventListener("click", async () => {
@@ -96,8 +178,7 @@ $("grant").addEventListener("click", async () => {
 
 $("absUrl").addEventListener("input", refreshPermissionState);
 
-/* The player's path is the one setting nobody can type from memory, so ask
-   the helper what is actually plugged in. */
+// Typed into since the page filled it: a late read from storage leaves it be.
 for (const k of FIELDS) {
   if ($(k)) $(k).addEventListener("input", () => { $(k).dataset.touched = "1"; });
 }
@@ -113,6 +194,31 @@ for (const k of CHECKS) {
  * sentence says why, and there is no button that would only fail. */
 
 let UPDATING = false;
+let FOLDER_IN_USE = false;             // Chrome is writing to a folder itself
+let LAST_HELPER = null;
+
+function helperRow(s) {
+  LAST_HELPER = s;
+  if (s.kind === "unreachable") {
+    if (FOLDER_IN_USE) setRow("helper", "off", "Not used · Chrome writes to the folder");
+    else setRow("helper", "err", "Not responding");
+    return;
+  }
+  const v = s.installed;
+  switch (s.kind) {
+    case "available": setRow("helper", "warn", `${v} · ${s.latest} available`); break;
+    case "current": setRow("helper", "ok", `${v} · Up to date`); break;
+    case "unversioned": setRow("helper", "ok", `${v} · can't update itself`); break;
+    case "unsupported": setRow("helper", "warn", `${v} · too old to update from here`); break;
+    default: setRow("helper", "ok", v);
+  }
+}
+
+/** Without the helper, in Chrome, its row is not something to fix. */
+globalThis.ABSH_SETTINGS.helperUnused = (unused) => {
+  FOLDER_IN_USE = unused;
+  if (LAST_HELPER) helperRow(LAST_HELPER);
+};
 
 function showHelper({ helper, check }, checking) {
   const s = ABSH.updateState(helper, check);
@@ -131,6 +237,7 @@ function showHelper({ helper, check }, checking) {
                 "from the download (native/install.py in a checkout), then restart " +
                 "the browser.", "err");
     when.textContent = "";
+    helperRow(s);
     return;
   }
 
@@ -180,6 +287,8 @@ function showHelper({ helper, check }, checking) {
     default:
       note(state, checking ? "" : "Not checked for updates yet.", "");
   }
+
+  helperRow(s);
 
   if (checking) {
     when.textContent = "Checking for updates…";
@@ -283,15 +392,54 @@ $("update").addEventListener("click", async () => {
 
 $("checkUpdate").addEventListener("click", () => refreshHelper(true));
 
-$("save").addEventListener("click", async () => {
+/* Saving says what it changed, in words, beside the button that did it. */
+const LABELS = { absUrl: "URL", apiKey: "API key", folderTemplate: "folder template",
+                 renameM4b: ".m4b renaming" };
+
+function inWords(list) {
+  return list.length < 2 ? list.join("")
+    : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+}
+
+async function save(msg) {
+  const before = await browser.storage.local.get(ABSH.DEFAULTS);
   const o = {};
   for (const k of FIELDS) o[k] = $(k).value.trim();
   for (const k of CHECKS) o[k] = $(k).checked;
+  const changed = Object.keys(o).filter((k) => (before[k] ?? "") !== o[k]);
   await browser.storage.local.set(o);
-  const m = $("msg");
-  m.textContent = "saved";
-  setTimeout(() => { m.textContent = ""; }, 1500);
-  await refreshPermissionState();
+  for (const k of [...FIELDS, ...CHECKS]) delete $(k).dataset.touched;
+  for (const m of document.querySelectorAll(".msg")) m.textContent = "";
+  msg.textContent = changed.length
+    ? `Saved ${inWords(changed.map((k) => LABELS[k]))}.` : "Nothing had changed.";
+  clearTimeout(save.timer);
+  save.timer = setTimeout(() => { msg.textContent = ""; }, 4000);
+  await Promise.all([refreshPermissionState(), serverRow(), namingRow()]);
+}
+
+$("save").addEventListener("click", () => save($("msg")));
+$("saveNaming").addEventListener("click", () => save($("msgNaming")));
+for (const b of document.querySelectorAll(".sec .cancel")) b.addEventListener("click", revert);
+
+$("showKey").addEventListener("click", () => {
+  const key = $("apiKey");
+  const show = key.type === "password";
+  key.type = show ? "text" : "password";
+  $("showKey").textContent = show ? "Hide" : "Show";
+});
+
+/* Every action has a key, and the key is printed on it. */
+const MAC = /Mac|iPhone|iPad/.test(navigator.userAgent);
+for (const k of document.querySelectorAll(".kbd-save")) k.textContent = MAC ? "⌘S" : "Ctrl S";
+document.addEventListener("keydown", (e) => {
+  const sec = e.target.closest && e.target.closest(".sec");
+  if (e.key.toLowerCase() === "s" && (MAC ? e.metaKey : e.ctrlKey) && !e.altKey) {
+    e.preventDefault();
+    save(sec && sec.id === "sec-naming" ? $("msgNaming") : $("msg"));
+  } else if (e.key === "Escape" && sec && sec.querySelector(".cancel")) {
+    e.preventDefault();
+    revert();
+  }
 });
 
 load();
