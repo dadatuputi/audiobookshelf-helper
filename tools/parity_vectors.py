@@ -93,30 +93,73 @@ def latin1(text):
     return b"\x00" + text.encode("latin-1")
 
 
-class _LegacyName(zipfile.ZipInfo):
-    """A name stored as cp437 with no UTF-8 flag, the way old archivers wrote
-    them. zipfile itself only writes non-ASCII names as UTF-8."""
-
-    def _encodeFilenameFlags(self):
-        return self.filename.encode("cp437"), self.flag_bits
-
-
 def zipped(members, *, compression=zipfile.ZIP_STORED, zip64=False):
     """members: [(name or raw cp437 bytes, payload)]. Fixed timestamps, so the
-    bytes - and the fixture - are the same on every run."""
+    bytes - and the fixture - are the same on every run.
+
+    A bytes name is stored the way old archivers wrote names: cp437, with no
+    UTF-8 flag. zipfile only ever writes non-ASCII names as UTF-8, and the
+    way round that used to be overriding its private _encodeFilenameFlags -
+    which Python 3.13.15 stopped consulting for the local header, so that
+    header claimed UTF-8 while the central directory did not, and the fixture
+    changed with the Python patch release. So such a member is written under
+    an ASCII placeholder of the same byte length, and its real bytes are
+    patched into both headers afterwards: nothing private is relied on, the
+    offsets do not move, and the result is checked before it is returned."""
     buf = io.BytesIO()
+    legacy = {}                       # index -> raw cp437 name bytes
     with zipfile.ZipFile(buf, "w", compression=compression) as z:
-        for name, payload in members:
-            cls = _LegacyName if isinstance(name, bytes) else zipfile.ZipInfo
-            text = name.decode("cp437") if isinstance(name, bytes) else name
-            info = cls(text, date_time=(2020, 1, 1, 0, 0, 0))
+        for i, (name, payload) in enumerate(members):
+            if isinstance(name, bytes):
+                legacy[i] = name
+                fill = chr(ord("a") + i % 26)
+                text = (fill * (len(name) - 1) + "/") if name.endswith(b"/") else fill * len(name)
+            else:
+                text = name
+            info = zipfile.ZipInfo(text, date_time=(2020, 1, 1, 0, 0, 0))
             info.compress_type = compression
             if text.endswith("/"):
                 z.writestr(info, payload)
                 continue
             with z.open(info, "w", force_zip64=zip64) as fh:
                 fh.write(payload)
-    return buf.getvalue()
+    data = bytearray(buf.getvalue())
+    if legacy:
+        _patch_names(data, legacy)
+    return bytes(data)
+
+
+def _patch_names(data, legacy):
+    """Put each legacy name's raw bytes into its local and central headers."""
+    import struct
+    zf = zipfile.ZipFile(io.BytesIO(bytes(data)))
+    infos = zf.infolist()
+    pos = zf.start_dir
+    for i, info in enumerate(infos):
+        if data[pos:pos + 4] != b"PK\x01\x02":
+            raise SystemExit(f"parity_vectors: no central entry {i} at {pos}")
+        n, m, k = struct.unpack("<HHH", data[pos + 28:pos + 34])
+        if i in legacy:
+            raw = legacy[i]
+            local = info.header_offset
+            ln = struct.unpack("<H", data[local + 26:local + 28])[0]
+            if n != len(raw) or ln != len(raw):
+                raise SystemExit(f"parity_vectors: name length moved for member {i}")
+            data[pos + 46:pos + 46 + n] = raw
+            data[local + 30:local + 30 + ln] = raw
+            for hdr, flags_at in ((pos, 8), (local, 6)):
+                flags = struct.unpack("<H", data[hdr + flags_at:hdr + flags_at + 2])[0]
+                data[hdr + flags_at:hdr + flags_at + 2] = struct.pack("<H", flags & ~0x800)
+        pos += 46 + n + m + k
+    # Read it back the way absh will: every legacy name decodes as cp437 from
+    # both headers, which zipfile checks against each other when it opens one.
+    check = zipfile.ZipFile(io.BytesIO(bytes(data)))
+    for i, info in enumerate(check.infolist()):
+        if i in legacy:
+            if info.flag_bits & 0x800 or info.filename != legacy[i].decode("cp437"):
+                raise SystemExit(f"parity_vectors: member {i} did not come out as cp437")
+            if not info.filename.endswith("/"):
+                check.read(info)
 
 
 def audio(n, seed=1):
