@@ -184,7 +184,7 @@ A `verify-release` job checks the asset set, digests against what CI built,
 stale assets, the native stamp, and opens the xpi to check AMO's signature,
 add-on id and version. Run by hand against the live `v1.0.0-alpha.3`: it
 passes, and it rejects a changed byte, another tag's build, and broken
-job outputs. **It has not yet run inside Actions.**
+job outputs. First ran in Actions on `v1.0.0-alpha.4`, and passed.
 
 ### T4. Make the update self-check prove more than "it starts" — DONE (`af77013`)
 The new helper must also list devices, against a stand-in folder so it
@@ -216,15 +216,11 @@ Chrome rather than Chromium, and Windows/macOS.
 
 ## Needs the maintainer
 
-### M1. Set up the signing key — once, before the next tag of any kind
-1. `openssl rand -base64 32`.
-2. Add the output as the repository secret `RELEASE_SIGNING_KEY`.
-3. Run the **Pin release-signing key** workflow (Actions tab); it commits the
-   key's public half to `absh/release_keys.py`.
-
-Tag builds stop without this, because a helper released with no trusted key
-can never update itself. After it, every release is signed by CI; there is no
-per-release step.
+### M1. Set up the signing key — DONE
+The `RELEASE_SIGNING_KEY` secret is set and its public half is pinned
+(`7178cc7`, key id `f8c85757eb1dbc99`). `v1.0.0-alpha.4` was the first release
+signed by CI; `tools/sign_release.py verify` against the published release
+confirms an installed helper will accept it.
 
 ### M2. Before the first stable tag
 Add the `CWS_PUBLISHER_ID` secret; create the Chrome Web Store item by hand
@@ -241,14 +237,13 @@ any ref, and `.claude/` is ignored since `22711c5`.
 
 ## Still unverified
 
-- The `verify-release` job has never run in Actions.
 - Chrome Web Store v2: the exact upload-state spellings and error shapes;
   Google's reference pages were unreachable when this was written.
 - Whether AMO's first listed submission needs listing details (summary,
   categories, licence), and whether its refusal of a deleted version number
   says "already exists".
-- CI signing (`ci-sign`) and the pin workflow have run only in tests, against
-  the workflow's own step scripts; the first tag after M1 is their first live run.
+- The "Pin release-signing key" workflow has run only in tests; the key was
+  pinned by hand with the same code, from the line the release guard printed.
 - Users on alpha.2 and alpha.3 run the old updater, which does not check
   signatures: they trust GitHub once more, for the first signed release.
   alpha.1 shipped no updater and must install the next release by hand.
