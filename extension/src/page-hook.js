@@ -67,6 +67,41 @@
     };
   }
 
+  /* Which book each cover is, written where the content script can read it.
+   *
+   * Audiobookshelf keeps the book on the cover's Vue component and puts
+   * nothing in the DOM. Only this world can see the component, so it copies
+   * the id onto the element as data-absh-id. Matching covers by title, the
+   * fallback, cannot tell two versions of one book apart. Covers are reused
+   * as the shelf scrolls, so the id is rewritten whenever it changes, and
+   * removed when there is no book to read. */
+  const CARDS = '[id^="book-card-"], [id^="item-card-"]';
+  function itemOf(el) {
+    const vm = el && el.__vue__;
+    const it = vm && (vm.libraryItem || (vm.$props && vm.$props.libraryItem));
+    return it && it.id ? it.id : null;
+  }
+  function stamp() {
+    for (const el of document.querySelectorAll(CARDS)) {
+      const id = itemOf(el);
+      if (id && el.getAttribute("data-absh-id") !== id) el.setAttribute("data-absh-id", id);
+      else if (!id && el.hasAttribute("data-absh-id")) el.removeAttribute("data-absh-id");
+    }
+  }
+  let queued = false;
+  const later = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; try { stamp(); } catch { /* never break the page */ } });
+  };
+  const start = () => {
+    new MutationObserver(later).observe(document.documentElement,
+      { childList: true, subtree: true, attributes: true, attributeFilter: ["id"] });
+    later();
+  };
+  if (document.documentElement) start();
+  else document.addEventListener("DOMContentLoaded", start, { once: true });
+
   const open = XMLHttpRequest.prototype.open;
   const send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {

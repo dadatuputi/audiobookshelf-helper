@@ -1,13 +1,19 @@
-/* Annotates the Audiobookshelf library with what is on your device.
+/* Puts the player on Audiobookshelf's own pages.
  *
- * Each book card gets a badge saying whether it is on the player, and buttons
- * to put it there or take it off. Books that are on the device but NOT in the
- * library appear in a panel of their own, with an upload button.
+ * Each cover gets a strip saying whether that book is on the player, being
+ * copied, or not there yet - and then the strip is the button that copies it.
+ * A book's own page gets "Copy to <player>" beside Play, with the player's
+ * state under it. Books on the player that the library does not have appear
+ * in a panel of their own, with an upload button.
  *
- * Card -> item id mapping comes from page-hook.js, which watches the API
- * responses Audiobookshelf itself fetched. The DOM never carries the id: cards
- * are #book-card-{index} and the id lives in Vue state, so scraping it would
- * break on any upstream release.
+ * Registered for the whole server (see background.js syncContentScript):
+ * Audiobookshelf changes pages without loading them, so this decides what is
+ * on the page every time the page changes, and does nothing where there is
+ * nothing for it.
+ *
+ * Which book a cover is comes from page-hook.js, which reads it from
+ * Audiobookshelf's own component and writes it on the cover as data-absh-id.
+ * Titles are the fallback, and cannot tell two versions of a book apart.
  *
  * Everything here is additive. If the mapping is unavailable the page is left
  * exactly as it was, rather than showing badges that might be wrong.
@@ -29,6 +35,10 @@
 
   /* id -> {title, author}, learned from the page's own API traffic. */
   const KNOWN = new Map();
+  /* The copy queue, as the background last said. */
+  let JOB = { current: null, queue: [], last: null };
+  let PLAYER = "the player";
+  const ITEM_ID = "absh-item";
   /* Normalised title -> item id. See idForCard for why not by index. */
   let TITLES = null;
   let STATUS = null;          // last known device status
@@ -144,7 +154,11 @@
   }
 
   function idForCard(el) {
-    // Prefer an id the page put in the DOM itself, if a future version does.
+    // What page-hook.js read from the cover's own component: exact, even for
+    // two versions of one book.
+    const stamped = el.getAttribute("data-absh-id");
+    if (stamped) return stamped;
+    // An id the page put in the DOM itself, if a future version does.
     const explicit = el.getAttribute("data-libraryitemid") || el.getAttribute("data-id");
     if (explicit && KNOWN.has(explicit)) return explicit;
 
@@ -171,56 +185,94 @@
     return b;
   }
 
+  /* Where a book stands: on the player, in the copy queue, or neither. */
+  function standing(id) {
+    for (const j of [JOB.current, ...(JOB.queue || [])]) {
+      const it = j && j.op === "pull" && j.items.find((i) => i.ref === id);
+      if (it && (it.state === "waiting" || it.state === "copying")) return { it, job: j };
+    }
+    const last = JOB.last && JOB.last.op === "pull" && JOB.last.items.find((i) => i.ref === id);
+    if (last && last.state === "failed") return { it: last, job: JOB.last };
+    return null;
+  }
+
+  function serverItem(id) {
+    const i = STATUS && (STATUS.serverOnly || []).find((x) => x.id === id);
+    return i || (KNOWN.get(id) ? { id, ...KNOWN.get(id) } : { id });
+  }
+
+  function copy(id) {
+    const i = serverItem(id);
+    return send({ type: "jobAdd", op: "pull", player: PLAYER,
+                  items: [{ key: id, ref: id, title: i.title || "", bytes: i.size || 0 }] })
+      .then((job) => { JOB = job; render(); })
+      .catch((e) => note(String(e.message || e), true));
+  }
+
+  /* The strip along the bottom of a cover. A state when there is nothing to
+     do; the button itself when there is. */
   function decorate(card) {
     const id = idForCard(card);
-    const known = id ? KNOWN.get(id) : null;
-    const here = id ? onDevice(id) : null;
-
-    let badge = card.querySelector("." + BADGE);
-    if (!badge) {
-      badge = document.createElement("div");
-      badge.className = BADGE;
-      // The card is positioned; an absolute badge rides along with it.
-      if (getComputedStyle(card).position === "static") card.style.position = "relative";
-      card.appendChild(badge);
-    }
-    badge.innerHTML = "";
-    if (id) badge.dataset.abshId = id;
-    else delete badge.dataset.abshId;
-
-    // No id means the library has not been read yet, or this card's title
-    // matches two books and guessing would badge the wrong one. Say so quietly
-    // instead of leaving the card bare - an absent badge is indistinguishable
-    // from the extension not being installed, which cost a lot of time.
-    if (!id) {
-      badge.classList.add("absh-quiet");
-      badge.classList.remove("absh-on");
-      badge.textContent = "?";
-      badge.title = (STATUS && STATUS.error)
-        ? `Audiobookshelf Helper: ${STATUS.error}`
-        : "Audiobookshelf Helper: still identifying this book";
+    let strip = card.querySelector("." + BADGE);
+    // No book, or no word from the player: nothing true to say, so say nothing
+    // on the cover. The toolbar button carries why.
+    if (!id || !STATUS || STATUS.error) {
+      if (strip) strip.remove();
       return;
     }
+    const here = onDevice(id);
+    const st = standing(id);
+    const kind = here ? "on" : st && st.it.state === "copying" ? "run"
+      : st && st.it.state === "waiting" ? "wait" : st ? "failed" : "copy";
+    if (strip && strip.dataset.abshId === id && strip.dataset.kind === kind && kind !== "run") return;
 
-    if (!STATUS || STATUS.error) {
-      badge.classList.add("absh-quiet");
-      badge.textContent = STATUS && STATUS.error ? "?" : "";
-      badge.title = (STATUS && STATUS.error) || "";
-      return;
+    // On the cover itself, not the card: the card also holds the title and
+    // author under the cover, and a strip at its foot sat on top of them.
+    const cover = card.querySelector('[id^="cover-area-"]') || card;
+    if (getComputedStyle(cover).position === "static") cover.style.position = "relative";
+    const make = kind === "copy" || kind === "failed" ? "button" : "div";
+    if (!strip || strip.tagName.toLowerCase() !== make || strip.parentElement !== cover) {
+      if (strip) strip.remove();
+      strip = document.createElement(make);
+      cover.appendChild(strip);
     }
-    badge.classList.remove("absh-quiet");
-
-    if (here) {
-      badge.classList.add("absh-on");
-      const dot = document.createElement("span");
-      dot.className = "absh-dot";
-      dot.textContent = "on device";
-      badge.append(dot, button("✕", "Remove from the device", "absh-danger",
-        (b) => act(b, { type: "remove", names: [here.name] }, "removing")));
+    // Clear of the cover's own ⋮ menu and listening bar in its bottom corner,
+    // which are sized in the cover's em and so grow with the shelf's zoom.
+    if (cover !== card) {
+      const em = parseFloat(getComputedStyle(cover).fontSize) || 16;
+      strip.style.bottom = `${Math.round(2.1 * em)}px`;
+    }
+    strip.className = `${BADGE} absh-${kind}`;
+    strip.dataset.abshId = id;
+    strip.dataset.kind = kind;
+    strip.textContent = "";
+    strip.onclick = null;
+    if (kind === "on") {
+      strip.textContent = `✓ On ${PLAYER}`;
+      strip.title = `On ${PLAYER}`;
+    } else if (kind === "run") {
+      const t = document.createElement("span");
+      t.textContent = "Copying…";
+      const bar = document.createElement("span");
+      const files = st.it.total > 1;
+      bar.className = "absh-bar" + (files ? "" : " absh-indeterminate");
+      const i = document.createElement("i");
+      if (files) i.style.width = `${Math.round(100 * st.it.done / st.it.total)}%`;
+      bar.appendChild(i);
+      strip.append(t, bar);
+      strip.title = `Copying to ${PLAYER}`;
+    } else if (kind === "wait") {
+      strip.textContent = "Waiting to copy";
+      strip.title = `Queued to copy to ${PLAYER}`;
     } else {
-      badge.classList.remove("absh-on");
-      badge.append(button("⤓", "Copy to the device", "",
-        (b) => act(b, { type: "pull", ids: [id] }, "copying")));
+      strip.type = "button";
+      strip.textContent = kind === "failed" ? "Copy failed · Try again" : "Copy to player";
+      strip.title = kind === "failed" && st.it.error ? st.it.error : `Copy to ${PLAYER}`;
+      strip.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();          // the cover would open the book
+        copy(id);
+      });
     }
   }
 
@@ -242,6 +294,75 @@
     } finally {
       busy = false;
     }
+  }
+
+  /* ------------------------------------------------------- a book's page */
+  /* "Copy to <player>" beside Play, and what the player has under it. Found
+     by its shape, not its label: Audiobookshelf is translated, and "Play"
+     is not always "Play". */
+  function itemPage() {
+    const m = /\/item\/([^/?#]+)/.exec(location.pathname);
+    const box = document.getElementById(ITEM_ID);
+    if (!m) {
+      if (box) box.remove();
+      return;
+    }
+    const id = decodeURIComponent(m[1]);
+    // The app keeps a second, hidden Play in its select-many bar; the one
+    // that matters is on the page and drawn.
+    const play = [...document.querySelectorAll("button.abs-btn.bg-success")]
+      .find((b) => b.getClientRects().length && !b.closest(".modal, .h-16"));
+    const row = play && play.parentElement;
+    if (!row) return;                       // not rendered yet; the next change brings it
+    let el = box;
+    if (!el || el.dataset.abshId !== id || el.previousElementSibling !== row) {
+      if (el) el.remove();
+      el = document.createElement("div");
+      el.id = ITEM_ID;
+      el.dataset.abshId = id;
+      row.after(el);
+    }
+    el.textContent = "";
+    if (!STATUS || STATUS.error) {
+      el.append(line(STATUS && STATUS.error ? `Audiobookshelf Helper: ${STATUS.error}` : "", true));
+      return;
+    }
+    const here = onDevice(id);
+    const st = standing(id);
+    const actions = document.createElement("div");
+    actions.className = "absh-item-actions";
+    if (here) {
+      actions.append(bigButton(`Remove from ${PLAYER}`, "absh-ghost",
+        (b) => act(b, { type: "remove", names: [here.name] }, "removing")));
+      el.append(actions, line(`✓ On ${PLAYER}`));
+    } else if (st && st.it.state !== "failed") {
+      el.append(line(st.it.state === "copying" ? `Copying to ${PLAYER}…` : `Waiting to copy to ${PLAYER}`));
+    } else {
+      actions.append(bigButton(`Copy to ${PLAYER}`, "", () => copy(id)));
+      const free = STATUS.free && STATUS.free.free;
+      el.append(actions, line(st ? `Copy failed: ${st.it.error || "try again"}`
+        : `Not on ${PLAYER} yet${free ? ` · ${sizeOf(free)} free` : ""}`, !!st));
+    }
+  }
+
+  function line(text, bad) {
+    const d = document.createElement("div");
+    d.className = "absh-item-line" + (bad ? " absh-bad-line" : "");
+    d.textContent = text;
+    return d;
+  }
+
+  function bigButton(label, cls, onClick) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "absh-btn absh-big " + cls;
+    b.textContent = label;
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick(b);
+    });
+    return b;
   }
 
   /* ---------------------------------------------------- device-only panel */
@@ -335,8 +456,21 @@
   }
 
   /* -------------------------------------------------------------- toolbar */
+  /* The button's words follow the player: with none answering, the covers say
+     nothing, so this is where the reason is. */
+  function toolbarState(b) {
+    const down = STATUS && STATUS.error;
+    const text = down ? "Player not connected" : "Sync to device";
+    const label = b.querySelector(".absh-label");
+    if (label && label.textContent !== text) label.textContent = text;
+    b.title = down ? `Audiobookshelf Helper: ${STATUS.error}`
+      : "Audiobookshelf Helper - pick books and sync to your player";
+    b.classList.toggle("absh-down", !!down);
+  }
+
   function toolbarButton() {
-    if (document.getElementById(BTN_ID)) return;
+    const have = document.getElementById(BTN_ID);
+    if (have) { toolbarState(have); return; }
     const bar = document.getElementById("toolbar");
     if (!bar) return;
     const b = document.createElement("button");
@@ -344,17 +478,19 @@
     b.type = "button";
     b.className = "absh-btn";
     b.title = "Audiobookshelf Helper - pick books and sync to your player";
-    b.innerHTML = '<span class="absh-ico">⤓</span><span>Sync to device</span>';
+    b.innerHTML = '<span class="absh-ico">⤓</span><span class="absh-label">Sync to device</span>';
     b.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
       browser.runtime.sendMessage({ type: "openPicker" }).catch(() => {});
     });
     bar.appendChild(b);
+    toolbarState(b);
   }
 
   function render() {
     toolbarButton();
+    itemPage();
     for (const card of document.querySelectorAll('[id^="book-card-"], [id^="item-card-"]')) {
       try {
         decorate(card);
@@ -369,7 +505,7 @@
      half of all page loads never learned the cards had appeared and sat with
      no badges at all. Judge each record instead. */
   function ownMutation(rec) {
-    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note, #${RESTORE_ID}`;
+    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note, #${RESTORE_ID}, #${ITEM_ID}`;
     const el = rec.target && rec.target.nodeType === 1
       ? rec.target : rec.target && rec.target.parentElement;
     if (el && el.closest && el.closest(own)) return true;
@@ -387,7 +523,9 @@
   const observer = new MutationObserver((records) => {
     if (records.some((r) => !ownMutation(r))) scheduleRender();
   });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  // data-absh-id too: page-hook.js writes it just after a cover appears.
+  observer.observe(document.documentElement,
+    { childList: true, subtree: true, attributes: true, attributeFilter: ["data-absh-id"] });
 
   // The helper says when a volume comes or goes, so plugging the player in
   // updates the page at once instead of on the next tick. Guarded because
@@ -398,6 +536,13 @@
     browser.runtime.onMessage.addListener((msg) => {
       if (msg && msg.type === "host-event" && msg.event === "devices-changed") {
         loadStatus();
+      }
+      // The copy queue moved on, or a copy finished and the player changed.
+      if (msg && msg.type === "job" && msg.job) { JOB = msg.job; scheduleRender(); }
+      if (msg && msg.type === "status" && msg.status) {
+        STATUS = msg.status;
+        TITLES = null;
+        scheduleRender();
       }
     });
   } catch (e) { /* no live extension context; the backstop still runs */ }
@@ -414,6 +559,17 @@
   };
   document.addEventListener("visibilitychange", lookAgain);
   window.addEventListener("focus", lookAgain);
+
+  // What to call the player, and where the copy queue stands. Neither may
+  // throw: anything that does here takes the whole page UI with it.
+  try {
+    browser.storage.local.get({ devicePath: "" }).then(({ devicePath }) => {
+      const parts = String(devicePath || "").replace(/[\\/]+$/, "").split(/[\\/]/);
+      if (parts[parts.length - 1]) PLAYER = parts[parts.length - 1];
+      scheduleRender();
+    }).catch(() => {});
+  } catch { /* no storage here; "the player" it is */ }
+  send({ type: "jobState" }).then((job) => { if (job) JOB = job; scheduleRender(); }).catch(() => {});
 
   render();
   loadStatus();

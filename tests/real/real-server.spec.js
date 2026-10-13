@@ -160,11 +160,10 @@ test.describe("against a real Audiobookshelf", () => {
     if (!cards) {
       throw new Error(`no book cards after signing in; ended on ${page.url()}`);
     }
-    // An actionable badge, not merely a badge: a card whose book is not yet
-    // identified carries a quiet "?" placeholder, and waiting on that would
-    // return before the mapping has landed.
+    // A strip that says something - Copy to player, or On <player> - which a
+    // cover gets only once its book is known and the player has answered.
     try {
-      await page.locator(".absh-badge .absh-mini").first()
+      await page.locator(".absh-badge.absh-copy, .absh-badge.absh-on").first()
         .waitFor({ state: "attached", timeout: 45_000 });
     } catch (e) {
       // Say which half broke. A missing toolbar button means no content script
@@ -175,7 +174,7 @@ test.describe("against a real Audiobookshelf", () => {
         cards: document.querySelectorAll('[id^="book-card-"]').length,
         script: !!document.getElementById("absh-sync-btn"),
         badges: document.querySelectorAll(".absh-badge").length,
-        quiet: document.querySelectorAll(".absh-badge.absh-quiet").length,
+        stamped: document.querySelectorAll("[data-absh-id]").length,
         note: document.getElementById("absh-note")?.textContent || "",
       })).catch(() => null);
       throw new Error(`no actionable badge; page state: ${JSON.stringify(d)}`);
@@ -183,16 +182,17 @@ test.describe("against a real Audiobookshelf", () => {
     return page;
   }
 
-  test("the content script registers for the path the server is served under", async () => {
+  test("the page UI registers for the whole server", async () => {
     const page = await ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
     const scripts = await page.evaluate(() =>
       chrome.scripting.getRegisteredContentScripts());
     expect(scripts.length).toBe(2);
-    // Audiobookshelf's own default is /audiobookshelf, so the pattern must
-    // carry the path. Dropping it registered a pattern nothing ever matched.
+    // The whole server: Audiobookshelf changes pages without loading them,
+    // so a pattern for its library pages missed every library reached from
+    // its home page, and every book's page.
     for (const sc of scripts) {
-      expect(sc.matches).toEqual([`${state.absUrl}/library/*`]);
+      expect(sc.matches).toEqual([`${new URL(state.absUrl).origin}/*`]);
     }
     await page.close();
   });
@@ -215,8 +215,9 @@ test.describe("against a real Audiobookshelf", () => {
     expect(cards).toBeGreaterThan(0);
     expect(badges).toBe(cards);
 
-    // Each badge offers an action rather than rendering empty.
-    expect(await page.locator(".absh-badge .absh-mini").count()).toBe(badges);
+    // Each says something: the button that copies it, or that it is there.
+    expect(await page.locator("button.absh-badge.absh-copy, div.absh-badge.absh-on").count())
+      .toBe(badges);
     await page.close();
   });
 
@@ -271,8 +272,9 @@ test.describe("against a real Audiobookshelf", () => {
 
     expect(deviceFiles(state.device), "device should start empty").toEqual([]);
 
-    const copy = card.locator(".absh-badge .absh-mini");
-    await expect(copy).toHaveAttribute("title", /copy to the device/i, { timeout: 30_000 });
+    // The strip is the button.
+    const copy = card.locator("button.absh-badge.absh-copy");
+    await expect(copy).toHaveText("Copy to player", { timeout: 30_000 });
     await copy.click();
 
     // The real assertion: a file on disk, put there through the native host.
@@ -287,28 +289,68 @@ test.describe("against a real Audiobookshelf", () => {
     expect(files.some((f) => f.endsWith(".m4a")), `no .m4a in ${files}`).toBe(true);
 
     // And the page catches up on its own, without a reload.
-    await expect(card.locator(".absh-badge .absh-dot"))
-      .toHaveText(/on device/i, { timeout: 45_000 });
+    await expect(card.locator("div.absh-badge.absh-on"))
+      .toContainText("✓ On ", { timeout: 45_000 });
+
+    // On the cover, not over the title under it - where it first landed.
+    const place = await card.evaluate((c) => {
+      const s = c.querySelector(".absh-badge").getBoundingClientRect();
+      const cover = c.querySelector('[id^="cover-area-"]').getBoundingClientRect();
+      const title = c.querySelector('[cy-id="title"]')?.getBoundingClientRect();
+      return { inCover: s.top >= cover.top && s.bottom <= cover.bottom,
+               clearOfTitle: !title || s.bottom <= title.top };
+    });
+    expect(place).toEqual({ inCover: true, clearOfTitle: true });
     await page.close();
   });
 
-  test("removing it from the card really takes it off the device", async () => {
+  test("removing it from the book's page really takes it off the device", async () => {
     const title = state.titles[0];
     const page = await libraryPage();
     const card = cardFor(page, title);
-    await expect(card.locator(".absh-badge .absh-dot"))
-      .toHaveText(/on device/i, { timeout: 45_000 });
+    const on = card.locator("div.absh-badge.absh-on");
+    await expect(on).toContainText("✓ On ", { timeout: 45_000 });
+    const id = await on.getAttribute("data-absh-id");
 
-    await card.locator(".absh-badge .absh-danger").click();
+    // Reached the way people reach it: inside the app, with no page load. A
+    // content script matched against the address a page loaded at never saw
+    // a book's page, which is how this went missing on a real server.
+    await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
+    const remove = page.locator("#absh-item button", { hasText: "Remove from" });
+    await expect(remove).toBeVisible({ timeout: 30_000 });
+    // Under the Play people can see. The app keeps a second, hidden Play in
+    // its select-many bar, and following that one put these buttons over the
+    // side rail.
+    const under = await page.evaluate(() => {
+      const box = document.getElementById("absh-item").getBoundingClientRect();
+      const play = [...document.querySelectorAll("button.abs-btn.bg-success")]
+        .find((b) => b.getClientRects().length && !b.closest(".modal, .h-16"))
+        .getBoundingClientRect();
+      return box.top >= play.bottom && Math.abs(box.left - play.left) < 2;
+    });
+    expect(under, "the buttons are not under Play").toBe(true);
+    await remove.click();
 
     const gone = await until(() => (deviceFiles(state.device).length === 0 ? true : null));
     expect(gone, `still on the device: ${deviceFiles(state.device)}`).toBe(true);
 
-    // The badge offers to copy it again, so the page reflects the new state.
-    await expect(card.locator(".absh-badge .absh-mini"))
-      .toHaveAttribute("title", /copy to the device/i, { timeout: 45_000 });
+    // The page offers to copy it again, beside Play.
+    await expect(page.locator("#absh-item button", { hasText: "Copy to" }))
+      .toBeVisible({ timeout: 45_000 });
     await page.close();
   });
+
+  test("the covers have their strips when the library is reached from the home page", async () => {
+    // Nobody types a library address. They open the server, and the app
+    // routes to the library itself, without loading a page - which a content
+    // script registered for <server>/library/* never matched.
+    const page = await libraryPage();
+    await page.goto(`${state.absUrl}/`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator(".absh-badge.absh-copy, .absh-badge.absh-on").first())
+      .toBeVisible({ timeout: 45_000 });
+    await page.close();
+  });
+
 
 
   test("a book only on the device is offered for upload, and really uploads", async () => {
@@ -353,6 +395,32 @@ test.describe("against a real Audiobookshelf", () => {
       rmSync(join(state.libraryFolder, only.author), { recursive: true, force: true });
     }
     rmSync(dst, { recursive: true, force: true });
+  });
+
+  /* Pictures of the page UI on a real server, for review. Off unless
+   * ABSH_SHOTS names a folder; leaves the device as it found it. */
+  test("screenshots of the page UI", async () => {
+    test.skip(!process.env.ABSH_SHOTS, "set ABSH_SHOTS=<dir> to take them");
+    const dir = process.env.ABSH_SHOTS;
+    mkdirSync(dir, { recursive: true });
+    const page = await libraryPage();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const card = cardFor(page, state.titles[0]);
+    await card.locator("button.absh-badge.absh-copy").click();
+    await page.screenshot({ path: join(dir, "library-copying.png") });
+    await expect(card.locator("div.absh-badge.absh-on"))
+      .toContainText("✓ On ", { timeout: 45_000 });
+    await page.screenshot({ path: join(dir, "library.png") });
+    const id = await card.locator("div.absh-badge.absh-on").getAttribute("data-absh-id");
+    await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
+    const remove = page.locator("#absh-item button", { hasText: "Remove from" });
+    await expect(remove).toBeVisible({ timeout: 30_000 });
+    await page.screenshot({ path: join(dir, "book-on.png") });
+    await remove.click();
+    await expect(page.locator("#absh-item button", { hasText: "Copy to" }))
+      .toBeVisible({ timeout: 45_000 });
+    await page.screenshot({ path: join(dir, "book-off.png") });
+    await page.close();
   });
 
 });

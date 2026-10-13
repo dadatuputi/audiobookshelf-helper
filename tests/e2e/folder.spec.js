@@ -365,7 +365,7 @@ test.describe("without the helper, the folder backend does what the helper does"
       await page.locator("#list li", { hasText: t }).locator("input[type=checkbox]").check();
     }
     await page.click("#act");
-    await expect(page.locator("#status")).toContainText("copied 4 file(s)", { timeout: 30_000 });
+    await expect(page.locator("#jobBox")).toContainText("Copied 2 to", { timeout: 30_000 });
 
     const opts = await optionsPage(folderCtx);
     const st = await opfsState(opts, "player");
@@ -441,7 +441,7 @@ test.describe("without the helper, the folder backend does what the helper does"
     await expect(row).toContainText("J.R.R. Tolkien");
     await row.locator("input[type=checkbox]").check();
     await page.click("#act");
-    await expect(page.locator("#status")).toContainText("uploaded 1", { timeout: 30_000 });
+    await expect(page.locator("#jobBox")).toContainText("Uploaded 1 to", { timeout: 30_000 });
     expect(uploads).toEqual([{ names: ["Scruffy_rip.m4b"], title: "The Silmarillion",
                                author: "J.R.R. Tolkien", library: "lib1", folder: "fol1" }]);
     await page.close();
@@ -452,7 +452,7 @@ test.describe("without the helper, the folder backend does what the helper does"
     await lib.goto(`${absUrl}/library/main`);
     // Redwall and The Hobbit as pulled, Holes by the tags of a side-loaded file.
     await expect(lib.locator(".absh-badge.absh-on")).toHaveCount(3, { timeout: 20_000 });
-    await expect(lib.locator(".absh-badge.absh-on", { hasText: "on device" })).toHaveCount(3);
+    await expect(lib.locator(".absh-badge.absh-on", { hasText: "✓ On " })).toHaveCount(3);
     await expect(lib.locator("#absh-panel")).toContainText("1 on your device, not in this library");
     await expect(lib.locator("#absh-folder-notice")).toHaveCount(0);
     await lib.close();
@@ -466,7 +466,7 @@ test.describe("without the helper, the folder backend does what the helper does"
     await page.locator("#list li", { hasText: "The Hobbit" }).locator("input[type=checkbox]").check();
     await expect(page.locator("#act")).toContainText("Remove 1 from ");
     await page.click("#act");
-    await expect(page.locator("#status")).toContainText("removed 1", { timeout: 20_000 });
+    await expect(page.locator("#jobBox")).toContainText("Removed 1 from", { timeout: 20_000 });
 
     const opts = await optionsPage(folderCtx);
     const mine = await opfsState(opts, "player");

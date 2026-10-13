@@ -154,7 +154,10 @@ class TestFolderBackendIsChromeOnly(unittest.TestCase):
         extension already asks for."""
         for t in ("firefox", "chrome"):
             m = BUILD.manifest_for(t)
-            self.assertEqual(m["permissions"], ["storage", "nativeMessaging", "scripting"], t)
+            # notifications: saying a copy finished (maintainer's decision 3a,
+            # 2026-10-13). Nothing else, and still no host.
+            self.assertEqual(m["permissions"],
+                             ["storage", "nativeMessaging", "scripting", "notifications"], t)
             self.assertNotIn("host_permissions", m)
             self.assertEqual(m["optional_host_permissions"], ["*://*/*"])
 

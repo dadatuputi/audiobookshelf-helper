@@ -249,10 +249,15 @@ which blocks the helper's first touch of a USB volume until answered.
    every narrator, and what tells versions apart (length, series number,
    year). Where: `extension/src/popup.js` `rowsFor`, and the item fields in
    `absh/abs_api.py` `normalize_item` (no duration, subtitle or year yet).
-   **NEEDS OWNER DECISION:** expand a row, group versions, or wrap - mocked up.
+   **DECIDED 1A** (maintainer, 2026-10-13): the second line is what tells
+   versions apart, narrator then length; a 44px chevron opens the rest
+   (title, every narrator, series and number, length and files, year) under
+   the row. Rejected: grouping versions (1B), wrapping every row (1C).
+   **Status:** built for alpha.7.
 2. **The tab count ignores the filter.** "To player 345" over seven filtered
    rows. A count must agree with what is on screen: "7 of 345" while a filter
    is on, from the same predicate as the list. Where: `popup.js` `render`.
+   **Status:** built for alpha.7.
 
 ### N9. Reported on alpha.6 (2026-10-13): a copy disappears from view
 Seen: during a copy, reopening the popup shows "Checking the helper…" over an
@@ -264,18 +269,37 @@ helper for the shelf, which waits behind the copy, while the status line
 still says "Checking the helper…" though the helper has answered. Where:
 `popup.js` (progress held in the page), `background.js` `route` (no record
 of a running job), `absh/host.py` (status queued behind pull).
-**NEEDS OWNER DECISION:** how a running and a finished copy look, and how it
-alerts - mocked up with N8.
+**DECIDED 2A, 3a** (maintainer, 2026-10-13): the copy belongs to the
+extension's background, not a popup. Each row being copied says so (copied,
+a bar, waiting) and the button becomes the overall progress; the shelf stays
+usable and more books join the queue. Finished: the footer says what was
+copied; the toolbar icon carries a count while copying and a check when done;
+a system notification says it finished (needs the notifications permission).
+Rejected: a separate copy card (2B). **Status:** built for alpha.7, with
+one deviation: a book that is one file reports no progress until it lands,
+so its bar is indeterminate rather than a percentage.
 
 ### N10. Reported on alpha.6 (2026-10-13): nothing shows in Audiobookshelf
 Seen: no change to the Audiobookshelf pages; the maintainer wants to browse
 there and send books to the player. What exists: on `<server>/library/*`
 only, a badge on each book card and a "Sync to device" toolbar button, and
 only once Access is granted in Settings. Nothing on a book's own page
-(`/item/<id>`). **To establish:** whether Access was granted on this install
-(Settings → Access), and whether the library grid shows badges. **Gap either
-way:** no "copy to player" on a book's page. **NEEDS OWNER DECISION:** mocked up
-with N8 and N9.
+(`/item/<id>`). The maintainer sees no buttons at all, so injection itself is
+in question as well as the missing page button. **DECIDED 4A** (maintainer,
+2026-10-13): a "Copy to <player>" button beside Play on a book's page with
+the player's state under it, and on every cover a full-width strip saying
+on the player, copying, or Copy to player, the whole strip the target.
+Rejected: the book page only (4B). **Cause** of nothing showing, found
+against a real v2.37.1: the page script was registered for
+`<server>/library/*`, and the app reaches the library and every book by
+in-app navigation, which never matches a registration; only a full load of a
+`/library/` address did. Two more, found once it ran: a cover's strip was
+attached to the card, which includes the title under it, and the book page
+followed the first green Play in the document, which is a hidden one in the
+select-many bar. **Status:** built for alpha.7. Registered for the whole
+origin; covers carry their book's id from the app's own state, so two
+versions of one title are told apart; the strip sits on the cover; the page
+follows the Play that is drawn. The real-server suite checks each of these.
 
 ### N11. The upstream watch never reported a release — FIXED
 Audiobookshelf shipped v2.36.1, v2.37.0 and v2.37.1 while the tests stayed on

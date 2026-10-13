@@ -50,7 +50,8 @@ const LAUNCH = process.env.ABSH_CHROMIUM_PATH
 process.env.ABSH_UPDATE_API = "http://127.0.0.1:9";
 
 const BOOKS = [
-  { id: "bk1", title: "Redwall", author: "Brian Jacques", relPath: "Brian Jacques/Redwall" },
+  { id: "bk1", title: "Redwall", author: "Brian Jacques", relPath: "Brian Jacques/Redwall",
+    narrator: "Brian Jacques, Full Cast", duration: 41400 },
   { id: "bk2", title: "Holes", author: "Louis Sachar", relPath: "Louis Sachar/Holes" }
 ];
 
@@ -120,7 +121,9 @@ function startAbs() {
         return send({
           results: BOOKS.map((b) => ({
             id: b.id, relPath: b.relPath, size: 2048,
-            media: { numTracks: 1, metadata: { title: b.title, authorName: b.author } }
+            media: { numTracks: 1, duration: b.duration || 0,
+                     metadata: { title: b.title, authorName: b.author,
+                                 narratorName: b.narrator || "" } }
           }))
         });
       }
@@ -416,6 +419,34 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
+  test("a row says who reads it and how long, and opens to say the rest", async () => {
+    const page = await popupPage(env.ctx);
+    const row = page.locator("#list li", { hasText: "Redwall" });
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    // What tells two versions of one book apart, without opening anything.
+    await expect(row.locator(".a")).toHaveText("Brian Jacques, Full Cast · 11 h 30 m");
+
+    await expect(row.locator(".detail")).toHaveCount(0);
+    await row.locator("button.more").click();
+    await expect(row.locator("button.more")).toHaveAttribute("aria-expanded", "true");
+    await expect(row.locator(".detail")).toContainText("Read by");
+    await expect(row.locator(".detail")).toContainText("Brian Jacques, Full Cast");
+    // Opening the details is not choosing the book.
+    await expect(row.locator("input[type=checkbox]")).not.toBeChecked();
+    await page.close();
+  });
+
+  test("while filtering, each count says how many of how many", async () => {
+    const page = await popupPage(env.ctx);
+    await expect(page.locator("#n-server")).toHaveText(String(BOOKS.length), { timeout: 20_000 });
+    await page.fill("#filter", "full cast");
+    await expect(page.locator("#list li")).toHaveCount(1);
+    await expect(page.locator("#n-server")).toHaveText(`1 of ${BOOKS.length}`);
+    await page.fill("#filter", "");
+    await expect(page.locator("#n-server")).toHaveText(String(BOOKS.length));
+    await page.close();
+  });
+
   test("pulling a book writes it to the device, renamed", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
@@ -429,7 +460,7 @@ test.describe("full loop in a real browser", () => {
     await expect(page.locator("#act")).toContainText(`Copy 1 to ${basename(env.dev)} →`);
     await page.click("#act");
 
-    await expect(page.locator("#status")).toContainText("copied 1 file", { timeout: 30_000 });
+    await expect(page.locator("#jobBox")).toContainText(`Copied 1 to ${basename(env.dev)}`, { timeout: 30_000 });
 
     // The .m4b became .m4a on the way, which is the whole point of the tool.
     expect(deviceFiles(env.dev)).toEqual(["Brian Jacques - Redwall.m4a"]);
@@ -470,7 +501,7 @@ test.describe("full loop in a real browser", () => {
     await row.locator("input[type=checkbox]").check();
     await expect(page.locator("#act")).toContainText(`← Upload 1 to ${new URL(env.absUrl).host}`);
     await page.click("#act");
-    await expect(page.locator("#status")).toContainText("uploaded 1", { timeout: 30_000 });
+    await expect(page.locator("#jobBox")).toContainText("Uploaded 1 to", { timeout: 30_000 });
 
     // The rename is undone on the way back to the server.
     expect(UPLOADS.length).toBe(1);
@@ -479,15 +510,18 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
-  test("the toolbar button is registered for that server, and only that server", async () => {
+  test("the page UI is registered for that server, and only that server", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/options.html`);
 
     const scripts = await page.evaluate(() => chrome.scripting.getRegisteredContentScripts());
     // Two: the page-world hook that captures item ids, and the content script.
     expect(scripts).toHaveLength(2);
+    // The whole server, not just /library/*: Audiobookshelf changes pages
+    // without loading them, so a library reached from its home page never
+    // matched, and got nothing.
     for (const sc of scripts) {
-      expect(sc.matches).toEqual([`${env.absUrl}/library/*`]);
+      expect(sc.matches).toEqual([`${new URL(env.absUrl).origin}/*`]);
     }
     expect(scripts.find((sc) => sc.world === "MAIN").js).toEqual(["page-hook.js"]);
     await page.close();
@@ -502,7 +536,7 @@ test.describe("full loop in a real browser", () => {
     await lib.close();
   });
 
-  test("book cards get a badge saying whether the book is on the device", async () => {
+  test("every cover says whether its book is on the player, and copies it if not", async () => {
     // Never asserted before this: the stubs carried #book-card- divs, but the
     // only thing checked was the toolbar button, so the badges could be - and
     // were - absent on a real server with nobody the wiser.
@@ -511,9 +545,12 @@ test.describe("full loop in a real browser", () => {
     const badges = lib.locator(".absh-badge");
     await expect(badges.first()).toBeVisible({ timeout: 20_000 });
     expect(await badges.count()).toBe(2);       // one per card on the stub page
-    // Each badge offers an action: copy it over, or take it off.
-    const buttons = lib.locator(".absh-badge .absh-mini");
-    expect(await buttons.count()).toBeGreaterThan(0);
+    // Redwall was copied earlier: a state, not a button. Holes was not: the
+    // strip is the button that copies it.
+    await expect(lib.locator("div.absh-badge.absh-on")).toHaveCount(1);
+    await expect(lib.locator("div.absh-badge.absh-on")).toContainText("On ");
+    await expect(lib.locator("button.absh-badge.absh-copy")).toHaveCount(1);
+    await expect(lib.locator("button.absh-badge.absh-copy")).toHaveText("Copy to player");
     await lib.close();
   });
 
@@ -527,12 +564,43 @@ test.describe("full loop in a real browser", () => {
       .locator("input[type=checkbox]").check();
     await expect(page.locator("#act")).toContainText(`Remove 1 from ${basename(env.dev)}`);
     await page.click("#act");
-    await expect(page.locator("#status")).toContainText("removed", { timeout: 20_000 });
+    await expect(page.locator("#jobBox")).toContainText(`Removed 1 from ${basename(env.dev)}`, { timeout: 20_000 });
 
     expect(deviceFiles(env.dev)).not.toContain("Brian Jacques - Redwall.m4a");
     // The source library is untouched.
     expect(existsSync(join(env.lib, "Brian Jacques/Redwall/Redwall.m4b"))).toBe(true);
     await page.close();
+  });
+
+  test("a copy carries on when the popup closes, and the next popup says how it went", async () => {
+    // A popup closes the moment it loses focus. The copy used to be known only
+    // to the popup that started it, so reopening showed an empty shelf, as if
+    // nothing were happening.
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await page.locator("#list li", { hasText: "Holes" }).locator("input[type=checkbox]").check();
+    await page.click("#act");
+    await page.close();                            // straight away, mid-copy
+
+    const badge = async () => {
+      const opts = await env.ctx.newPage();
+      await opts.goto(`chrome-extension://${EXT_ID}/options.html`);
+      const t = await opts.evaluate(() => chrome.action.getBadgeText({}));
+      await opts.close();
+      return t;
+    };
+    // While nothing is open, the toolbar icon carries it: a check once done.
+    await expect.poll(badge, { timeout: 30_000 }).toBe("✓");
+    expect(deviceFiles(env.dev)).toContain("Louis Sachar - Holes.m4a");
+
+    const again = await env.ctx.newPage();
+    await again.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(again.locator("#jobBox")).toContainText(`Copied 1 to ${basename(env.dev)}`,
+                                                         { timeout: 20_000 });
+    await expect(again.locator("#jobBox")).toHaveClass(/ok/);
+    // Seen now, so the check mark goes.
+    await expect.poll(badge, { timeout: 10_000 }).toBe("");
+    await again.close();
   });
 });
 
@@ -605,19 +673,20 @@ test.describe("when the player is plugged in while the page is open", () => {
        async () => {
     const page = await ctx.newPage();
     await page.goto(`${absUrl}/library/lib1`);
-    // Badges appear either way; with no device they cannot say anything about
-    // one, which is what the quiet badge is.
-    await expect(page.locator(".absh-badge").first())
-      .toBeVisible({ timeout: 20_000 });
-    await expect(page.locator(".absh-badge .absh-mini")).toHaveCount(0);
+    // With no player, the covers say nothing about one; the toolbar button
+    // says why.
+    await expect(page.locator("#absh-sync-btn")).toContainText("Player not connected",
+                                                               { timeout: 20_000 });
+    await expect(page.locator(".absh-badge")).toHaveCount(0);
 
     // Plug it in. Nothing touches the page, and nothing asks it to look again.
     mkdirSync(join(dev, "AUDIOBOOKS"), { recursive: true });
 
     // The backstop is five minutes away, so arriving inside twenty seconds can
     // only be the event.
-    await expect(page.locator(".absh-badge .absh-mini").first())
+    await expect(page.locator("button.absh-badge.absh-copy").first())
       .toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#absh-sync-btn")).toContainText("Sync to device");
     await page.close();
   });
 });

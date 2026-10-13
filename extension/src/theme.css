@@ -22,6 +22,7 @@
   --kbd: #EEF0F3;
   --kbd-on-accent: rgba(255, 255, 255, .2);
   --ok: #1D7A43;
+  --ok-soft: #E3F2E9;
   --warn: #9A5B00;
   --err: #B42318;
   --err-ink: #FFFFFF;
@@ -48,6 +49,7 @@
     --kbd: #2E3238;
     --kbd-on-accent: rgba(13, 15, 20, .18);
     --ok: #5CCB8A;
+    --ok-soft: #1B3326;
     --warn: #E7B45A;
     --err: #F08A7E;
     --err-ink: #0D0F14;

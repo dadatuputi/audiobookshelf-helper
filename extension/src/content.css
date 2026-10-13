@@ -7,24 +7,44 @@
   font: inherit; font-size: 13px; cursor: pointer;
 }
 .absh-btn:hover { background: #4338ca; }
+.absh-btn.absh-down { background: #333; color: #F08A7E; }
 .absh-ico { font-size: 15px; line-height: 1; }
 
-/* Per-card badge */
+/* Per-cover strip: on the player, copying, waiting, or the button that copies.
+   Always visible and the full width of the cover (36px), so it is never a
+   hover-only target. Above the cover's own layers, which are z-10 and fill
+   the card: below them, every click landed on the cover and opened the book. */
 .absh-badge {
-  /* Above Audiobookshelf's cover area, which is z-10 and whose placeholder
-     overlay fills the card. At z-index 5 the badge painted underneath it:
-     visible, but every click landed on the cover and opened the book. */
-  position: absolute; top: 4px; right: 4px; z-index: 50;
-  display: flex; align-items: center; gap: 4px;
-  padding: 2px; border-radius: 6px;
-  background: rgba(17, 24, 39, .82);
-  opacity: .55; transition: opacity .12s ease;
+  position: absolute; left: 6px; right: 6px; bottom: 6px; z-index: 50;
+  height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 0 8px; border: 0; border-radius: 6px;
+  font: 600 12px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: rgba(20, 23, 28, .82); color: #E8E8E8; white-space: nowrap; overflow: hidden;
 }
-.absh-badge:hover, .absh-badge.absh-on { opacity: 1; }
-.absh-badge.absh-quiet { background: transparent; }
-.absh-dot {
-  font-size: 10px; color: #86efac; padding: 0 4px; white-space: nowrap;
-}
+button.absh-badge { cursor: pointer; }
+/* The touch target reaches 44px past the strip's visible 36px. */
+button.absh-badge::after { content: ""; position: absolute; inset: -4px; }
+.absh-badge.absh-copy { background: rgba(52, 67, 201, .95); color: #fff; }
+.absh-badge.absh-copy:hover { background: #2B39B0; }
+.absh-badge.absh-on { color: #8FE0B0; }
+.absh-badge.absh-failed { background: rgba(180, 35, 24, .95); color: #fff; }
+.absh-bar { width: 80%; height: 3px; border-radius: 2px; background: rgba(255,255,255,.2); overflow: hidden; }
+.absh-bar > i { display: block; height: 100%; background: #8C97F2; width: 0; }
+.absh-indeterminate > i { width: 30%; animation: absh-slide 1.2s ease-in-out infinite; }
+@keyframes absh-slide { from { margin-left: -30%; } to { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .absh-indeterminate > i { animation: none; width: 100%; opacity: .5; } }
+
+/* A book's page: beside Play, the size of Audiobookshelf's own buttons, with
+   the touch target taken to 44px. */
+#absh-item { display: grid; gap: 6px; margin-top: 10px; justify-items: start; }
+.absh-item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.absh-btn.absh-big { position: relative; height: 36px; margin-left: 0; padding: 0 14px; font-weight: 600; }
+.absh-btn.absh-big::after { content: ""; position: absolute; inset: -4px; }
+.absh-btn.absh-ghost { background: #333; color: #E8E8E8; }
+.absh-btn.absh-ghost:hover { background: #B42318; color: #fff; }
+.absh-item-line { font-size: 13px; color: #9A9A9A; }
+.absh-item-line:empty { display: none; }
+.absh-bad-line { color: #F08A7E; }
 .absh-mini {
   min-width: 20px; height: 20px; padding: 0 5px;
   background: rgba(255, 255, 255, .12); color: #e5e7eb;

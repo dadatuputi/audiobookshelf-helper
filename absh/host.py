@@ -114,8 +114,8 @@ def library_id(client, cfg):
 def _serialisable(st):
     """Trim the status for the wire - the extension does not need file paths."""
     def item(i):
-        return {k: i.get(k) for k in ("id", "title", "author", "series", "narrator", "size",
-                                      "numTracks")}
+        return {k: i.get(k) for k in ("id", "title", "author", "series", "narrator", "subtitle",
+                                      "duration", "publishedYear", "size", "numTracks")}
 
     def entry(e):
         return {k: e.get(k) for k in
@@ -345,10 +345,13 @@ COMMANDS = {
 # would otherwise hold the device badges on the page hostage for the length of
 # a network timeout. It only reads, so letting it run alongside is safe.
 #
-# The same goes for ping and devices. Both only read, and both are what a page
-# asks first: queued behind a long copy, or behind a look at a slow network
-# volume, the popup sat at "Checking the helper…" with no end.
-CONCURRENT = {"update-check", "ping", "devices"}
+# The same goes for ping, devices and status. All three only read, and they
+# are what a page asks first: queued behind a long copy, or behind a look at a
+# slow network volume, the popup sat at "Checking the helper…" with no end,
+# and a popup opened mid-copy had no shelf until the copy ended. Mid-copy, the
+# book being written may read as partly there; the shelf is read again when the
+# copy finishes.
+CONCURRENT = {"update-check", "ping", "devices", "status"}
 
 
 def handle(msg, emit=None):

@@ -169,6 +169,9 @@
       author: authors || "",
       series: series || "",
       narrator: narrators || "",
+      subtitle: meta.subtitle || "",
+      duration: Math.round(Number(media.duration) || 0),
+      publishedYear: meta.publishedYear ? String(meta.publishedYear) : "",
       relPath: it.relPath || "",
       numTracks: tracks || 0,
       size: it.size || media.size || 0,
@@ -803,8 +806,8 @@
   /** host._serialisable: what the popup and the page are sent. */
   function serialisable(st) {
     const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] === undefined ? null : o[k]]));
-    const item = (i) => pick(i, ["id", "title", "author", "series", "narrator", "size",
-                                 "numTracks"]);
+    const item = (i) => pick(i, ["id", "title", "author", "series", "narrator", "subtitle",
+                                 "duration", "publishedYear", "size", "numTracks"]);
     const entry = (e) => pick(e, ["name", "kind", "bytes", "files", "title", "author",
                                   "series", "itemId", "source", "matchedBy"]);
     return {

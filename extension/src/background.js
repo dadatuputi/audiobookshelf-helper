@@ -122,14 +122,22 @@ async function hasHostPermission(absUrl) {
   }
 }
 
-/* The toolbar button is registered at runtime for the one server the user
- * configured, instead of shipping a content script matching every site. */
+/* The in-page UI is registered at runtime for the one server the user
+ * configured, instead of shipping a content script matching every site.
+ *
+ * For the whole server, not just its library pages. Audiobookshelf is a
+ * single-page app: going from its home page to a library, or from a cover to
+ * a book's page, changes the address without loading a page, and a content
+ * script is only matched against the address a page loaded at. Matching
+ * <server>/library/* left nothing on the page for anyone who came in through
+ * the home page - which is everyone. The script decides for itself what is on
+ * the page, and does nothing where there is nothing for it. */
 async function syncContentScript() {
   if (!browser.scripting || !browser.scripting.registerContentScripts) return;
   const c = await cfg();
   let pattern = null;
   try {
-    pattern = c.absUrl ? ABSH.libraryPattern(c.absUrl) : null;
+    pattern = c.absUrl ? ABSH.originPattern(c.absUrl) : null;
   } catch {
     pattern = null;
   }
@@ -401,7 +409,9 @@ async function route(msg, onProgress) {
   const type = msg && msg.type;
   if (FOLDER) {
     if (FOLDER_ARGS[type] && (await backend()) === "folder") {
-      return { ok: true, data: await viaFolder(type, msg, onProgress) };
+      const data = await viaFolder(type, msg, onProgress);
+      if (type === "status") LAST_STATUS = data;
+      return { ok: true, data };
     }
     if (type === "ping") return { ok: true, data: await pingEither() };
     if (type === "openFolderOptions") {
@@ -415,10 +425,19 @@ async function route(msg, onProgress) {
     case "libraries": return { ok: true, data: (await call("libraries")).libraries };
     case "folders":   return { ok: true, data: (await call("folders", { libraryId: msg.libraryId })).folders };
     case "devices":   return { ok: true, data: (await call("devices")).devices };
-    case "status":    return { ok: true, data: await call("status", { libraryId: msg.libraryId, readTags: msg.readTags !== false }) };
+    case "status":
+      LAST_STATUS = await call("status", { libraryId: msg.libraryId, readTags: msg.readTags !== false });
+      return { ok: true, data: LAST_STATUS };
+    case "lastStatus": return { ok: true, data: LAST_STATUS };
+    case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player) };
+    case "jobState":  return { ok: true, data: snapshot() };
+    case "jobSeen":
+      JOBS.seen = true;
+      badge();
+      return { ok: true, data: snapshot() };
     case "pull":      return { ok: true, data: await call("pull", { ids: msg.ids, libraryId: msg.libraryId }, onProgress) };
     case "push":      return { ok: true, data: await call("push", { names: msg.names, libraryId: msg.libraryId, folderId: msg.folderId }, onProgress) };
-    case "remove":    return { ok: true, data: await call("remove", { names: msg.names }) };
+    case "remove":    return { ok: true, data: await call("remove", { names: msg.names }, onProgress) };
     case "ping":      return { ok: true, data: await ping() };
     case "updateStatus": return { ok: true, data: await updateStatus({ force: !!msg.force, peek: !!msg.peek }) };
     case "update":    return { ok: true, data: await installUpdate(msg.tag, onProgress) };
@@ -432,6 +451,169 @@ async function route(msg, onProgress) {
       return { ok: true };
     default:
       return { ok: false, error: `unknown message type ${msg && msg.type}` };
+  }
+}
+
+/* ---------------------------------------------------------------- copies
+ *
+ * A copy, an upload or a removal belongs to the extension, not to the popup
+ * that asked for it. A popup closes the moment it loses focus, and the
+ * progress it alone was told about went with it: opening it again showed an
+ * empty shelf, as if nothing were happening. So the work is queued here, its
+ * state is kept here, and every open popup and library page is told as it
+ * changes. The toolbar icon carries it while nothing is open, and the
+ * computer says when it is done.
+ *
+ * Jobs run one at a time, in the order asked for; a new one asked for while
+ * another runs waits its turn. */
+const JOBS = { current: null, queue: [], last: null, seq: 0, seen: true };
+const POPUPS = new Set();                // open popups and settings pages
+let LAST_STATUS = null;                  // so a popup opened mid-copy has a shelf
+
+function snapshot() {
+  return { current: JOBS.current, queue: JOBS.queue, last: JOBS.last, seen: JOBS.seen };
+}
+
+let BROADCAST = null;
+function changed() {
+  // Progress arrives far faster than anyone reads it; four a second is plenty.
+  if (BROADCAST) return;
+  BROADCAST = setTimeout(() => {
+    BROADCAST = null;
+    const snap = snapshot();
+    for (const p of POPUPS) {
+      try { p.postMessage({ event: "job", job: snap }); } catch { POPUPS.delete(p); }
+    }
+    tellPages({ type: "job", job: snap });
+    badge();
+  }, 250);
+}
+
+/* The toolbar icon: books done of books asked for, while copying; a check
+ * when it finished, until the popup has been opened; "!" when it failed. */
+function badge() {
+  const a = browser.action;
+  if (!a || !a.setBadgeText) return;
+  const j = JOBS.current;
+  let text = "";
+  let color = "#3443C9";
+  if (j) {
+    const all = [j, ...JOBS.queue].flatMap((x) => x.items);
+    text = `${all.filter((i) => i.state === "done").length}/${all.length}`;
+  } else if (JOBS.last && !JOBS.seen) {
+    const failed = JOBS.last.error || JOBS.last.items.some((i) => i.state === "failed");
+    text = failed ? "!" : "✓";
+    color = failed ? "#B42318" : "#1D7A43";
+  }
+  Promise.resolve(a.setBadgeText({ text })).catch(() => {});
+  if (text) Promise.resolve(a.setBadgeBackgroundColor({ color })).catch(() => {});
+}
+
+const VERB = { pull: "Copied", push: "Uploaded", remove: "Removed" };
+
+/* Only when nothing of ours is open: a popup already shows it. */
+function notify(job) {
+  if (POPUPS.size || !browser.notifications || !browser.notifications.create) return;
+  const done = job.items.filter((i) => i.state === "done");
+  const failed = job.items.filter((i) => i.state === "failed");
+  const bytes = done.reduce((n, i) => n + (Number(i.bytes) || 0), 0);
+  const mins = Math.max(1, Math.round((job.finishedAt - job.startedAt) / 60000));
+  const where = job.op === "push" ? "the library" : job.player || "the player";
+  const title = failed.length || job.error
+    ? `${VERB[job.op]} ${done.length} of ${job.items.length}; ${failed.length || "the rest"} failed`
+    : `${VERB[job.op]} ${done.length} ${done.length === 1 ? "book" : "books"} ${job.op === "remove" ? "from" : "to"} ${where}`;
+  const message = job.error ? job.error
+    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.`;
+  Promise.resolve(browser.notifications.create(`absh-job-${job.id}`, {
+    type: "basic", iconUrl: browser.runtime.getURL("icons/icon-96.png"), title, message,
+  })).catch(() => {});
+}
+
+/* Queue a job: op is pull, push or remove; each item names what it acts on
+ * (`ref`: a library item id to pull, a name on the player otherwise). */
+function addJob(op, items, player) {
+  const job = {
+    id: ++JOBS.seq, op, player: player || "",
+    items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
+                              bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0 })),
+    startedAt: 0, finishedAt: 0, result: null, error: "",
+  };
+  JOBS.queue.push(job);
+  JOBS.seen = false;
+  changed();
+  runJobs();
+  return snapshot();
+}
+
+async function runJobs() {
+  if (JOBS.current) return;
+  while (JOBS.queue.length) {
+    const job = JOBS.queue.shift();
+    JOBS.current = job;
+    job.startedAt = Date.now();
+    changed();
+    // The helper reports each item as it starts, in the order asked for.
+    let at = -1;
+    const onProgress = (ev) => {
+      if (ev.event === "item") {
+        if (at >= 0 && job.items[at].state === "copying") job.items[at].state = "done";
+        at += 1;
+        if (job.items[at]) Object.assign(job.items[at], { state: "copying", done: 0, total: 0 });
+      } else if (ev.event === "progress" && job.items[at]) {
+        job.items[at].done = ev.done || 0;
+        job.items[at].total = ev.total || 0;
+      }
+      changed();
+    };
+    const refs = job.items.map((i) => i.ref);
+    const msg = job.op === "pull" ? { type: "pull", ids: refs } : { type: job.op, names: refs };
+    try {
+      const r = await route(msg, onProgress);
+      if (!r || !r.ok) throw new Error((r && r.error) || "no response");
+      job.result = r.data || {};
+      // An error line reads "<title>: why"; those items failed, the rest are done.
+      const errs = (job.result.errors || []).map(String);
+      for (const it of job.items) {
+        const bad = errs.find((e) => e.startsWith(`${it.title}:`));
+        it.state = bad ? "failed" : "done";
+        if (bad) it.error = bad.slice(it.title.length + 1).trim();
+      }
+    } catch (e) {
+      job.error = String((e && e.message) || e);
+      for (const it of job.items) if (it.state !== "done") it.state = "failed";
+    }
+    job.finishedAt = Date.now();
+    JOBS.last = job;
+    JOBS.current = null;
+    changed();
+    notify(job);
+    // What is on the player changed: refresh the shelf everyone shows.
+    refreshStatus();
+  }
+}
+
+async function refreshStatus() {
+  try {
+    const r = await route({ type: "status", readTags: true });
+    if (!r || !r.ok) return;
+    LAST_STATUS = r.data;
+    tellPages({ type: "status", status: LAST_STATUS });
+    for (const p of POPUPS) {
+      try { p.postMessage({ event: "status", status: LAST_STATUS }); } catch { POPUPS.delete(p); }
+    }
+  } catch { /* the next popup or page asks again */ }
+}
+
+/* Tell the library pages - the tabs on the user's own server. */
+async function tellPages(msg) {
+  const { absUrl } = await cfg();
+  let pattern;
+  try { pattern = ABSH.originPattern(absUrl); } catch { return; }
+  const tabs = await browser.tabs.query({ url: pattern }).catch(() => []);
+  const prefix = pattern.replace(/\*$/, "");
+  for (const tab of tabs) {
+    if (!tab.url || !tab.url.startsWith(prefix)) continue;
+    browser.tabs.sendMessage(tab.id, msg).catch(() => { /* no content script there */ });
   }
 }
 
@@ -477,6 +659,8 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 /* The popup uses a port so that sync progress can stream back to it. */
 browser.runtime.onConnect.addListener((p) => {
   if (p.name !== "absh") return;
+  POPUPS.add(p);
+  p.onDisconnect.addListener(() => POPUPS.delete(p));
   p.onMessage.addListener(async (msg) => {
     const reply = (body) => {
       try { p.postMessage({ ...body, rid: msg && msg.rid }); } catch { /* popup closed */ }
@@ -509,7 +693,7 @@ async function injectFallback(tabId, url) {
   const c = await cfg();
   let prefix = null;
   try {
-    prefix = c.absUrl ? ABSH.libraryPrefix(c.absUrl) : null;
+    prefix = c.absUrl ? ABSH.originPattern(c.absUrl).replace(/\*$/, "") : null;
   } catch {
     return;
   }

@@ -187,7 +187,10 @@ access is empty.
 Because Audiobookshelf is self-hosted, its address isn't knowable at build time.
 So *Grant access* computes the single origin pattern for the URL you typed
 (`http://media.local:13378/*`) and requests only that. The toolbar button is
-then registered at runtime for that origin's `/library/*` pages.
+then registered at runtime for every page on that origin. Audiobookshelf is a
+single-page app: you open the server and it routes to the library or a book
+without loading a page, so a script matched against `/library/*` would never run
+for most people.
 
 This is why the manifest lists `*://*/*` under `optional_host_permissions` and
 never requests it as written.
@@ -220,16 +223,26 @@ is configured beyond the server.
 
 ### In Audiobookshelf
 
-Each book card gets a badge showing whether it is on your device, with a button
-to copy it there or take it off. Books on the device but *not* in your library
-appear in a panel with an **Upload** button.
+Every cover gets a strip along its foot: **✓ On <player>**, **Copying…** with a
+bar, **Waiting to copy**, or **Copy to player**, where the whole strip is the
+button. A book's own page gets **Copy to <player>** under Play, or **Remove
+from <player>** when it is already there, with a line saying how it stands.
+Copies started here run in the extension's background, so the popup shows them
+too. Books on the device but *not* in your library appear in a panel with an
+**Upload** button.
 
 ### In the popup
 
 Your library on the left, your player on the right, and three directions
 between them: **To player**, **Both**, **To library**, each with its count. Tick
 and press the button, which names what it will do and where ("Copy 2 to
-AGPTEK A02", with the size against the free space). Progress streams per file.
+AGPTEK A02", with the size against the free space). Each row's second line is
+narrator and length, which is what tells two versions of a book apart; the
+chevron opens the rest. While a filter is on, each tab counts "7 of 345".
+A copy belongs to the extension, not the popup: close it and reopen it and the
+copy is still there, row by row, with the overall progress under the shelf.
+While copying, the toolbar icon carries a count, then a check when it is done,
+and a notification says so if the popup is closed.
 Click the **Player** card to change player: the one that looks most like yours
 is offered in purple, and nothing is saved until you press **Use**. Every action
 has a key, printed on it: <kbd>/</kbd> filter, <kbd>⏎</kbd> the main button,

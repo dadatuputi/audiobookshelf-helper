@@ -10,8 +10,6 @@ let ST = { both: [], serverOnly: [], deviceOnly: [] };
 // blank, never a zero.
 let KNOWN = false;
 let SEL = new Set();
-let PROGRESS = null;
-let BUSY = false;
 // No usable player: the shelf has nothing true to say about "the device".
 let NO_PLAYER = false;
 let PANEL_OPEN = false;
@@ -25,6 +23,9 @@ let RID = 0;
 const WAITING = new Map();
 
 PORT.onMessage.addListener((m) => {
+  // Said by the background unasked: a job moved on, or the shelf changed.
+  if (m && m.event === "job") { onJob(m.job); return; }
+  if (m && m.event === "status") { showStatus(m.status); return; }
   const w = WAITING.get(m && m.rid);
   if (!w) return;
   if (m.progress) { if (w.onProgress) w.onProgress(m.progress); return; }
@@ -83,50 +84,178 @@ function playerLabel() {
 
 /* The narrator tells two editions of one book apart: a full-cast recording
  * and a single reader share the author and the title. */
-const readBy = (i) => (i && i.narrator ? `read by ${i.narrator}` : "");
+/* ------------------------------------------------------------- the rows
+ *
+ * What tells two versions of one book apart is who reads it and how long it
+ * runs, not the author they share - so that is the second line, and the rest
+ * opens under the row. */
+function hm(sec) {
+  sec = Math.round(Number(sec) || 0);
+  if (!sec) return "";
+  if (sec < 60) return `${sec} s`;
+  // Round once, in minutes: rounding the remainder alone gave "1 h 60 m".
+  const mins = Math.round(sec / 60);
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h ? (m ? `${h} h ${m} m` : `${h} h`) : `${m} m`;
+}
+
+/** "Hugh Laurie, Matthew Macfadyen +43" - the first two, and how many more. */
+function readers(narrator) {
+  const all = String(narrator || "").split(/\s*,\s*/).filter(Boolean);
+  return all.length > 2 ? `${all[0]}, ${all[1]} +${all.length - 2}` : all.join(", ");
+}
+
+/** "Harry Potter #1" is how Audiobookshelf writes it; "Harry Potter, book 1" reads. */
+function seriesWords(series) {
+  return String(series || "").split(/\s*,\s*(?=[^,#]+#)/).map((x) => {
+    const m = /^(.*?)\s*#\s*([\d.]+)$/.exec(x.trim());
+    return m ? `${m[1]}, book ${m[2]}` : x.trim();
+  }).filter(Boolean).join("; ");
+}
+
+function line2(i, fallbackAuthor) {
+  const who = i && i.narrator ? readers(i.narrator) : (fallbackAuthor || "");
+  return [who, hm(i && i.duration)].filter(Boolean).join(" · ");
+}
+
+/** The details under an opened row: label and value, only what is known. */
+function details(r) {
+  const i = r.item || {};
+  const files = i.numTracks ? `${i.numTracks} ${i.numTracks === 1 ? "file" : "files"}` : "";
+  return [
+    ["Title", [r.title, i.subtitle].filter(Boolean).join(": ")],
+    ["Author", i.author || r.author],
+    ["Read by", i.narrator],
+    ["Series", seriesWords(i.series)],
+    ["Length", [hm(i.duration), files].filter(Boolean).join(" · ")],
+    ["Published", i.publishedYear],
+    ["Size", r.bytes ? size(r.bytes) : ""],
+  ].filter(([, v]) => v);
+}
 
 const rowsFor = {
-  server: () => ST.serverOnly.map((i) => ({ key: i.id, id: i.id, title: i.title,
-    sub: [i.author, readBy(i)].filter(Boolean).join(" · "), bytes: i.size })),
+  server: () => ST.serverOnly.map((i) => ({ key: i.id, id: i.id, title: i.title, item: i,
+    author: i.author, sub: line2(i, i.author), bytes: i.size })),
   device: () => ST.both.map((b) => ({ key: b.name, name: b.name, id: b.itemId, title: b.title,
-    sub: [b.author, readBy(b.item),
+    item: b.item, author: b.author,
+    sub: [line2(b.item, b.author),
           b.matchedBy && b.matchedBy !== "id" ? `matched by ${b.matchedBy}` : ""]
       .filter(Boolean).join(" · "), bytes: b.bytes })),
   only: () => ST.deviceOnly.map((e) => ({ key: e.name, name: e.name, title: e.title || e.name,
+    item: { author: e.author, numTracks: (e.files || []).length || 0 }, author: e.author,
     sub: e.author || "unknown author", bytes: e.bytes })),
 };
 
+/* What a tab's main button does. The work itself is queued in the background,
+ * which keeps it going and keeps everyone told after this popup closes. */
 const ACTION = {
   server: {
-    none: "Select books to copy",
+    op: "pull", none: "Select books to copy",
     label: (n) => `Copy ${n} to ${playerLabel()} →`,
-    run: (rows) => send({ type: "pull", ids: rows.map((r) => r.id) }, onProgress),
+    ref: (r) => r.id,
   },
   device: {
-    none: "Select books to remove",
+    op: "remove", none: "Select books to remove",
     label: (n) => `Remove ${n} from ${playerLabel()}`,
-    run: (rows) => send({ type: "remove", names: rows.map((r) => r.name) }),
+    ref: (r) => r.name,
   },
   only: {
-    none: "Select books to upload",
+    op: "push", none: "Select books to upload",
     label: (n) => `← Upload ${n} to ${LIB || "the library"}`,
-    run: (rows) => send({ type: "push", names: rows.map((r) => r.name) }, onProgress),
+    ref: (r) => r.name,
   },
 };
 
-function onProgress(ev) {
-  if (ev.event === "item") {
-    status(`${ev.op || "working"} ${ev.index}/${ev.count} — ${ev.title}`);
+/* --------------------------------------------------------------- the job */
+let JOB = { current: null, queue: [], last: null, seen: true };
+const OPEN = new Set();                 // rows opened to show their details
+
+/** This row's part in a copy that is running, queued, or just finished. */
+function jobItem(key) {
+  for (const j of [JOB.current, ...JOB.queue, JOB.last]) {
+    const it = j && j.items.find((i) => i.key === key);
+    if (it) return { job: j, it };
   }
-  PROGRESS = { title: ev.title, done: ev.done || 0, total: ev.total || 0 };
+  return null;
+}
+
+const DOING = { pull: "Copying", push: "Uploading", remove: "Removing" };
+const DID = { pull: "Copied", push: "Uploaded", remove: "Removed" };
+const PILL = { waiting: "Waiting", done: "", failed: "Failed" };
+
+function pill(found) {
+  const { job, it } = found;
+  if (it.state === "copying") return el("span", "pill run", DOING[job.op]);
+  if (it.state === "done") return el("span", "pill ok", DID[job.op]);
+  return el("span", "pill" + (it.state === "failed" ? " bad" : ""), PILL[it.state] || "");
+}
+
+/* The footer while something is happening, or has just happened. */
+let SHOW_LAST = false;                  // the last job finished while we could see it, or unseen
+
+function renderJob() {
+  const box = $("#jobBox");
+  const j = JOB.current || (SHOW_LAST ? JOB.last : null);
+  box.classList.toggle("hidden", !j);
+  if (!j) return;
+  const where = j.op === "push" ? (LIB || "the library") : (j.player || playerLabel());
+  const items = [j, ...(JOB.current ? JOB.queue : [])].flatMap((x) => x.items);
+  const done = items.filter((i) => i.state === "done");
+  const failed = items.filter((i) => i.state === "failed");
+  const total = items.reduce((n, i) => n + i.bytes, 0);
+  const cur = items.find((i) => i.state === "copying");
+  // Bytes: whole books once done, and the share of files done of the one in
+  // flight. Nothing finer is reported, so nothing finer is claimed.
+  const moved = done.reduce((n, i) => n + i.bytes, 0) +
+    (cur && cur.total ? cur.bytes * cur.done / cur.total : 0);
+  box.classList.toggle("ok", !JOB.current && !failed.length && !j.error);
+  box.classList.toggle("bad", !JOB.current && (failed.length > 0 || !!j.error));
+  const head = JOB.current
+    ? `${DOING[j.op]} ${Math.min(done.length + 1, items.length)} of ${items.length} ` +
+      `${j.op === "remove" ? "from" : "to"} ${where}`
+    : failed.length || j.error
+      ? `${DID[j.op]} ${done.length} of ${items.length}; ${failed.length || items.length - done.length} failed`
+      : `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}`;
+  $("#jobHead").textContent = head;
+  $("#jobSize").textContent = total ? (JOB.current ? `${size(moved)} of ${size(total)}` : size(total)) : "";
+  const bar = $("#jobBar");
+  bar.classList.toggle("hidden", !JOB.current);
+  bar.firstElementChild.style.width = total ? `${Math.round(100 * moved / total)}%` : "0%";
+  let sub = "";
+  if (JOB.current && done.length && j.startedAt) {
+    const rate = (moved || 1) / (Date.now() - j.startedAt);
+    const left = Math.round((total - moved) / rate / 60000);
+    sub = left >= 1 ? `About ${left} ${left === 1 ? "minute" : "minutes"} left` : "Under a minute left";
+  } else if (JOB.current && cur) {
+    sub = cur.title;
+  } else if (!JOB.current) {
+    const mins = Math.max(1, Math.round((j.finishedAt - j.startedAt) / 60000));
+    sub = j.error || (failed.length ? failed.map((i) => `${i.title}: ${i.error || "failed"}`).join("\n")
+                                    : `${mins} min`);
+  }
+  $("#jobSub").textContent = sub;
+}
+
+function onJob(job, first = false) {
+  const wasRunning = !!JOB.current;
+  JOB = job;
+  if ((first && JOB.last && !JOB.seen) || (wasRunning && !JOB.current)) SHOW_LAST = true;
+  // Shown here, so seen: the check mark on the toolbar icon can go.
+  if (SHOW_LAST && !JOB.current && !JOB.seen) send({ type: "jobSeen" }).catch(() => {});
   render();
 }
 
 /* --------------------------------------------------------------- render */
-function visible() {
+function matches(r) {
   const q = $("#filter").value.trim().toLowerCase();
-  const rows = rowsFor[TAB]();
-  return q ? rows.filter((r) => `${r.title} ${r.sub}`.toLowerCase().includes(q)) : rows;
+  if (!q) return true;
+  const i = r.item || {};
+  return [r.title, r.sub, i.author, i.narrator, i.series, i.subtitle]
+    .filter(Boolean).join(" ").toLowerCase().includes(q);
+}
+
+function visible() {
+  return rowsFor[TAB]().filter(matches);
 }
 
 function render() {
@@ -136,9 +265,13 @@ function render() {
     b.tabIndex = on ? 0 : -1;
   }
   const counted = KNOWN && !NO_PLAYER;
-  for (const [tab, n] of [["server", ST.serverOnly.length], ["device", ST.both.length],
-                          ["only", ST.deviceOnly.length]]) {
-    $("#n-" + tab).textContent = counted ? String(n) : "";
+  const filtering = !!$("#filter").value.trim();
+  document.querySelector(".tabs").classList.toggle("counted", filtering);
+  for (const tab of ["server", "device", "only"]) {
+    const all = rowsFor[tab]();
+    // The count says what the list below it shows, by the same rule.
+    $("#n-" + tab).textContent = !counted ? ""
+      : filtering ? `${all.filter(matches).length} of ${all.length}` : String(all.length);
   }
   $("#libCount").textContent = counted
     ? `${ST.serverOnly.length + ST.both.length} books` : "";
@@ -150,44 +283,69 @@ function render() {
   if (NO_PLAYER) {
     ul.appendChild(el("li", "empty", "Choose your player to see what is on it."));
   } else if (!rows.length && KNOWN) {
-    ul.appendChild(el("li", "empty", $("#filter").value.trim() ? "Nothing matches." : {
+    ul.appendChild(el("li", "empty", filtering ? "Nothing matches." : {
       server: "Everything in the library is already on the player.",
       device: "Nothing from this library is on the player yet.",
       only: "Nothing on the player that the library does not have.",
     }[TAB]));
   }
   for (const r of rows) {
+    const found = jobItem(r.key);
+    const busy = found && (found.it.state === "waiting" || found.it.state === "copying");
+    if (busy) SEL.delete(r.key);
     const li = el("li");
-    const row = el("label", "book" + (SEL.has(r.key) ? " sel" : ""));
+    const head = el("div", "rowhead");
+    const row = el("label", "book" + (busy ? " busy" : ""));
+    li.classList.toggle("sel", SEL.has(r.key));
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.checked = SEL.has(r.key);
-    cb.disabled = BUSY;
+    cb.disabled = !!busy;
     cb.addEventListener("change", () => {
       cb.checked ? SEL.add(r.key) : SEL.delete(r.key);
-      row.classList.toggle("sel", cb.checked);
+      li.classList.toggle("sel", cb.checked);
       updateAction();
     });
     const meta = el("span", "meta");
-    const t = el("span", "t", r.title);
-    const working = PROGRESS && PROGRESS.title === r.title;
-    if (working) t.appendChild(el("span", "chip", "copying…"));
-    meta.append(t);
-    if (r.sub) meta.append(el("span", "a", r.sub));
-    if (working && PROGRESS.total > 1) {
-      const bar = el("span", "bar");
+    meta.append(el("span", "t", r.title));
+    const working = found && found.it.state === "copying";
+    // The pill says what is happening; this line keeps saying which version.
+    meta.append(el("span", "a", working && found.it.total > 1
+      ? `${r.sub} · file ${found.it.done} of ${found.it.total}` : r.sub));
+    if (working) {
+      const bar = el("span", "bar" + (found.it.total > 1 ? "" : " indeterminate"));
       const i = document.createElement("i");
-      i.style.width = `${Math.round(100 * PROGRESS.done / PROGRESS.total)}%`;
+      if (found.it.total > 1) i.style.width = `${Math.round(100 * found.it.done / found.it.total)}%`;
       bar.appendChild(i);
       meta.appendChild(bar);
     }
-    row.append(cb, meta, el("span", "size", r.bytes ? size(r.bytes) : ""));
-    li.append(row);
+    const right = found ? pill(found) : el("span", "size", r.bytes ? size(r.bytes) : "");
+    row.append(cb, meta, right);
+    const more = el("button", "more");
+    more.type = "button";
+    const open = OPEN.has(r.key);
+    more.setAttribute("aria-expanded", String(open));
+    more.setAttribute("aria-label", open ? "Hide details" : "Show details");
+    more.title = open ? "Hide details" : "Show details";
+    more.textContent = open ? "⌃" : "⌄";
+    more.addEventListener("click", () => {
+      open ? OPEN.delete(r.key) : OPEN.add(r.key);
+      render();
+    });
+    head.append(row, more);
+    li.append(head);
+    if (open) {
+      const dl = el("dl", "detail");
+      for (const [k, v] of details(r)) dl.append(el("dt", "", k), el("dd", "", v));
+      li.append(dl);
+    }
     ul.appendChild(li);
   }
   const all = $("#all");
-  all.checked = rows.length > 0 && rows.every((r) => SEL.has(r.key));
-  all.disabled = BUSY || !rows.length;
+  const pickable = rows.filter((r) => { const f = jobItem(r.key); return !f || !["waiting", "copying"].includes(f.it.state); });
+  all.checked = pickable.length > 0 && pickable.every((r) => SEL.has(r.key));
+  all.disabled = !pickable.length;
+  renderJob();
   updateAction();
 }
 
@@ -208,20 +366,29 @@ function updateAction() {
       sub = size(bytes);
     }
   }
-  btn.disabled = BUSY || !rows.length;
-  $("#actLabel").textContent = rows.length ? ACTION[TAB].label(rows.length) : ACTION[TAB].none;
+  // While something runs, the footer is its progress; the button comes back
+  // only to add to the queue.
+  const running = !!JOB.current;
+  btn.classList.toggle("hidden", SETUP || PANEL_OPEN || (running && !rows.length));
+  btn.disabled = !rows.length;
+  $("#actLabel").textContent = !rows.length ? ACTION[TAB].none
+    : running ? `Add ${rows.length} to the queue` : ACTION[TAB].label(rows.length);
   $("#actSub").textContent = sub;
   btn.classList.toggle("danger", TAB === "device" && rows.length > 0);
 }
 
 /* ------------------------------------------------------------ lifecycle */
+function showStatus(st) {
+  ST = st;
+  KNOWN = true;
+  NO_PLAYER = false;
+  for (const k of [...SEL]) if (!visible().some((r) => r.key === k)) SEL.delete(k);
+  render();
+}
+
 async function refresh() {
   try {
-    ST = await send({ type: "status" });
-    KNOWN = true;
-    NO_PLAYER = false;
-    SEL.clear();
-    render();
+    showStatus(await send({ type: "status" }));
     if (!ST.both.length && !ST.serverOnly.length && !ST.deviceOnly.length) {
       status("Nothing on either side yet.");
     }
@@ -589,7 +756,16 @@ async function load() {
   }
   // Not awaited: the shelf should not wait on GitHub.
   updateHint();
+  // What the background already knows, at once: a copy under way, and the
+  // shelf as last read. A fresh read waits behind a running copy, so it is not
+  // asked for then; the background sends the new shelf when the copy ends.
+  const job = await send({ type: "jobState" }).catch(() => null);
+  if (job) onJob(job, true);
+  const cached = await send({ type: "lastStatus" }).catch(() => null);
+  if (cached) showStatus(cached);
+  status(cached ? "" : "Reading the player…");
   await refresh();
+  if ($("#status").textContent === "Reading the player…") status("");
   // Set last: refresh() reports its own outcome, and this should be what
   // remains on screen when everything is fine.
   if (!$("#status").classList.contains("err") && !NO_PLAYER) {
@@ -648,26 +824,16 @@ for (const b of TABS) {
 $("#act").addEventListener("click", async () => {
   const rows = visible().filter((r) => SEL.has(r.key));
   if (!rows.length) return;
-  BUSY = true;
-  render();
+  const a = ACTION[TAB];
   try {
-    const r = await ACTION[TAB].run(rows);
-    PROGRESS = null;
-    const bits = [];
-    if (r.copied) bits.push(`copied ${r.copied} file(s)`);
-    if (r.uploaded) bits.push(`uploaded ${r.uploaded}`);
-    if (r.removed && r.removed.length) bits.push(`removed ${r.removed.length}`);
-    if (r.skipped) bits.push(`skipped ${r.skipped}`);
-    status(bits.join(" · ") || "done", r.errors && r.errors.length ? "err" : "ok");
-    if (r.errors && r.errors.length) {
-      status((bits.join(" · ") + "\n" + r.errors.join("\n")).trim(), "err");
-    }
+    SHOW_LAST = false;
+    onJob(await send({ type: "jobAdd", op: a.op, player: playerLabel(),
+                       items: rows.map((r) => ({ key: r.key, ref: a.ref(r), title: r.title,
+                                                 bytes: r.bytes })) }));
+    SEL.clear();
+    render();
   } catch (e) {
-    PROGRESS = null;
     status(String(e.message || e), "err");
-  } finally {
-    BUSY = false;
-    await refresh();
   }
 });
 

@@ -212,6 +212,12 @@ def normalize_item(it):
         "author": authors or "",
         "series": series or "",
         "narrator": narrators or "",
+        # What tells two versions of one book apart, beyond the narrator.
+        "subtitle": meta.get("subtitle") or "",
+        # Halves round up, as Math.round does in the Chrome folder backend;
+        # round() would take 2.5 to 2.
+        "duration": int(float(media.get("duration") or 0) + 0.5),
+        "publishedYear": str(meta.get("publishedYear") or ""),
         "relPath": it.get("relPath") or "",
         "numTracks": tracks or 0,
         "size": it.get("size") or media.get("size") or 0,

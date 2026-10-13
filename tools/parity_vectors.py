@@ -342,6 +342,11 @@ ITEMS = [
                                                            "authors": [{"name": "Late"}]}}},
     {"id": "li_5", "media": {"metadata": {"title": "PS", "narratorName": "Jim Dale"}}},
     {"id": "li_6", "media": {"metadata": {"title": "PS", "narrators": ["Hugh Laurie", "", "Cast"]}}},
+    {"id": "li_7", "media": {"duration": 34925.62, "metadata": {
+        "title": "Harry Potter and the Philosopher's Stone", "subtitle": "Full-Cast Edition",
+        "publishedYear": 2025, "seriesName": "Harry Potter #1"}}},
+    {"id": "li_8", "media": {"duration": "29880.4", "metadata": {"title": "T", "publishedYear": "1999"}}},
+    {"id": "li_9", "media": {"duration": 2.5, "metadata": {"title": "Half"}}},
 ]
 
 # naming.free_name: (name, item, taken) - two editions of one book share a name.

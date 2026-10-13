@@ -409,12 +409,15 @@
    },
    "out": {
     "author": "Brian Jacques",
+    "duration": 0,
     "id": "li_1",
     "narrator": "",
     "numTracks": 1,
+    "publishedYear": "",
     "relPath": "Brian Jacques/Redwall",
     "series": "Redwall #1",
     "size": 100,
+    "subtitle": "",
     "title": "Redwall"
    }
   },
@@ -453,12 +456,15 @@
    },
    "out": {
     "author": "A, B",
+    "duration": 0,
     "id": "li_2",
     "narrator": "",
     "numTracks": 2,
+    "publishedYear": "",
     "relPath": "x",
     "series": "S1, S2",
     "size": 55,
+    "subtitle": "",
     "title": "x"
    }
   },
@@ -468,12 +474,15 @@
    },
    "out": {
     "author": "",
+    "duration": 0,
     "id": "li_3",
     "narrator": "",
     "numTracks": 0,
+    "publishedYear": "",
     "relPath": "",
     "series": "",
     "size": 0,
+    "subtitle": "",
     "title": "(untitled)"
    }
   },
@@ -486,12 +495,15 @@
    },
    "out": {
     "author": "",
+    "duration": 0,
     "id": null,
     "narrator": "",
     "numTracks": 0,
+    "publishedYear": "",
     "relPath": "No id here",
     "series": "",
     "size": 0,
+    "subtitle": "",
     "title": "No id here"
    }
   },
@@ -513,12 +525,15 @@
    },
    "out": {
     "author": "Late",
+    "duration": 0,
     "id": "li_4",
     "narrator": "",
     "numTracks": 0,
+    "publishedYear": "",
     "relPath": "",
     "series": "",
     "size": 0,
+    "subtitle": "",
     "title": "T"
    }
   },
@@ -534,12 +549,15 @@
    },
    "out": {
     "author": "",
+    "duration": 0,
     "id": "li_5",
     "narrator": "Jim Dale",
     "numTracks": 0,
+    "publishedYear": "",
     "relPath": "",
     "series": "",
     "size": 0,
+    "subtitle": "",
     "title": "PS"
    }
   },
@@ -559,13 +577,92 @@
    },
    "out": {
     "author": "",
+    "duration": 0,
     "id": "li_6",
     "narrator": "Hugh Laurie, Cast",
     "numTracks": 0,
+    "publishedYear": "",
     "relPath": "",
     "series": "",
     "size": 0,
+    "subtitle": "",
     "title": "PS"
+   }
+  },
+  {
+   "in": {
+    "id": "li_7",
+    "media": {
+     "duration": 34925.62,
+     "metadata": {
+      "publishedYear": 2025,
+      "seriesName": "Harry Potter #1",
+      "subtitle": "Full-Cast Edition",
+      "title": "Harry Potter and the Philosopher's Stone"
+     }
+    }
+   },
+   "out": {
+    "author": "",
+    "duration": 34926,
+    "id": "li_7",
+    "narrator": "",
+    "numTracks": 0,
+    "publishedYear": "2025",
+    "relPath": "",
+    "series": "Harry Potter #1",
+    "size": 0,
+    "subtitle": "Full-Cast Edition",
+    "title": "Harry Potter and the Philosopher's Stone"
+   }
+  },
+  {
+   "in": {
+    "id": "li_8",
+    "media": {
+     "duration": "29880.4",
+     "metadata": {
+      "publishedYear": "1999",
+      "title": "T"
+     }
+    }
+   },
+   "out": {
+    "author": "",
+    "duration": 29880,
+    "id": "li_8",
+    "narrator": "",
+    "numTracks": 0,
+    "publishedYear": "1999",
+    "relPath": "",
+    "series": "",
+    "size": 0,
+    "subtitle": "",
+    "title": "T"
+   }
+  },
+  {
+   "in": {
+    "id": "li_9",
+    "media": {
+     "duration": 2.5,
+     "metadata": {
+      "title": "Half"
+     }
+    }
+   },
+   "out": {
+    "author": "",
+    "duration": 3,
+    "id": "li_9",
+    "narrator": "",
+    "numTracks": 0,
+    "publishedYear": "",
+    "relPath": "",
+    "series": "",
+    "size": 0,
+    "subtitle": "",
+    "title": "Half"
    }
   }
  ],
