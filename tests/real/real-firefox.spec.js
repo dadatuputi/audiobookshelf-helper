@@ -152,57 +152,9 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     probeDisconnect?.();
   });
 
-  async function libraryPage() {
-    const page = await ctx.newPage();
-    const url = `${state.absUrl}/library/${state.libraryId}`;
-
-    // Anything the content script logs or throws, kept for the failure
-    // message. A content script that is injected and then dies says so here
-    // and nowhere else.
-    const log = [];
-    page.on("console", (m) => log.push(`${m.type()}: ${m.text()}`.slice(0, 200)));
-    page.on("pageerror", (e) => log.push(`pageerror: ${String(e).slice(0, 200)}`));
-
-    // Up to three passes, because two different things send this back to
-    // /login: a context with no session yet, and a login whose token has not
-    // been stored by the time we navigate away. The second cost a whole CI
-    // run - the first library page of the job landed back on the login form
-    // and the wait for book cards timed out there 45s later, while every
-    // later test in the same job passed.
-    // Bounded by the clock rather than a pass count, so a page that will
-    // never come good still fails with a useful message inside the test's own
-    // timeout instead of being cut off by it.
-    const deadline = Date.now() + 90_000;
-    const left = () => Math.max(1_000, Math.min(20_000, deadline - Date.now()));
-    let cards = false;
-    while (!cards && Date.now() < deadline) {
-      await page.goto(url, { waitUntil: "domcontentloaded" });
-
-      // The app may redirect to /login and render the form a moment later.
-      // Sampling once for a password field raced that: on a slow load the
-      // field was not there yet, login was skipped, and the run then waited
-      // out its timeout for book cards on the login page.
-      await page.locator('input[type="password"], [id^="book-card-"]').first()
-        .waitFor({ state: "attached", timeout: left() }).catch(() => {});
-
-      if (await page.locator('input[type="password"]').count()) {
-        await page.fill('input[type="text"]', state.username);
-        await page.fill('input[type="password"]', state.password);
-        await page.press('input[type="password"]', "Enter");
-        // Let the app leave the form under its own steam; navigating while it
-        // is still storing the session throws that session away.
-        await page.locator('input[type="password"]').first()
-          .waitFor({ state: "detached", timeout: left() }).catch(() => {});
-        continue;
-      }
-
-      cards = await page.locator('[id^="book-card-"]').first()
-        .waitFor({ state: "attached", timeout: left() })
-        .then(() => true).catch(() => false);
-    }
-    if (!cards) {
-      throw new Error(`no book cards after signing in; ended on ${page.url()}`);
-    }
+  /** Wait for a cover strip that says something; failing that, say which
+   *  half broke, from the page and from what the add-on recorded. */
+  async function strips(page) {
     // A strip that says something - Copy to player, or On <player> - which a
     // cover gets only once its book is known and the player has answered.
     try {
@@ -248,8 +200,63 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
           grantInFirefoxStore: grantInStore(
             profile, `${new URL(state.absUrl).origin}/*`),
           controlAddonInstalled: probeInstalled,
-        })}; console: ${JSON.stringify(log.slice(-8))}`);
+        })}; console: ${JSON.stringify((page.abshLog || []).slice(-8))}`);
     }
+  }
+
+  async function libraryPage() {
+    const page = await ctx.newPage();
+    const url = `${state.absUrl}/library/${state.libraryId}`;
+
+    // Anything the content script logs or throws, kept for the failure
+    // message. A content script that is injected and then dies says so here
+    // and nowhere else.
+    const log = [];
+    page.abshLog = log;                 // for strips(), on later loads too
+    page.on("console", (m) => log.push(`${m.type()}: ${m.text()}`.slice(0, 200)));
+    page.on("pageerror", (e) => log.push(`pageerror: ${String(e).slice(0, 200)}`));
+
+    // Up to three passes, because two different things send this back to
+    // /login: a context with no session yet, and a login whose token has not
+    // been stored by the time we navigate away. The second cost a whole CI
+    // run - the first library page of the job landed back on the login form
+    // and the wait for book cards timed out there 45s later, while every
+    // later test in the same job passed.
+    // Bounded by the clock rather than a pass count, so a page that will
+    // never come good still fails with a useful message inside the test's own
+    // timeout instead of being cut off by it.
+    const deadline = Date.now() + 90_000;
+    const left = () => Math.max(1_000, Math.min(20_000, deadline - Date.now()));
+    let cards = false;
+    while (!cards && Date.now() < deadline) {
+      await page.goto(url, { waitUntil: "domcontentloaded" });
+
+      // The app may redirect to /login and render the form a moment later.
+      // Sampling once for a password field raced that: on a slow load the
+      // field was not there yet, login was skipped, and the run then waited
+      // out its timeout for book cards on the login page.
+      await page.locator('input[type="password"], [id^="book-card-"]').first()
+        .waitFor({ state: "attached", timeout: left() }).catch(() => {});
+
+      if (await page.locator('input[type="password"]').count()) {
+        await page.fill('input[type="text"]', state.username);
+        await page.fill('input[type="password"]', state.password);
+        await page.press('input[type="password"]', "Enter");
+        // Let the app leave the form under its own steam; navigating while it
+        // is still storing the session throws that session away.
+        await page.locator('input[type="password"]').first()
+          .waitFor({ state: "detached", timeout: left() }).catch(() => {});
+        continue;
+      }
+
+      cards = await page.locator('[id^="book-card-"]').first()
+        .waitFor({ state: "attached", timeout: left() })
+        .then(() => true).catch(() => false);
+    }
+    if (!cards) {
+      throw new Error(`no book cards after signing in; ended on ${page.url()}`);
+    }
+    await strips(page);
     return page;
   }
 
@@ -387,8 +394,9 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     // script registered for <server>/library/* never matched.
     const page = await libraryPage();
     await page.goto(`${state.absUrl}/`, { waitUntil: "domcontentloaded" });
+    await strips(page);
     await expect(page.locator(".absh-badge.absh-copy, .absh-badge.absh-on").first())
-      .toBeVisible({ timeout: 45_000 });
+      .toBeVisible();
     await page.close();
   });
 
