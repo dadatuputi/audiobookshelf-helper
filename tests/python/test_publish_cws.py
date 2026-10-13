@@ -101,7 +101,7 @@ class Store:
 class Case(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.zip = self.tmp / "audiobookshelf-helper-chrome-1.0.0.zip"
+        self.zip = self.tmp / "audiobookshelf-helper-chrome-extension-1.0.0.zip"
         with zipfile.ZipFile(self.zip, "w") as z:
             z.writestr("manifest.json", json.dumps({"manifest_version": 3,
                                                     "name": "x", "version": "1.0.0"}))

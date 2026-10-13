@@ -73,14 +73,18 @@ button { font: inherit; color: inherit; cursor: pointer; }
 button:disabled { cursor: default; }
 a { color: var(--accent); }
 
-button.primary {
+/* The primary action. A link that downloads is one too, so it shares this. */
+button.primary, a.button.primary {
   min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
   background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px;
-  text-align: left;
+  text-align: left; font-weight: 600; text-decoration: none;
 }
+a.button.primary { display: inline-flex; }
 button.primary kbd { background: var(--kbd-on-accent); color: inherit; }
 button.primary:disabled { opacity: .45; }
 button.primary.danger { background: var(--err); color: var(--err-ink); }
+
+code { font: 12px var(--mono); background: var(--kbd); padding: 1px 4px; border-radius: 3px; }
 
 button.secondary {
   min-height: 44px; display: inline-flex; align-items: center; justify-content: center;

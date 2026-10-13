@@ -615,6 +615,43 @@ class TestDeviceDiscovery(unittest.TestCase):
     def test_reports_free_space(self):
         self.assertGreater(devices_mod.describe(self.clip)["free"], 0)
 
+    def test_looking_for_audio_stops_early_on_a_big_volume(self):
+        """A backup disk or a network share holds no audio near the top, and
+        walking all of it took minutes while every other request waited."""
+        big = self.tmp / "BIG"
+        deep = big / "a" / "b" / "c" / "d"
+        deep.mkdir(parents=True)
+        (deep / "buried.mp3").write_bytes(b"x")          # below the depth looked at
+        for i in range(devices_mod.WALK_ENTRIES + 50):
+            (big / f"photo{i:05d}.jpg").write_bytes(b"")
+        self.assertEqual(devices_mod._audio_count(big, limit=1), 0)
+        top = self.tmp / "TOP"
+        top.mkdir()
+        (top / "book.m4a").write_bytes(b"x")
+        self.assertEqual(devices_mod._audio_count(top, limit=1), 1)
+
+    def test_a_volume_that_does_not_answer_is_listed_as_slow_not_waited_on(self):
+        import threading, time
+        release = threading.Event()
+        real = devices_mod.describe
+
+        def describe(p, subdir="AUDIOBOOKS"):
+            if p == self.backup:
+                release.wait(10)                          # a dead network mount
+            return real(p, subdir)
+        try:
+            with mock.patch.object(devices_mod, "describe", describe):
+                t0 = time.monotonic()
+                found = devices_mod.candidates(budget=0.5)
+                took = time.monotonic() - t0
+        finally:
+            release.set()
+        self.assertLess(took, 3)
+        by = {d["name"]: d for d in found}
+        self.assertTrue(by["BACKUP"]["slow"])
+        self.assertTrue(by["CLIP"]["hasSubdir"])
+        self.assertEqual(found[0]["name"], "CLIP", "a slow volume sorts last")
+
     def test_probing_a_vanished_volume_does_not_raise(self):
         gone = devices_mod.describe(self.tmp / "unplugged")
         self.assertEqual(gone["total"], 0)

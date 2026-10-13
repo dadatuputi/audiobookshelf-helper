@@ -17,6 +17,7 @@ let NO_PLAYER = false;
 let PANEL_OPEN = false;
 let LIB = "";                          // the server's host, as the Library card names it
 let FOLDER = "";                       // Chrome's folder, when that is what is in use
+let SETUP = false;                     // showing what to do first, not the shelf
 
 /* ----------------------------------------------------------- transport */
 const PORT = browser.runtime.connect({ name: "absh" });
@@ -240,10 +241,49 @@ async function refresh() {
   }
 }
 
+/* Something has to happen before there is anything to copy. Say what, with
+ * the one button that does it, in place of a shelf whose every control could
+ * only do nothing. Each step is [text] or [text, code]. */
+function setup({ title, why = "", steps = [], get = null, opts = false, retry = false }) {
+  $("#setupTitle").textContent = title;
+  $("#setupWhy").textContent = why;
+  const ol = $("#setupSteps");
+  ol.replaceChildren(...steps.map(([t, code]) => {
+    const li = el("li", "", t);
+    if (code) li.append(" ", el("code", "", code));
+    return li;
+  }));
+  const a = $("#setupGet");
+  a.classList.toggle("hidden", !get);
+  if (get) {
+    a.href = get.url;
+    a.textContent = get.label;
+  }
+  $("#setupOpts").classList.toggle("hidden", !opts);
+  $("#setupRetry").classList.toggle("hidden", !retry);
+  $("#setup").classList.remove("hidden");
+  $("#shelfView").classList.add("hidden");
+  $("#act").classList.add("hidden");
+  SETUP = true;
+}
+
+function clearSetup() {
+  if (!SETUP) return;
+  SETUP = false;
+  $("#setup").classList.add("hidden");
+  $("#shelfView").classList.remove("hidden");
+  $("#act").classList.remove("hidden");
+}
+
+/* The helper, from the release this extension came from. */
+function getHelper() {
+  return ABSH.helperDownload(globalThis.ABSH_CONFIG);
+}
+
 /* A line under the status that opens Settings. Only the folder backend
  * (Chrome) asks for one: what fixes its problems is a click there. */
 function optionsLink(text) {
-  const a = el("a", "note-link", text);
+  const a = el("a", "note-link options-link", text);
   a.href = "#";
   a.addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
   $("#status").after(a);
@@ -359,6 +399,7 @@ function updateUse() {
 
 /** What makes a detected player look like yours, in a few words. */
 function evidence(d) {
+  if (d.slow) return "Not answering";
   if (!d.hasSubdir) return "No books folder";
   return `${PLAYER.subdir || "AUDIOBOOKS"}/ · ${d.books} book${d.books === 1 ? "" : "s"}`;
 }
@@ -377,6 +418,7 @@ function pickRow(d) {
   if (d.path === PLAYER.devicePath) n.append(el("span", "in-use", "in use"));
   who.append(n, el("span", "why", evidence(d)));
   const free = d.total ? `${size(d.free).split(" ")[0]} / ${size(d.total)}` : "";
+  if (d.slow) row.classList.add("slow");
   row.append(radio, who, el("span", "d", free));
   return row;
 }
@@ -471,13 +513,35 @@ $("#folderChange").addEventListener("click", (e) => { e.preventDefault(); browse
 
 async function load() {
   status("Checking the helper…");
+  // Links a previous pass added under the status; nothing else carries the class.
+  for (const a of document.querySelectorAll("a.options-link")) a.remove();
+  clearSetup();
   let p;
   try {
     p = await send({ type: "ping" });
     if (!p.ok) {
-      status("Native helper not reachable.\nRun native/install.py, then restart the browser.\n"
-             + (p.error || ""), "err");
-      if (p.folderAvailable) optionsLink("Or, in Chrome, choose your player's folder in Options");
+      // Not installed, and installed but failing to start, are different
+      // problems. Only the second has a reason worth showing: the browser's
+      // own words for it.
+      const absent = ABSH.helperAbsent(p.error);
+      status("");
+      $("#playerName").textContent = "No helper";
+      const browserName = /Firefox\//.test(navigator.userAgent) ? "Firefox" : "the browser";
+      if (ABSH.helperStuck(p.error)) {
+        // Installed and started, then silent. Reinstalling would not help;
+        // a fresh start usually does, and Look again makes one.
+        setup({ title: "Helper not answering", why: p.error, retry: true,
+                steps: [[`If it happens again, restart ${browserName}.`]] });
+        return;
+      }
+      setup({
+        title: absent ? "Install the helper app" : "Reinstall the helper app",
+        why: absent ? "" : p.error,
+        steps: [["Unzip it."], ["In that folder, run", "python3 install.py"],
+                [`Restart ${browserName}.`]],
+        get: getHelper(),
+      });
+      if (p.folderAvailable) optionsLink("Or, in Chrome, choose your player's folder in Settings");
       return;
     }
     BACKEND = p.backend === "folder" ? "folder" : "helper";
@@ -496,22 +560,22 @@ async function load() {
     // on it can be listed. The popup cannot restore access itself - Chrome
     // only renews it from one of the extension's tabs - so it sends you there.
     if (p.backend === "folder" && p.access === "prompt") {
-      status(`Chrome has paused access to the folder “${p.folder}”. ` +
-             "Allow it again in Options.", "err");
-      optionsLink(`Allow access to “${p.folder}” in Options`);
+      status("");
+      setup({ title: "Allow access again", why: `Chrome paused access to “${p.folder}”.`,
+              opts: true });
       return;
     }
     if (p.backend === "folder" && p.access === "missing") {
-      status(`The folder “${p.folder}” isn't there. Plug the player in, then press ↻.`, "err");
-      $("#refresh").addEventListener("click", () => load(), { once: true });
+      status("");
+      setup({ title: "Plug the player in", why: `“${p.folder}” isn't there.`, retry: true });
       return;
     }
     if (!p.configured) {
       const missing = p.missing || [];
       const serverGaps = missing.filter((m) => !m.startsWith("devicePath"));
       if (serverGaps.length) {
-        status("Set up your server first: " + serverGaps.join(", ")
-               + "\nOpen Options, or run `absh config`.", "err");
+        status("");
+        setup({ title: "Connect your library", opts: true });
         return;
       }
       // Only the player is missing, and that is chosen right here.
@@ -546,7 +610,7 @@ async function updateHint() {
     if (s.kind !== "available") return;
     const a = $("#updateHint");
     a.textContent = `Helper ${s.latest} is available - ` +
-                    (s.canUpdate ? "update it in Options" : "see Options");
+                    (s.canUpdate ? "update it in Settings" : "see Settings");
     a.classList.remove("hidden");
   } catch { /* a failed check says nothing here; Settings says why */ }
 }
@@ -554,6 +618,8 @@ async function updateHint() {
 /* ---------------------------------------------------------------- wiring */
 $("#filter").addEventListener("input", render);
 $("#opts").addEventListener("click", () => browser.runtime.openOptionsPage());
+$("#setupOpts").addEventListener("click", () => browser.runtime.openOptionsPage());
+$("#setupRetry").addEventListener("click", () => load());
 $("#updateHint").addEventListener("click", (e) => { e.preventDefault(); browser.runtime.openOptionsPage(); });
 $("#refresh").addEventListener("click", refresh);
 $("#all").addEventListener("change", () => {
@@ -626,7 +692,15 @@ document.addEventListener("keydown", (e) => {
   }
   if (t.matches && t.matches("input[type=text], input[type=search]")) return;
   const k = e.key.toLowerCase();
-  if (k === "/" && !PANEL_OPEN) {
+  if (k === ",") {
+    e.preventDefault();
+    browser.runtime.openOptionsPage();
+  } else if (k === "r" && SETUP && !$("#setupRetry").classList.contains("hidden")) {
+    e.preventDefault();
+    load();
+  } else if (SETUP) {
+    // Nothing on the shelf to act on yet.
+  } else if (k === "/" && !PANEL_OPEN) {
     e.preventDefault();
     $("#filter").focus();
   } else if (k === "d" && PANEL_OPEN && BACKEND === "helper") {

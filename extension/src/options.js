@@ -201,7 +201,8 @@ function helperRow(s) {
   LAST_HELPER = s;
   if (s.kind === "unreachable") {
     if (FOLDER_IN_USE) setRow("helper", "off", "Not used · Chrome writes to the folder");
-    else setRow("helper", "err", "Not responding");
+    else setRow("helper", "err", ABSH.helperStuck(s.error) ? "Not answering"
+                                 : ABSH.helperAbsent(s.error) ? "Not installed" : "Not starting");
     return;
   }
   const v = s.installed;
@@ -231,11 +232,17 @@ function showHelper({ helper, check }, checking) {
   btn.classList.add("hidden");
   checkBtn.classList.toggle("hidden", s.kind === "unreachable");
 
+  // Stuck is not missing: reinstalling would not help, so no download.
+  $("helperGet").classList.toggle("hidden",
+                                  s.kind !== "unreachable" || ABSH.helperStuck(s.error));
   if (s.kind === "unreachable") {
-    version.textContent = "The helper isn't responding.";
-    note(state, `${(s.error || "No answer").replace(/\.$/, "")}. Run install.py ` +
-                "from the download (native/install.py in a checkout), then restart " +
-                "the browser.", "err");
+    version.textContent = "";
+    // A failing install has a reason worth reading; a missing one does not.
+    note(state, ABSH.helperAbsent(s.error) ? "" : s.error, "err");
+    const get = ABSH.helperDownload(globalThis.ABSH_CONFIG);
+    $("helperLink").href = get.url;
+    $("helperLink").textContent = get.label;
+    if (get.page) $("helperPage").href = get.page;
     when.textContent = "";
     helperRow(s);
     return;

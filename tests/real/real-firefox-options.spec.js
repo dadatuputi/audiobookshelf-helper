@@ -129,7 +129,7 @@ test.describe("Firefox options page, driven", () => {
     });
     // Nothing is saved yet, so its first pass ends asking for the server.
     await popTab.waitFor("the popup finishing its first pass",
-      () => document.getElementById("status").textContent.includes("Set up your server first"));
+      () => document.getElementById("setupTitle").textContent === "Connect your library");
   });
 
   test.afterAll(async () => {

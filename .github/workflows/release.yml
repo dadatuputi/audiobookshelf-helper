@@ -115,37 +115,34 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
           PRERELEASE: ${{ needs.package.outputs.prerelease }}
+          SEMVER: ${{ needs.package.outputs.semver }}
         run: |
           NOTES=$(mktemp)
+          P="audiobookshelf-helper"
+          V="$SEMVER"
           {
-            echo "## Install"
+            echo "## Which file do I need?"
             echo
-            echo "**Firefox** — download the signed \`.xpi\` below if present, or"
-            echo "load \`...-firefox-*.zip\` unpacked via \`about:debugging\`."
+            echo "Two: the helper app, and the extension for your browser."
             echo
-            echo "**Chrome** — unzip \`...-chrome-*.zip\` and load it unpacked"
-            echo "at \`chrome://extensions\` with Developer mode on."
+            echo "| File | What it is |"
+            echo "|---|---|"
+            echo "| \`$P-app-$V.zip\` | **Helper app, for your computer. Required.** Copies books to your player. Unzip it, run \`python3 install.py\` in that folder, restart the browser. |"
+            echo "| \`$P-firefox-extension-$V.xpi\` | **Firefox extension.** Open it in Firefox. |"
+            echo "| \`$P-chrome-extension-$V.zip\` | **Chrome extension.** Unzip it, then *Load unpacked* at \`chrome://extensions\` (Developer mode). |"
+            echo "| \`$P-firefox-extension-unsigned-$V.zip\` | Firefox extension before Mozilla signs it, for \`about:debugging\`. |"
+            echo "| \`$P-source-code-$V.zip\` | Source code, for Mozilla's review. |"
+            echo "| \`SHA256SUMS\`, \`SHA256SUMS.sig\` | Checksums and signature. The helper checks them before updating itself. |"
             echo
-            echo "**Native helper (required)** — unzip \`...-native-*.zip\` and run"
-            echo '```'
-            echo "python3 install.py"
-            echo '```'
-            echo "then restart the browser. The helper is what writes to the device;"
-            echo "the extension on its own cannot."
+            echo "## Updating"
             echo
-            echo "**Updating the helper** — from the folder you unzipped it into:"
+            echo "Helper app: extension **Settings** → Helper → **Update**. Or, in the folder you unzipped it into:"
             echo '```'
             echo "python3 -m absh.cli update --check   # what is available"
             echo "python3 -m absh.cli update           # install it"
             echo '```'
-            echo "It replaces the files in place, checks the new helper starts,"
-            echo "and puts the old one back if it does not. Restart the browser"
-            echo "afterwards. The extension is separate - update that where you"
-            echo "installed it from."
-            echo
-            echo "It installs only a release signed with the maintainer's own key,"
-            echo "which is attached by hand shortly after this is published. Until"
-            echo "then it says the release is not signed and changes nothing."
+            echo "Only a release signed by this project's key installs. If the new helper does not start,"
+            echo "the old one is put back. Update the extension where you installed it from."
             echo
             if [ "$PRERELEASE" = "true" ]; then
               echo "> This is a prerelease. It is not published to any store."
@@ -323,9 +320,9 @@ jobs:
             exit 1
           fi
           # AMO names the file after the add-on's internal id, which reads as
-          # noise beside audiobookshelf-helper-firefox-<version>.zip. The
-          # version is the tag's, so the two match.
-          DEST="release-xpi/audiobookshelf-helper-firefox-${SEMVER}.xpi"
+          # noise. Name it for what it is (tools/release_version.py xpi_name);
+          # the version is the tag's.
+          DEST="release-xpi/audiobookshelf-helper-firefox-extension-${SEMVER}.xpi"
           mv "${XPI[0]}" "$DEST"
           gh release upload "$TAG" "$DEST" --clobber
 
@@ -354,7 +351,7 @@ jobs:
           CWS_ITEM_ID: ${{ secrets.CWS_ITEM_ID }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
-          ZIP=$(ls release/*-chrome-*.zip)
+          ZIP=$(ls release/*-chrome-extension-*.zip)
           DRY=""
           # A dry run still signs in and reads the item, so the secrets can be
           # proven before the first stable tag depends on them.

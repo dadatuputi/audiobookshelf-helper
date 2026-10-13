@@ -26,6 +26,7 @@ reply must not find progress events queued ahead of its answer.
 import json
 import struct
 import sys
+import queue
 import threading
 import traceback
 
@@ -343,7 +344,11 @@ COMMANDS = {
 # but an update check waits on someone else's server, and an unreachable one
 # would otherwise hold the device badges on the page hostage for the length of
 # a network timeout. It only reads, so letting it run alongside is safe.
-CONCURRENT = {"update-check"}
+#
+# The same goes for ping and devices. Both only read, and both are what a page
+# asks first: queued behind a long copy, or behind a look at a slow network
+# volume, the popup sat at "Checking the helper…" with no end.
+CONCURRENT = {"update-check", "ping", "devices"}
 
 
 def handle(msg, emit=None):
@@ -370,28 +375,51 @@ def _replier(rid):
 
 
 def main():
+    """Read requests as they arrive; answer them in order, except CONCURRENT.
+
+    Reading happens on a thread of its own, so a request that blocks - a copy,
+    a server that never answers - does not stop the next one being read. Those
+    in CONCURRENT start at once; everything else waits its turn on this
+    thread, which is what keeps a pull from interleaving with a remove.
+    """
+    work = queue.Queue()
     threads = []
+    updating = False
+
+    def reader():
+        nonlocal updating
+        while True:
+            try:
+                msg = read_msg()
+            except (struct.error, ValueError, UnicodeDecodeError) as e:
+                write_msg({"ok": False, "error": f"malformed message: {e}", "event": "done"})
+                break
+            if msg is None:
+                break
+            send = _replier(msg.get("rid"))
+            emit = send if msg.get("progress") else None
+            # Once an update is queued, nothing jumps ahead of it: a ping
+            # answered after the files are swapped would be the old code
+            # speaking from memory. If it restarts, what waits behind it is
+            # never answered here, and the next connection asks a new helper.
+            if msg.get("cmd") == "update":
+                updating = True
+            if msg.get("cmd") in CONCURRENT and not updating:
+                t = threading.Thread(
+                    target=lambda m=msg, s=send, e=emit: s({**handle(m, e), "event": "done"}),
+                    name=f"absh-{msg.get('cmd')}", daemon=True)
+                t.start()
+                threads.append(t)
+            else:
+                work.put((msg, send, emit))
+        work.put(None)                  # stdin closed: finish what is queued, then stop
+
+    threading.Thread(target=reader, name="absh-reader", daemon=True).start()
     while True:
-        try:
-            msg = read_msg()
-        except (struct.error, ValueError, UnicodeDecodeError) as e:
-            write_msg({"ok": False, "error": f"malformed message: {e}", "event": "done"})
+        item = work.get()
+        if item is None:
             break
-        if msg is None:
-            break
-
-        send = _replier(msg.get("rid"))
-        emit = send if msg.get("progress") else None
-
-        if msg.get("cmd") in CONCURRENT:
-            threads = [t for t in threads if t.is_alive()]
-            t = threading.Thread(
-                target=lambda m=msg, s=send, e=emit: s({**handle(m, e), "event": "done"}),
-                name=f"absh-{msg.get('cmd')}", daemon=True)
-            t.start()
-            threads.append(t)
-            continue
-
+        msg, send, emit = item
         reply = handle(msg, emit)
         send({**reply, "event": "done"})
         if msg.get("cmd") == "update" and reply.get("restarting") is True:
@@ -400,7 +428,7 @@ def main():
     # stdin closing is the caller hanging up on its side, but an answer already
     # being worked on is still owed to whoever reads stdout to the end - a
     # test, or a script. Bounded by the network timeouts inside it.
-    for t in threads:
+    for t in list(threads):
         t.join()
 
 

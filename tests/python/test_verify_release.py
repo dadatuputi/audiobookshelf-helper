@@ -243,7 +243,7 @@ class TheAlphaOneShape(Case):
 
     def test_and_so_is_a_correctly_named_xpi_from_before_this_build(self):
         self.gh.publish(ALPHA, extra=[self.xpi(ALPHA, when="2026-09-01T00:00:00Z")])
-        self.assertProblem(self.verify(ALPHA), "audiobookshelf-helper-firefox-1.0.0-alpha.2.xpi",
+        self.assertProblem(self.verify(ALPHA), "audiobookshelf-helper-firefox-extension-1.0.0-alpha.2.xpi",
                            "before", "previous build")
 
     def test_an_xpi_when_nothing_was_signed_this_run(self):
@@ -256,14 +256,14 @@ class Assets(Case):
     def test_a_missing_zip(self):
         self.gh.publish(ALPHA, extra=[self.xpi(ALPHA)])
         rel = self.gh.releases[ALPHA]
-        rel["assets"] = [a for a in rel["assets"] if "-native-" not in a["name"]]
-        self.assertProblem(self.verify(ALPHA), "audiobookshelf-helper-native-1.0.0-alpha.2.zip",
+        rel["assets"] = [a for a in rel["assets"] if "-app-" not in a["name"]]
+        self.assertProblem(self.verify(ALPHA), "audiobookshelf-helper-app-1.0.0-alpha.2.zip",
                            "missing", "re-run the github-release job")
 
     def test_a_zip_named_for_another_version(self):
-        old = self.gh.asset("audiobookshelf-helper-native-1.0.0-alpha.1.zip", b"old")
+        old = self.gh.asset("audiobookshelf-helper-app-1.0.0-alpha.1.zip", b"old")
         self.gh.publish(ALPHA, extra=[self.xpi(ALPHA), old])
-        self.assertProblem(self.verify(ALPHA), "native-1.0.0-alpha.1.zip",
+        self.assertProblem(self.verify(ALPHA), "app-1.0.0-alpha.1.zip",
                            "named for version 1.0.0-alpha.1")
 
     def test_something_else_entirely(self):
@@ -276,7 +276,7 @@ class Assets(Case):
                  for k in V.ZIP_KINDS}
         files[V.zip_name("chrome", semver)] += b"\0"
         self.gh.publish(ALPHA, files=files, extra=[self.xpi(ALPHA)])
-        self.assertProblem(self.verify(ALPHA), "chrome-1.0.0-alpha.2.zip",
+        self.assertProblem(self.verify(ALPHA), "chrome-extension-1.0.0-alpha.2.zip",
                            "bytes from another build")
 
     def test_no_digest_reported(self):
@@ -333,7 +333,7 @@ class Contents(Case):
     def test_a_native_helper_not_stamped_with_the_tag(self):
         """`absh update` reads this; a "dev" stamp offers the update forever."""
         art = self.artifacts_copy(ALPHA)
-        native = art / V.zip_name("native", "1.0.0-alpha.2")
+        native = art / V.zip_name("app", "1.0.0-alpha.2")
         buf = io.BytesIO()
         with zipfile.ZipFile(native) as zin, zipfile.ZipFile(buf, "w") as zout:
             for n in zin.namelist():
@@ -350,7 +350,7 @@ class Contents(Case):
 class SignedAddon(Case):
     def test_required_when_unlisted_signing_ran(self):
         self.gh.publish(ALPHA)
-        self.assertProblem(self.verify(ALPHA), "firefox-1.0.0-alpha.2.xpi", "missing",
+        self.assertProblem(self.verify(ALPHA), "firefox-extension-1.0.0-alpha.2.xpi", "missing",
                            "attach step")
 
     def test_wrong_version_inside(self):

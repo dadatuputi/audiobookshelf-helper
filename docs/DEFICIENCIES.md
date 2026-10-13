@@ -187,6 +187,49 @@ and `test_parity_vectors` asserts the outcome rather than only the agreement.
 **Not handled:** a player already damaged by the old behaviour; remove the
 affected book and copy both editions again.
 
+### N6. Reported on alpha.5 (2026-10-13), from a fresh Firefox profile
+1. **Settings had no visible way in.** Only the Library card opened them, and
+   nothing said so. Now a gear on that card (44px target, `,` key).
+2. **Dead controls with no helper.** Tabs, filter and "Select books" showed
+   though none could act; the Player card read "…" for good. Now a setup card
+   replaces them: "Install the helper app", three steps, and a button that
+   downloads the helper app from the release this extension was built for
+   (`config.js` carries the tag). The same card covers an unset server and a
+   Chrome folder that is missing or paused.
+3. **Firefox never said why the helper failed.** The reason is on the port
+   (`port.error`), and only `runtime.lastError` was read, which Chrome alone
+   sets, so Firefox always got "native helper disconnected". Both are read
+   now, and "never installed" is told apart from "installed but failing".
+4. **Release files did not say what they were for.** "native" meant nothing
+   to a user. Now `-app-` (the helper), `-firefox-extension-` (.xpi),
+   `-chrome-extension-`, `-firefox-extension-unsigned-`, `-source-code-`, named
+   once in `tools/release_version.py`, and the release notes open with a
+   which-file table. Helpers from before alpha.6 look for `-native-` and so
+   cannot update themselves to it; reinstall the helper app by hand once.
+   Accepted by the maintainer: nobody runs the old versions.
+Also: "Options" is "Settings" everywhere, matching the page.
+**Status:** fixed after `v1.0.0-alpha.5`.
+
+### N7. "Checking the helper…" and "Looking…" with no end (alpha.5, macOS, Firefox)
+Seen: with the helper installed, the popup sat at "Checking the helper…"
+while the player list said "Looking…", indefinitely. Not reproduced here (no
+Mac). **Cause, believed not confirmed:** the helper ran every request in turn
+on one loop, and the device list searched each volume under /Volumes for audio
+with no bound - a network share or backup disk there takes minutes, or hangs
+on a dead mount - so the list, and every request queued behind it, waited.
+Separately, the extension had no limit on how long it waited for a ping.
+**Guards, added anyway:** requests are read on their own thread, and ping and
+devices answer at once rather than in turn (except behind a queued update, so
+a replaced helper never answers with its old code); the audio search stops at
+2000 entries or 3 folders deep; each volume gets 4 seconds in all and one that
+has not answered is listed as "Not answering"; the extension gives a ping 15
+seconds, then drops the connection so the next try starts a fresh helper, and
+says "Helper not answering" with Look again. Tests: a server that never
+answers holds `status`, and ping and devices still come back (fails against
+the old loop); a big volume and a dead one are bounded.
+**To confirm on the Mac:** what `ls /Volumes` lists, and whether
+`python3 -m absh.cli devices` in the helper folder is slow there.
+
 ---
 
 ## Todo

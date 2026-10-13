@@ -14,6 +14,8 @@ import os
 import shutil
 import string
 import sys
+import threading
+import time
 from pathlib import Path
 
 from .naming import AUDIO_EXT, safe_subdir
@@ -122,17 +124,38 @@ def roots(system=None):
     return _linux_roots()
 
 
-def _audio_count(path, limit=40):
-    """How many audio files sit under here - stop early, this is a hint."""
-    n = 0
-    try:
-        for p in path.rglob("*"):
-            if p.is_file() and p.suffix.lower() in AUDIO_EXT:
-                n += 1
-                if n >= limit:
-                    break
-    except OSError:
-        pass
+# How much of a volume to look through for audio before giving up. A player
+# shows audio near the top; a backup disk or a network share does not, and
+# walking all of one took minutes and held up every other request.
+WALK_ENTRIES = 2000
+WALK_DEPTH = 3
+
+
+def _audio_count(path, limit=40, entries=WALK_ENTRIES, depth=WALK_DEPTH):
+    """How many audio files sit near the top of here. A hint, so it stops
+    early: at `limit` found, or `entries` looked at, or `depth` folders down."""
+    n = seen = 0
+    stack = [(Path(path), 0)]
+    while stack:
+        d, level = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    seen += 1
+                    if seen > entries:
+                        return n
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            if level + 1 < depth and not e.name.startswith("."):
+                                stack.append((Path(e.path), level + 1))
+                        elif Path(e.name).suffix.lower() in AUDIO_EXT:
+                            n += 1
+                            if n >= limit:
+                                return n
+                    except OSError:
+                        continue
+        except OSError:
+            continue
     return n
 
 
@@ -165,9 +188,36 @@ def describe(path, subdir="AUDIOBOOKS"):
     return info
 
 
-def candidates(subdir="AUDIOBOOKS", system=None):
-    """Every plausible device, most player-like first."""
-    found = [describe(p, subdir) for p in roots(system)]
+# A volume that has not answered by then is listed as not answering, rather
+# than holding up the whole list: a network share whose server has gone away
+# can block a call into it for minutes.
+DESCRIBE_SECONDS = 4.0
+
+
+def candidates(subdir="AUDIOBOOKS", system=None, budget=DESCRIBE_SECONDS):
+    """Every plausible device, most player-like first.
+
+    Each volume is looked at on a thread of its own, and all of them get
+    `budget` seconds in total. A slow one does not delay the rest, and one
+    that has not answered comes back with "slow" set and nothing measured.
+    """
+    paths = roots(system)
+    results = [None] * len(paths)
+
+    def look(i, p):
+        results[i] = describe(p, subdir)
+
+    threads = [threading.Thread(target=look, args=(i, p), daemon=True,
+                                name=f"absh-describe-{i}") for i, p in enumerate(paths)]
+    for t in threads:
+        t.start()
+    deadline = time.monotonic() + budget
+    for t in threads:
+        t.join(max(0.0, deadline - time.monotonic()))
+    found = [r if r is not None else
+             {"path": str(p), "name": p.name or str(p), "total": 0, "free": 0,
+              "hasSubdir": False, "books": 0, "score": -1, "slow": True}
+             for p, r in zip(paths, results)]
     return sorted(found, key=lambda d: (-d["score"], d["name"].lower()))
 
 

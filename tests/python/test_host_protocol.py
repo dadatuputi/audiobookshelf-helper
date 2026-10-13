@@ -81,6 +81,40 @@ class TestDispatch(unittest.TestCase):
         self.assertIn("version", r)
         self.assertIn(r["tags"], ("mutagen", "builtin"))
 
+    def test_ping_is_answered_while_a_slow_request_holds_the_main_loop(self):
+        """A server that accepts and never answers holds `status` on the main
+        loop. Ping must still come back: queued behind it, the popup sat at
+        "Checking the helper…" with no end."""
+        import socket, threading
+        srv = socket.socket()
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(8)                                  # accepts into the backlog, never replies
+        dev = self.tmp / "player"
+        dev.mkdir()
+        self.cfg.write_text(json.dumps({"absUrl": f"http://127.0.0.1:{srv.getsockname()[1]}",
+                                        "apiKey": "k", "devicePath": str(dev)}))
+        p = subprocess.Popen([sys.executable, str(HOST_SCRIPT)], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, env=self.env)
+        try:
+            p.stdin.write(frame([{"cmd": "status", "rid": 1}, {"cmd": "ping", "rid": 2},
+                                 {"cmd": "devices", "rid": 3}]))
+            p.stdin.flush()
+            got = []
+
+            def read():
+                for _ in range(2):
+                    n = struct.unpack("<I", p.stdout.read(4))[0]
+                    got.append(json.loads(p.stdout.read(n)))
+            t = threading.Thread(target=read, daemon=True)
+            t.start()
+            t.join(20)
+            self.assertEqual(sorted(m["rid"] for m in got), [2, 3],
+                             f"ping and devices waited behind status: {got}")
+        finally:
+            p.kill()
+            p.wait()
+            srv.close()
+
     def test_unknown_command(self):
         r = self.run_host([{"cmd": "nope"}])[0]
         self.assertFalse(r["ok"])

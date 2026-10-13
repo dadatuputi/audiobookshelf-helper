@@ -92,7 +92,7 @@ def build_native_zip(dest: Path, release: str, break_host=False, escape=False,
 
 
 def native_name(tag):
-    return f"audiobookshelf-helper-native-{tag.lstrip('v')}.zip"
+    return f"audiobookshelf-helper-app-{tag.lstrip('v')}.zip"
 
 
 def sha(blob):
@@ -191,7 +191,7 @@ class UpdateCase(unittest.TestCase):
         z = build_native_zip(Path(self.tmp) / f"{tag}.zip", tag.lstrip("v"), **kw)
         native = z.read_bytes()
         chrome = b"stand-in for the chrome archive"
-        chrome_name = f"audiobookshelf-helper-chrome-{tag.lstrip('v')}.zip"
+        chrome_name = f"audiobookshelf-helper-chrome-extension-{tag.lstrip('v')}.zip"
         manifest = signing.make_manifest(manifest_tag or tag, {
             native_name(tag): sha(native), chrome_name: sha(chrome)})
         return {native_name(tag): native, chrome_name: chrome,
@@ -235,7 +235,7 @@ class Reads(UpdateCase):
         self.serve("v1.0.0-alpha.2")
         rel = U.find_release()
         self.assertEqual(rel["tag"], "v1.0.0-alpha.2")
-        self.assertTrue(rel["name"].startswith("audiobookshelf-helper-native-"))
+        self.assertEqual(rel["name"], "audiobookshelf-helper-app-1.0.0-alpha.2.zip")
         self.assertEqual(len(rel["digest"]), 64)
         self.assertTrue(rel["manifest_url"].endswith("/SHA256SUMS"))
         self.assertTrue(rel["signature_url"].endswith("/SHA256SUMS.sig"))

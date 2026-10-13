@@ -30,10 +30,34 @@ class PackageBase(unittest.TestCase):
         shutil.rmtree(cls.out, ignore_errors=True)
 
     def find(self, kind):
-        for name, p in self.zips.items():
-            if f"-{kind}-" in name:
-                return p
-        self.fail(f"no {kind} archive in {sorted(self.zips)}")
+        """The archive of one kind, by the exact name the release gives it."""
+        name = PK.RV.asset_name("app" if kind == "native" else kind, self.TAG.lstrip("v"))
+        if name in self.zips:
+            return self.zips[name]
+        self.fail(f"no {name} in {sorted(self.zips)}")
+
+
+class TestNames(unittest.TestCase):
+    """What someone choosing a file reads - so it says what each one is for."""
+
+    def test_each_file_is_named_for_what_it_is(self):
+        self.assertEqual(
+            {k: PK.RV.asset_name(k, "1.0.0") for k in PK.RV.ASSETS},
+            {"app": "audiobookshelf-helper-app-1.0.0.zip",
+             "chrome": "audiobookshelf-helper-chrome-extension-1.0.0.zip",
+             "firefox": "audiobookshelf-helper-firefox-extension-unsigned-1.0.0.zip",
+             "source": "audiobookshelf-helper-source-code-1.0.0.zip"})
+        self.assertEqual(PK.RV.xpi_name("1.0.0"),
+                         "audiobookshelf-helper-firefox-extension-1.0.0.xpi")
+
+    def test_the_extension_links_to_the_helper_by_the_same_name(self):
+        lib = (ROOT / "extension" / "src" / "lib.js").read_text()
+        self.assertIn("`audiobookshelf-helper-app-${", lib)
+        self.assertEqual(PK.RV.asset_name("app", "1.0.0"), "audiobookshelf-helper-app-1.0.0.zip")
+
+    def test_the_updater_finds_it_by_the_same_name(self):
+        upd = (ROOT / "absh" / "update.py").read_text()
+        self.assertIn(f'"{PK.RV.PROJECT}-{PK.RV.ASSETS["app"]}-"', upd)
 
 
 class TestBundles(PackageBase):
@@ -177,7 +201,7 @@ class TestStableTag(unittest.TestCase):
             info = json.loads((out / "release-info.json").read_text())
             self.assertFalse(info["prerelease"])
             zips = {p.name for p in out.glob("*.zip")}
-            self.assertTrue(any("firefox-1.0.0.zip" in n for n in zips), zips)
+            self.assertIn("audiobookshelf-helper-firefox-extension-unsigned-1.0.0.zip", zips)
         finally:
             shutil.rmtree(out, ignore_errors=True)
 

@@ -172,7 +172,38 @@
     return { ...s, kind: "current", ahead: c === -1 };
   }
 
-  const lib = { DEFAULTS, baseUrl, originPattern, libraryPattern, libraryPrefix,
+  /** Whether a native-messaging error means the helper was never installed,
+   *  as opposed to installed and failing. Firefox: "No such native
+   *  application"; Chrome: "Specified native messaging host not found." */
+  function helperAbsent(error) {
+    return !error || /no such native application|native messaging host not found/i.test(error);
+  }
+
+  /** Whether the helper started but stopped answering (see background.js). */
+  function helperStuck(error) {
+    return /didn't answer within/.test(error || "");
+  }
+
+  /** The helper app's file in a release - tools/package.py names it so. */
+  function helperAsset(tag) {
+    return `audiobookshelf-helper-app-${String(tag).replace(/^v/, "")}.zip`;
+  }
+
+  /** Where to get the helper app. A release build links to the file in its
+   *  own release, so what you fetch is the helper it was tested with; a local
+   *  build, which is no release, links to the list. `cfg` is ABSH_CONFIG. */
+  function helperDownload(cfg) {
+    cfg = cfg || {};
+    const repo = cfg.repo || "dadatuputi/audiobookshelf-helper";
+    const tag = cfg.release;
+    if (!tag) return { url: `https://github.com/${repo}/releases`, label: "Download the helper app" };
+    return { url: `https://github.com/${repo}/releases/download/${encodeURIComponent(tag)}/` +
+                  helperAsset(tag),
+             page: `https://github.com/${repo}/releases/tag/${encodeURIComponent(tag)}`,
+             label: `Download the helper app ${String(tag).replace(/^v/, "")}` };
+  }
+
+  const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, originPattern, libraryPattern, libraryPrefix,
                 formatBytes, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;

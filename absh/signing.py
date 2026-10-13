@@ -14,7 +14,7 @@ asked for.
 
     # audiobookshelf-helper release manifest v1
     # tag v1.0.0
-    <sha256>  audiobookshelf-helper-native-1.0.0.zip
+    <sha256>  audiobookshelf-helper-app-1.0.0.zip
     ...
 
 The signature file has one line per key, so a release can be signed by an

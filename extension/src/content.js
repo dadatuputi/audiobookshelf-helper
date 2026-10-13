@@ -315,7 +315,7 @@
     text.textContent = `Audiobookshelf Helper: ${err.message}`;
     el.appendChild(text);
     if (err.code !== "folder-missing") {
-      el.appendChild(button("Open Options", "Open the extension's options", "absh-primary", () => {
+      el.appendChild(button("Open Settings", "Open the extension's settings", "absh-primary", () => {
         browser.runtime.sendMessage({ type: "openFolderOptions" }).catch(() => {});
       }));
     }

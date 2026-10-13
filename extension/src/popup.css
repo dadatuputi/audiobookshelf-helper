@@ -11,6 +11,13 @@ body {
   min-height: 64px; display: grid; align-content: center; gap: 2px; padding: 8px 12px;
   background: var(--surface); border: 0; border-radius: 8px; text-align: left; min-width: 0;
 }
+.end.lib { position: relative; padding-right: 48px; }
+button.gear {
+  position: absolute; top: 10px; right: 6px; width: 44px; height: 44px;
+  display: grid; place-items: center; background: none; border: 0; border-radius: 6px;
+  color: var(--muted);
+}
+button.gear:hover { color: var(--ink); background: var(--bg); }
 .end-label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .end-name, .end-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .end-name { font-weight: 600; }
@@ -30,6 +37,16 @@ body {
 .note-link { display: block; padding: 0 4px; font-size: 12px; text-decoration: none; }
 .note-link:hover { text-decoration: underline; }
 
+/* ----------------------------------------------- before there is a shelf */
+.setup { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.setup h2 { margin: 0; font-size: 15px; }
+.setup .why { margin: 0; font: 12px/1.4 var(--mono); color: var(--err); }
+.setup .why:empty { display: none; }
+.setup ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.setup ol:empty { display: none; }
+.setup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.setup .primary, .setup .secondary { min-height: 44px; border-radius: 6px; }
+
 /* ------------------------------------------------------------ the shelf */
 .view { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .tabs {
@@ -46,9 +63,14 @@ body {
 .card { background: var(--surface); border-radius: 8px; overflow: hidden; }
 .shelf { display: flex; flex-direction: column; min-height: 0; }
 .filter-row {
-  display: flex; align-items: center; gap: 8px; padding: 0 4px 0 12px;
+  display: flex; align-items: center; gap: 0; padding: 0 4px 0 0;
   border-bottom: 1px solid var(--line);
 }
+/* The checkbox is 18px; its label is the target, 48px so a finger 22px off
+   centre still lands on it. Centred on x=24, as the rows' checkboxes are. */
+label.all { width: 48px; height: 44px; display: grid; place-items: center; flex: none;
+            cursor: pointer; margin-left: 0; }
+.filter-row kbd { margin: 0 4px 0 8px; }
 .filter-row input[type=search] {
   flex: 1 1 auto; border: 0; background: none; padding: 0; font: inherit; height: 44px;
 }
@@ -60,9 +82,9 @@ button.icon {
 button.icon:hover { color: var(--ink); }
 
 ul { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
-li + li { border-top: 1px solid var(--line); }
+#list li + li { border-top: 1px solid var(--line); }
 .book {
-  min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 6px 12px;
+  min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 6px 12px 6px 15px;
   cursor: pointer;
 }
 .book:hover { background: var(--bg); }
@@ -107,6 +129,7 @@ button.link:disabled { color: var(--muted); }
 .player-pick.guess { background: var(--machine-soft); }
 .player-pick.guess input { accent-color: var(--machine); }
 .player-pick.guess .n, .player-pick.guess .why { color: var(--machine); }
+.player-pick.slow .n, .player-pick.slow .why { color: var(--faint); }
 .player-pick .in-use { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 
 .fields {
@@ -126,6 +149,6 @@ footer .primary { flex: 1 1 auto; }
 #actLabel, #useLabel {
   font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.act-sub { font-size: 12px; opacity: .8; }
+.act-sub { font-size: 12px; font-weight: 400; opacity: .8; }
 .act-sub:empty { display: none; }
 footer .secondary { min-height: 56px; border-radius: 8px; }

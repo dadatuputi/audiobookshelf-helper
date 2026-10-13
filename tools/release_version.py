@@ -37,6 +37,28 @@ OFFSET = {"alpha": 0, "beta": 100, "rc": 200}
 VALID = re.compile(r"^(0|[1-9]\d{0,8})(\.(0|[1-9]\d{0,8})){0,3}$")
 
 
+# What each release file is called, by what it is for. Someone choosing from
+# the release page reads these names and nothing else, so they say it plainly:
+# which browser an extension is for, and that the helper is an app for the
+# computer. tools/package.py makes them; tools/verify_release.py checks them.
+PROJECT = "audiobookshelf-helper"
+ASSETS = {
+    "app": "app",                                      # the helper; install.py
+    "chrome": "chrome-extension",
+    "firefox": "firefox-extension-unsigned",           # what AMO signs
+    "source": "source-code",                           # for AMO's source review
+}
+XPI = "firefox-extension"                              # AMO's signed build of it
+
+
+def asset_name(kind: str, semver: str) -> str:
+    return f"{PROJECT}-{ASSETS[kind]}-{semver}.zip"
+
+
+def xpi_name(semver: str) -> str:
+    return f"{PROJECT}-{XPI}-{semver}.xpi"
+
+
 def parse_tag(tag: str) -> dict:
     m = TAG.match((tag or "").strip())
     if not m:

@@ -19,6 +19,34 @@ beforeAll(() => {
   ABSH = sandbox.module.exports;
 });
 
+describe("helperAbsent", () => {
+  it("reads either browser's words for a helper never installed", () => {
+    expect(ABSH.helperAbsent("No such native application io.github.abshelper")).toBe(true);
+    expect(ABSH.helperAbsent("Specified native messaging host not found.")).toBe(true);
+    expect(ABSH.helperAbsent("")).toBe(true);
+  });
+  it("tells an installed helper that fails apart from a missing one", () => {
+    expect(ABSH.helperAbsent("An unexpected error occurred")).toBe(false);
+    expect(ABSH.helperAbsent("Native host has exited.")).toBe(false);
+  });
+});
+
+describe("helperDownload", () => {
+  it("links a release build to the helper app in its own release", () => {
+    const d = ABSH.helperDownload({ repo: "o/r", release: "v1.0.0-alpha.6" });
+    expect(d.url).toBe("https://github.com/o/r/releases/download/v1.0.0-alpha.6/" +
+                       "audiobookshelf-helper-app-1.0.0-alpha.6.zip");
+    expect(d.page).toBe("https://github.com/o/r/releases/tag/v1.0.0-alpha.6");
+    expect(d.label).toBe("Download the helper app 1.0.0-alpha.6");
+  });
+  it("links a local build, which is no release, to the list", () => {
+    expect(ABSH.helperDownload({ repo: "o/r", release: null }))
+      .toEqual({ url: "https://github.com/o/r/releases", label: "Download the helper app" });
+    expect(ABSH.helperDownload(undefined).url)
+      .toBe("https://github.com/dadatuputi/audiobookshelf-helper/releases");
+  });
+});
+
 describe("baseUrl", () => {
   it("strips trailing slashes", () => {
     expect(ABSH.baseUrl("http://x:13378/")).toBe("http://x:13378");

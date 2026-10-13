@@ -329,8 +329,12 @@ test.describe("without the helper, the folder backend does what the helper does"
        async () => {
     const page = await folderCtx.newPage();
     await page.goto(POPUP);
-    await expect(page.locator("#status")).toContainText("Native helper not reachable", { timeout: 20_000 });
-    await expect(page.locator("a", { hasText: "choose your player's folder in Options" })).toBeVisible();
+    // In place of a shelf that could do nothing: what to install, and where from.
+    await expect(page.locator("#setupTitle")).toHaveText("Install the helper app", { timeout: 20_000 });
+    await expect(page.locator("#shelfView")).toBeHidden();
+    await expect(page.locator("#act")).toBeHidden();
+    await expect(page.locator("#setupGet")).toHaveAttribute("href", /\/releases/);
+    await expect(page.locator("a", { hasText: "choose your player's folder in Settings" })).toBeVisible();
     await page.close();
   });
 
@@ -562,20 +566,20 @@ test.describe("when Chrome has paused access to the folder", () => {
     await page.close();
   });
 
-  test("the popup says so, and sends you to Options rather than failing", async () => {
+  test("the popup says so, and sends you to Settings rather than failing", async () => {
     const page = await ctx.newPage();
     await page.goto(POPUP);
-    await expect(page.locator("#status")).toHaveText(
-      `Chrome has paused access to the folder “${folderName()}”. Allow it again in Options.`,
-      { timeout: 20_000 });
-    await expect(page.locator("#status")).toHaveClass(/err/);
-    await expect(page.locator("a", { hasText: "in Options" })).toBeVisible();
+    // One card, saying why, with the one button that fixes it.
+    await expect(page.locator("#setupTitle")).toHaveText("Allow access again", { timeout: 20_000 });
+    await expect(page.locator("#setupWhy")).toHaveText(`Chrome paused access to “${folderName()}”.`);
+    await expect(page.locator("#setupOpts")).toBeVisible();
+    await expect(page.locator("#shelfView")).toBeHidden();
     // Nothing claims the player is empty.
     await expect(page.locator("#n-device")).toHaveText("");
     await page.close();
   });
 
-  test("the library page says so, and its button opens Options", async () => {
+  test("the library page says so, and its button opens Settings", async () => {
     const lib = await ctx.newPage();
     await lib.goto(`${absUrl}/library/main`);
     const notice = lib.locator("#absh-folder-notice");
@@ -583,7 +587,7 @@ test.describe("when Chrome has paused access to the folder", () => {
                                        { timeout: 20_000 });
     const [opts] = await Promise.all([
       ctx.waitForEvent("page", { predicate: (p) => p.url().startsWith(OPTIONS) }),
-      notice.locator("button", { hasText: "Open Options" }).click(),
+      notice.locator("button", { hasText: "Open Settings" }).click(),
     ]);
     await expect(opts.locator("#folderAllow")).toBeVisible({ timeout: 15_000 });
     await opts.close();

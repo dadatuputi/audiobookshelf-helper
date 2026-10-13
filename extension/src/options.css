@@ -40,7 +40,6 @@ h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 600; }
 .note.ok { color: var(--ok); }
 .note.warn { color: var(--warn); }
 .note.err { color: var(--err); }
-code { font: 12px var(--mono); background: var(--kbd); padding: 1px 4px; border-radius: 3px; }
 .chk { display: flex; gap: 10px; align-items: flex-start; min-height: 44px; padding-top: 2px; cursor: pointer; }
 .chk input { margin-top: 1px; }
 
@@ -49,6 +48,11 @@ code { font: 12px var(--mono); background: var(--kbd); padding: 1px 4px; border-
 .actions .primary { min-height: 44px; border-radius: 6px; font-weight: 600; padding: 0 16px; }
 .actions .primary:disabled { opacity: .45; }
 .msg { flex: 1 1 auto; font-size: 12px; color: var(--ok); }
+.get { display: grid; gap: 12px; }
+.get ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+#helperVersion:empty { display: none; }
+#helperPage { min-height: 44px; display: inline-flex; align-items: center; }
+#helperPage:not([href]) { display: none; }
 #updateSteps { margin: 0; padding-left: 1.2rem; font-size: 12px; color: var(--muted); }
 #updateSteps:empty { display: none; }
 

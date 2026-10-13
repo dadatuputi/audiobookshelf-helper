@@ -7,10 +7,13 @@ Build the release artefacts.
 
 Produces, under release/:
 
-    audiobookshelf-helper-firefox-<ver>.zip   manifest.json AT THE ROOT
-    audiobookshelf-helper-chrome-<ver>.zip    manifest.json AT THE ROOT
-    audiobookshelf-helper-native-<ver>.zip    the host + installer
-    audiobookshelf-helper-source-<ver>.zip    for AMO's source review
+    audiobookshelf-helper-app-<ver>.zip                         the helper + installer
+    audiobookshelf-helper-chrome-extension-<ver>.zip            manifest.json AT THE ROOT
+    audiobookshelf-helper-firefox-extension-unsigned-<ver>.zip  manifest.json AT THE ROOT
+    audiobookshelf-helper-source-code-<ver>.zip                 for AMO's source review
+
+(the names are tools/release_version.py's ASSETS; the release workflow adds
+audiobookshelf-helper-firefox-extension-<ver>.xpi once AMO has signed it)
     SHA256SUMS                                every archive's sha256, and the tag
 
 SHA256SUMS is what the release workflow signs, with the RELEASE_SIGNING_KEY
@@ -100,7 +103,7 @@ def build_native(out: Path, semver: str) -> Path:
         # The stamped copy stands in for the checkout's, which says "dev".
         src = stamped if f.name == "version.py" else f
         native_pairs.append((src, f"{NATIVE_PACKAGE}/{f.name}"))
-    return zip_files(native_pairs, out / f"audiobookshelf-helper-native-{semver}.zip")
+    return zip_files(native_pairs, out / RV.asset_name("app", semver))
 
 
 def zip_source(dest: Path):
@@ -118,9 +121,10 @@ def zip_source(dest: Path):
     return zip_files(pairs, dest)
 
 
-def build(target: str, version: str):
+def build(target: str, version: str, tag: str):
     subprocess.run([sys.executable, str(ROOT / "extension" / "build.py"),
-                    "--target", target, "--version", version, "--quiet"], check=True)
+                    "--target", target, "--version", version, "--tag", tag, "--quiet"],
+                   check=True)
     return ROOT / "extension" / "dist" / target
 
 
@@ -139,15 +143,15 @@ def main():
 
     made = []
     for target in ("firefox", "chrome"):
-        dist = build(target, info[target])
+        dist = build(target, info[target], a.tag)
         manifest = json.loads((dist / "manifest.json").read_text())
         assert manifest["version"] == info[target], "version stamp did not take"
         made.append(zip_dir_contents(
-            dist, out / f"audiobookshelf-helper-{target}-{info['semver']}.zip"))
+            dist, out / RV.asset_name(target, info["semver"])))
 
     made.append(build_native(out, info["semver"]))
 
-    made.append(zip_source(out / f"audiobookshelf-helper-source-{info['semver']}.zip"))
+    made.append(zip_source(out / RV.asset_name("source", info["semver"])))
 
     # Over exactly what CI uploads, named by the tag it uploads them to, so a
     # signature over this cannot be reattached to a different release.

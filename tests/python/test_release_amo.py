@@ -152,7 +152,7 @@ class Stubbed(Job):
         self.assertNotIn("--approval-timeout", npx, "unlisted must wait for its xpi")
         a = self.attach(ALPHA, s.outputs)
         self.assertEqual(a.code, 0, a.log)
-        dest = "release-xpi/audiobookshelf-helper-firefox-1.0.0-alpha.2.xpi"
+        dest = "release-xpi/audiobookshelf-helper-firefox-extension-1.0.0-alpha.2.xpi"
         self.assertTrue((self.work / dest).is_file())
         self.assertEqual([p.name for p in (self.work / "release-xpi").iterdir()],
                          [Path(dest).name], "AMO's name survived the rename")
@@ -341,7 +341,7 @@ class RealWebExt(Job):
 
     def setUp(self):
         super().setUp()
-        with zipfile.ZipFile(self.built / "audiobookshelf-helper-firefox-1.0.0-alpha.2.zip") as z:
+        with zipfile.ZipFile(self.built / "audiobookshelf-helper-firefox-extension-unsigned-1.0.0-alpha.2.zip") as z:
             z.extractall(self.work / "extension" / "dist" / "firefox")
         # `npx web-ext` resolves to the repo's own node_modules on a runner;
         # this does the same from a directory that has none.
@@ -370,7 +370,7 @@ class RealWebExt(Job):
         self.assertEqual([p.name for p in xpis], ["cb73684229b84553a7b8-1.0.0.2.xpi"])
         a = self.attach(ALPHA, s.outputs)
         self.assertEqual(a.code, 0, a.log)
-        self.assertIn("audiobookshelf-helper-firefox-1.0.0-alpha.2.xpi --clobber",
+        self.assertIn("audiobookshelf-helper-firefox-extension-1.0.0-alpha.2.xpi --clobber",
                       self.calls()[-1])
 
     def test_listed_returns_at_submission(self):

@@ -63,9 +63,18 @@ command works without it.
 
 ### Plus the extension
 
-Grab the [latest release](https://github.com/dadatuputi/audiobookshelf-helper/releases)
-or [build it yourself](#building-locally). Either way, register the helper so
-the browser knows where to find it:
+From the [latest release](https://github.com/dadatuputi/audiobookshelf-helper/releases)
+you need two files:
+
+- `audiobookshelf-helper-app-<version>.zip` — **the helper app, for your
+  computer**. Unzip it, run `python3 install.py` in that folder, restart the
+  browser.
+- `audiobookshelf-helper-firefox-extension-<version>.xpi` (open it in Firefox),
+  or `audiobookshelf-helper-chrome-extension-<version>.zip` (unzip it, then
+  Load unpacked).
+
+Or [build it yourself](#building-locally), and register the helper so the
+browser knows where to find it:
 
 ```bash
 python3 native/install.py
@@ -86,7 +95,7 @@ directly.
 ### Chrome, without the helper
 
 If you can't install the helper, or would rather not, Chrome can write to the
-player itself: Options → **Without the helper (Chrome only)** → **Choose the
+player itself: Settings → **Folder** (under *Optional*) → **Choose the
 player's folder…**, and pick the player's top folder (the one `AUDIOBOOKS` is
 in). Grant access to your server too, because Chrome then makes the requests to
 it itself. Pull, upload, delete and the three-way status all work, with the
@@ -151,7 +160,7 @@ previous version is put back.
 
 There is no switch to skip the signature check. Releases from before signing
 began (`v1.0.0-alpha.3` and earlier) are not signed, so `absh update` refuses
-them; to install one, download the native zip and run `python3 install.py`,
+them; to install one, download its helper app zip and run `python3 install.py`,
 which is the same trust decision as your first install.
 
 ## Configure

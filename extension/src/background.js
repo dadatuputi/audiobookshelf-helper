@@ -65,12 +65,15 @@ function port() {
   WATCH = native({ cmd: "watch" });
   WATCH.catch(() => { /* an older helper has no watch */ });
 
-  PORT.onDisconnect.addListener(() => {
+  PORT.onDisconnect.addListener((p) => {
     // A port this script already let go of (see dropPort) has nothing left
     // to say about the one that replaced it.
     if (PORT !== self) return;
-    dropPort((browser.runtime.lastError && browser.runtime.lastError.message) ||
-             "native helper disconnected");
+    // Why it closed: Firefox puts it on the port, Chrome in lastError. Reading
+    // only lastError left every Firefox user with "disconnected" and no reason.
+    const why = (p && p.error && p.error.message) ||
+                (browser.runtime.lastError && browser.runtime.lastError.message);
+    dropPort(why || "native helper disconnected");
   });
   return PORT;
 }
@@ -233,12 +236,33 @@ async function call(cmd, extra, onProgress) {
   return native({ cmd, ...c, ...(extra || {}) }, onProgress);
 }
 
+/* A helper that started but never answers used to leave every page at
+ * "Checking the helper…" for good. Past this, it is treated as stuck: the
+ * connection is dropped, which ends that copy, and the next ask starts a
+ * fresh one. */
+const PING_SECONDS = 15;
+
+function within(promise, seconds, what) {
+  let timer;
+  const late = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} didn't answer within ${seconds} seconds`)),
+                       seconds * 1000);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
 async function ping() {
   try {
-    const reply = await call("ping");
+    let reply;
+    try {
+      reply = await within(call("ping"), PING_SECONDS, "The helper");
+    } catch (e) {
+      if (/didn't answer within/.test(e.message)) dropPort(e.message);
+      throw e;
+    }
     // The watch was sent first on this connection, so its answer is already
     // in or about to be. null when the helper is too old to watch at all.
-    const watch = WATCH ? await WATCH.catch(() => null) : null;
+    const watch = WATCH ? await within(WATCH, 2, "watch").catch(() => null) : null;
     return { ok: true, ...reply, polls: watch ? !!watch.polls : null };
   } catch (e) {
     return { ok: false, error: String((e && e.message) || e) };

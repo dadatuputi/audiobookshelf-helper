@@ -45,7 +45,7 @@ from . import version as version_mod
 REPO = "dadatuputi/audiobookshelf-helper"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
 API = os.environ.get("ABSH_UPDATE_API", "https://api.github.com")
-ASSET_PREFIX = "audiobookshelf-helper-native-"
+ASSET_PREFIX = "audiobookshelf-helper-app-"      # tools/release_version.py ASSETS
 
 # What a usable archive has to contain. Checked before anything is replaced,
 # so a release that packaged the wrong thing fails while the install is still
@@ -177,7 +177,8 @@ def trusted_keys(root=None):
         raise UpdateError(
             "this copy pins no release-signing key, so it cannot tell a genuine "
             "release from a forged one and will not install any. Download the "
-            f"native zip from {RELEASES_PAGE} and run `python3 install.py` from it "
+            f"helper app ({ASSET_PREFIX}*.zip) from {RELEASES_PAGE} and run "
+            "`python3 install.py` from it "
             "instead. (Maintainers: add the RELEASE_SIGNING_KEY secret and run the "
             "\"Pin release-signing key\" workflow, which pins its key in "
             "absh/release_keys.py.)")
@@ -297,7 +298,9 @@ def _self_check(root, timeout=30):
                    ABSH_DEVICE_ROOTS=str(device),
                    ABSH_CONFIG=str(work / "no-config.json"))
         frames = b""
-        for msg in ({"cmd": "ping"}, {"cmd": "devices", "subdir": "AUDIOBOOKS"}):
+        # By request id: the helper answers ping and devices as they finish,
+        # so the order they come back in is not promised.
+        for msg in ({"cmd": "ping", "rid": 1}, {"cmd": "devices", "subdir": "AUDIOBOOKS", "rid": 2}):
             body = json.dumps(msg).encode("utf-8")
             frames += struct.pack("<I", len(body)) + body
         try:
@@ -307,16 +310,18 @@ def _self_check(root, timeout=30):
         except subprocess.TimeoutExpired:
             return "the new helper did not answer"
         try:
-            replies = _frames(p.stdout)
+            replies = {r.get("rid"): r for r in _frames(p.stdout) if isinstance(r, dict)}
         except Exception as e:
             return f"the new helper's reply was unreadable: {e}"
         if not replies:
             return f"the new helper wrote nothing (exit {p.returncode})"
-        if not replies[0].get("ok"):
-            return f"the new helper refused a ping: {replies[0].get('error')}"
-        if len(replies) < 2:
+        if 1 not in replies:
+            return f"the new helper did not answer a ping (exit {p.returncode})"
+        if not replies[1].get("ok"):
+            return f"the new helper refused a ping: {replies[1].get('error')}"
+        if 2 not in replies:
             return f"the new helper answered a ping and then stopped (exit {p.returncode})"
-        listed = replies[1]
+        listed = replies[2]
         if not listed.get("ok"):
             return f"the new helper cannot list devices: {listed.get('error')}"
         seen = [d for d in listed.get("devices") or []

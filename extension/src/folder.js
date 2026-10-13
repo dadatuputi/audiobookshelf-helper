@@ -917,7 +917,7 @@
   function explain(e) {
     if (e && e.name === "NotAllowedError") {
       return "Chrome withdrew access to the player's folder part-way through. Open the " +
-             "extension's Options and allow access again";
+             "extension's Settings and allow access again";
     }
     if (e && e.name === "QuotaExceededError") return "the player is full";
     return String((e && e.message) || e);
@@ -1208,11 +1208,11 @@
     const st = await handleState(h);
     if (st.state === "none") {
       throw coded("folder-none", "No folder is chosen for your player. Open the extension's " +
-                                 "Options and choose the player's folder.");
+                                 "Settings and choose the player's folder.");
     }
     if (st.state === "prompt") {
       throw coded("folder-access", `Chrome needs your OK again to use the folder “${st.name}”. ` +
-                                   "Open the extension's Options and click Allow access.");
+                                   "Open the extension's Settings and click Allow access.");
     }
     if (st.state === "missing") {
       throw coded("folder-missing", `The folder “${st.name}” isn't there. Plug the player in ` +
@@ -1259,7 +1259,7 @@
     }
     if (await perms.contains({ origins: [origin] })) return true;
     throw coded("folder-server", `Without the helper, Chrome itself has to reach ${origin.slice(0, -2)}. ` +
-                                 "Grant access to your server in the extension's Options.");
+                                 "Grant access to your server in the extension's Settings.");
   }
 
   async function clientFor(cfg, fetchImpl) {

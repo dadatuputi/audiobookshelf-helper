@@ -24,6 +24,15 @@
     </div>
     <ol id="updateSteps"></ol>
     <div id="checkedAt" class="hint"></div>
+    <div id="helperGet" class="get hidden">
+      <div class="actions"><a id="helperLink" class="button primary" target="_blank" rel="noopener"></a>
+        <a id="helperPage" class="hint" target="_blank" rel="noopener">All files in this release</a></div>
+      <ol>
+        <li>Unzip it.</li>
+        <li>In that folder, run <code>python3 install.py</code></li>
+        <li>Restart the browser.</li>
+      </ol>
+    </div>
   </div>
 </section>
 
@@ -107,6 +116,7 @@
 </div>
 </main>
 <script src="browser-polyfill.js"></script>
+<script src="config.js"></script>
 <script src="lib.js"></script>
 <script src="options.js"></script>
 </body></html>

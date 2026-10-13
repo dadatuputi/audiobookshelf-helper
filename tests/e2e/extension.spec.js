@@ -714,7 +714,7 @@ test.describe("before access is granted", () => {
  * and its signature, as signedRelease() writes them. One without carries only
  * a placeholder archive, for a release that is looked at and never installed. */
 const REPO = /^REPO = "([^"]+)"/m.exec(readFileSync(resolve(root, "absh/update.py"), "utf8"))[1];
-const ASSET = (tag) => `audiobookshelf-helper-native-${tag.replace(/^v/, "")}.zip`;
+const ASSET = (tag) => `audiobookshelf-helper-app-${tag.replace(/^v/, "")}.zip`;
 
 function startFeed(releases) {
   const requests = [];
@@ -942,7 +942,7 @@ test.describe("updating an installed helper from the options page", () => {
     const page = await ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
     await expect(page.locator("#updateHint"))
-      .toHaveText("Helper v1.0.0-alpha.2 is available - update it in Options",
+      .toHaveText("Helper v1.0.0-alpha.2 is available - update it in Settings",
                   { timeout: 20_000 });
     await page.close();
   });

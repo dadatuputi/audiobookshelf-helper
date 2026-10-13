@@ -62,15 +62,15 @@ def api_base():
 #          source was made from a previous build's source.
 
 REQUIRED, OPTIONAL = "required", "optional"
-ZIP_KINDS = ("chrome", "firefox", "native", "source")
+ZIP_KINDS = tuple(RV.ASSETS)
 
 
 def zip_name(kind, semver):
-    return f"{PROJECT}-{kind}-{semver}.zip"
+    return RV.asset_name(kind, semver)
 
 
 def xpi_name(semver):
-    return f"{PROJECT}-firefox-{semver}.xpi"
+    return RV.xpi_name(semver)
 
 
 def asset_rules(semver, xpi_need):
@@ -124,7 +124,11 @@ def xpi_expectation(result, attempted, channel):
 
 def classify_foreign(name, semver):
     """Why an asset with no rule is there, as far as its name says."""
-    m = re.match(rf"^{re.escape(PROJECT)}-(chrome|firefox|native|source)-(.+)\.(zip|xpi)$", name)
+    # Longest first, so "firefox-extension-unsigned" is not read as
+    # "firefox-extension" of a version called "unsigned-...".
+    kinds = sorted({*RV.ASSETS.values(), RV.XPI}, key=len, reverse=True)
+    m = re.match(rf"^{re.escape(PROJECT)}-({'|'.join(map(re.escape, kinds))})-(\d.*)\.(zip|xpi)$",
+                 name)
     if m and m.group(2) != semver:
         return (f"is named for version {m.group(2)}, not {semver}: it was left "
                 f"by another build")
@@ -182,7 +186,7 @@ def read_zip_text(path, member):
 def check_contents(info, artifacts, problems, notes):
     """What is inside the archives, which the digest ties to what is published."""
     semver = info["semver"]
-    native = artifacts / zip_name("native", semver)
+    native = artifacts / zip_name("app", semver)
     if native.is_file():
         try:
             text = read_zip_text(native, "absh/version.py")
