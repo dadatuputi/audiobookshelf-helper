@@ -227,18 +227,15 @@ seconds, then drops the connection so the next try starts a fresh helper, and
 says "Helper not answering" with Look again. Tests: a server that never
 answers holds `status`, and ping and devices still come back (fails against
 the old loop); a big volume and a dead one are bounded.
-**Measured on the Mac (2026-10-13):** `/Volumes` holds `Macintosh HD`,
-`MUSICSD` and `SANSA CLIPZ` (no network share, no backup disk), and
-`python3 -m absh.cli devices` from Terminal was not slow. So the unbounded
-walk was not the cause. **Next hypothesis, unconfirmed:** macOS privacy. A
-helper Firefox starts runs under Firefox's permissions, and its first touch of
-a removable volume makes macOS ask "Firefox would like to access files on a
-removable volume"; until that is answered the call does not return. Terminal
-already has, or was given, that access, which fits the fast CLI. With one
-request at a time in alpha.5, the stuck device list held up every later
-ping. To confirm: System Settings → Privacy & Security → Files and Folders →
-Firefox → Removable Volumes. If confirmed, the "Not answering" row should say
-macOS is asking, rather than leave the user to guess.
+**Measured on the Mac (2026-10-13):** a network share was mounted under
+`/Volumes` when the popup hung. When measured later it was gone: `/Volumes`
+held `Macintosh HD`, `MUSICSD` and `SANSA CLIPZ`, and
+`python3 -m absh.cli devices` from Terminal was not slow. That fits the cause
+above: the unbounded audio search ran over the share. The guards bound it.
+**Not done:** leaving network shares out of the list altogether, since a
+player is never one (decision pending). A second possible cause stays open:
+the macOS prompt "Firefox would like to access files on a removable volume",
+which blocks the helper's first touch of a USB volume until answered.
 
 ---
 
