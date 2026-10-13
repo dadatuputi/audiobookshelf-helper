@@ -111,7 +111,9 @@ jobs:
           cfgfile.write_text(json.dumps({"devicePath": str(tmp / "absent")}))
           import os
           env = dict(os.environ, ABSH_CONFIG=str(cfgfile))
-          msgs = [{"cmd": "ping"}, {"cmd": "status"}, {"cmd": "nope", "rid": 7}]
+          # By request id: ping is answered as soon as it is read, so replies
+          # do not come back in the order they were asked.
+          msgs = [{"cmd": "ping", "rid": 1}, {"cmd": "status", "rid": 2}, {"cmd": "nope", "rid": 7}]
           payload = b"".join(struct.pack("<I", len(b)) + b
                              for b in (json.dumps(m).encode() for m in msgs))
           p = subprocess.run([sys.executable, "native/absh_host.py"], input=payload,
@@ -124,9 +126,10 @@ jobs:
           for r in replies:
               print("  host replied:", json.dumps(r)[:160])
           assert len(replies) == 3, replies
-          assert replies[0]["ok"] and replies[0]["tags"] in ("mutagen", "builtin")
-          assert not replies[1]["ok"] and "not mounted" in replies[1]["error"]
-          assert replies[2]["rid"] == 7 and not replies[2]["ok"]
+          by = {r["rid"]: r for r in replies}
+          assert by[1]["ok"] and by[1]["tags"] in ("mutagen", "builtin"), by
+          assert not by[2]["ok"] and "not mounted" in by[2]["error"], by
+          assert not by[7]["ok"], by
           print("host OK - protocol, framing, request ids, errors as answers")
 
   extension-lint:
