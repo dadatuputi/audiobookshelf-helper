@@ -78,63 +78,57 @@ class TestReport(unittest.TestCase):
 
 
 class TestRun(unittest.TestCase):
+    """What is news is decided by the pinned version alone."""
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.state = self.tmp / "state.json"
+        self.pin = self.tmp / "abs-version.txt"
+        self.pin.write_text("v2.36.0\n")
         self.out = self.tmp / "report.md"
+        self.gh = self.tmp / "gh-output"
 
-    def run_with(self, releases, argv_extra=()):
-        argv = ["check_upstream", "--state", str(self.state),
-                "--output", str(self.out), *argv_extra]
+    def run_with(self, releases):
+        argv = ["check_upstream", "--pin", str(self.pin), "--output", str(self.out)]
         with mock.patch.object(UP, "fetch", return_value=releases), \
-             mock.patch("sys.argv", argv):
+             mock.patch("sys.argv", argv), \
+             mock.patch.dict("os.environ", {"GITHUB_OUTPUT": str(self.gh)}):
             return UP.main()
 
-    def test_first_run_records_without_shouting(self):
-        """A brand new checkout should not open an issue about history."""
-        self.assertEqual(self.run_with([rel("v2.30.0")], ["--update"]), 0)
-        self.assertFalse(self.out.exists())
-        self.assertEqual(json.loads(self.state.read_text())["lastSeen"], "v2.30.0")
+    def outputs(self):
+        return dict(l.split("=", 1) for l in self.gh.read_text().splitlines())
 
-    def test_reports_only_releases_newer_than_the_last_seen(self):
-        self.state.write_text(json.dumps({"lastSeen": "v2.28.0"}))
-        self.run_with([rel("v2.30.0", "- api change"), rel("v2.29.0"), rel("v2.28.0")])
+    def test_a_release_newer_than_the_pin_is_news_on_the_very_first_run(self):
+        """The old watcher kept its own record and never saved it, so it never
+        reported anything. There is no first run now: the pin is the record."""
+        self.assertEqual(self.run_with([rel("v2.37.1"), rel("v2.37.0"), rel("v2.36.0")]), 0)
         body = self.out.read_text()
-        self.assertIn("v2.30.0", body)
-        self.assertIn("v2.29.0", body)
-        self.assertNotIn("v2.28.0", body)
+        self.assertIn("v2.37.1", body)
+        self.assertIn("since v2.36.0", body)
+        self.assertEqual(self.outputs(), {"newer": "true", "latest": "v2.37.1", "pinned": "v2.36.0"})
 
-    def test_no_report_when_nothing_is_new(self):
-        self.state.write_text(json.dumps({"lastSeen": "v2.30.0"}))
-        self.run_with([rel("v2.30.0")])
+    def test_nothing_newer_is_no_news(self):
+        self.run_with([rel("v2.36.0"), rel("v2.35.1")])
         self.assertFalse(self.out.exists())
+        self.assertEqual(self.outputs()["newer"], "false")
+        self.assertEqual(self.outputs()["latest"], "v2.36.0")
 
-    def test_update_advances_the_pin(self):
-        self.state.write_text(json.dumps({"lastSeen": "v2.29.0"}))
-        self.run_with([rel("v2.30.0")], ["--update"])
-        self.assertEqual(json.loads(self.state.read_text())["lastSeen"], "v2.30.0")
+    def test_newest_by_version_not_by_listing_order(self):
+        self.run_with([rel("v2.36.1"), rel("v2.38.0"), rel("v2.37.0")])
+        self.assertEqual(self.outputs()["latest"], "v2.38.0")
 
-    def test_drafts_are_ignored(self):
-        self.state.write_text(json.dumps({"lastSeen": "v2.29.0"}))
-        draft = {**rel("v2.31.0"), "draft": True}
-        with mock.patch.object(UP, "fetch", return_value=[draft, rel("v2.30.0")]), \
-             mock.patch("sys.argv", ["x", "--state", str(self.state),
-                                     "--output", str(self.out)]):
-            UP.main()
-        self.assertNotIn("v2.31.0", self.out.read_text())
+    def test_drafts_and_prereleases_are_not_tested_against(self):
+        self.run_with([{**rel("v2.39.0"), "draft": True},
+                       {**rel("v2.38.0-beta.1"), "prerelease": True},
+                       {**rel("v2.38.0"), "prerelease": True}, rel("v2.37.0")])
+        self.assertEqual(self.outputs()["latest"], "v2.37.0")
 
-    def test_github_being_down_is_not_a_build_failure(self):
-        with mock.patch.object(UP, "fetch",
-                               side_effect=urllib.error.URLError("boom")), \
-             mock.patch("sys.argv", ["x", "--state", str(self.state),
-                                     "--output", str(self.out)]):
+    def test_an_unreachable_github_is_a_warning_not_a_failure(self):
+        argv = ["check_upstream", "--pin", str(self.pin), "--output", str(self.out)]
+        with mock.patch.object(UP, "fetch", side_effect=urllib.error.URLError("down")), \
+             mock.patch("sys.argv", argv):
             self.assertEqual(UP.main(), 0)
         self.assertFalse(self.out.exists())
 
-    def test_unreadable_state_is_treated_as_a_first_run(self):
-        self.state.write_text("{ not json")
-        self.assertEqual(UP.load_state(self.state)["lastSeen"], None)
-
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main()

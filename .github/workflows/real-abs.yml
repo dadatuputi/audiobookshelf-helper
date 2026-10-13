@@ -1,0 +1,108 @@
+name: Real Audiobookshelf
+
+# The extension driven against a real Audiobookshelf, built from source and
+# seeded with books. Called by ci.yml at the pinned version, and by
+# upstream.yml at a newer release to decide whether the pin can move.
+
+on:
+  workflow_call:
+    inputs:
+      abs_ref:
+        description: "Audiobookshelf tag to test against; empty means the pinned one"
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      abs_ref:
+        description: "Audiobookshelf tag to test against; empty means the pinned one"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  real:
+    name: ${{ matrix.project }} on Audiobookshelf ${{ inputs.abs_ref || 'pinned' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # real-firefox installs the add-on over Firefox's remote debugging
+        # protocol, since Playwright cannot load one itself.
+        include:
+          - project: real
+            browser: chromium
+          - project: real-firefox
+            browser: firefox
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build bundles
+        run: python extension/build.py
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # Pinned in tests/real/abs-version.txt, so an upstream release cannot
+      # turn unrelated work red; upstream.yml passes a newer one to test.
+      - name: Which Audiobookshelf
+        id: abs
+        env:
+          REF: ${{ inputs.abs_ref }}
+        run: echo "ref=${REF:-$(cat tests/real/abs-version.txt)}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the Audiobookshelf build
+        uses: actions/cache@v4
+        with:
+          path: .abs-real/abs
+          key: abs-${{ runner.os }}-${{ steps.abs.outputs.ref }}-${{ hashFiles('tests/real/setup.mjs') }}
+
+      - name: Build and seed Audiobookshelf ${{ steps.abs.outputs.ref }}
+        env:
+          ABS_REF: ${{ steps.abs.outputs.ref }}
+        run: node tests/real/setup.mjs
+
+      - name: Run the real-server suite
+        run: |
+          set +e
+          npx playwright test --project=${{ matrix.project }} --reporter=list > pw.log 2>&1
+          code=$?
+          echo "----- playwright output -----"
+          cat pw.log
+          if [ $code -ne 0 ]; then
+            msg=$(head -c 3000 pw.log | sed 's/\r//g' | sed ':a;N;$!ba;s/\n/%0A/g')
+            echo "::error title=${{ matrix.project }}::${msg}"
+          fi
+          exit $code
+
+      - name: Audiobookshelf server log
+        if: failure()
+        run: tail -40 .abs-real/server.log || true
+
+      # Last, deliberately. These suites say what broke in one line, and that
+      # line was landing above a hundred lines of server log, out of reach of
+      # anything reading the end of the job.
+      - name: What actually failed
+        if: failure()
+        run: |
+          grep -aE "no actionable badge|add-on recorded|no book cards|Error:|✘" pw.log \
+            | head -30 || true
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: playwright-${{ matrix.project }}-${{ steps.abs.outputs.ref }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+

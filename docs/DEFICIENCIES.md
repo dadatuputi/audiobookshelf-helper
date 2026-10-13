@@ -241,6 +241,54 @@ the type first. A second possible cause stays open:
 the macOS prompt "Firefox would like to access files on a removable volume",
 which blocks the helper's first touch of a USB volume until answered.
 
+### N8. Reported on alpha.6 (2026-10-13): telling versions of a book apart
+1. **Not enough detail per book.** Seen: filtering "Harry Potter" shows seven
+   rows whose titles and narrator lists are cut off ("Harry Potter and the
+   Deathly Hallows,…", "read by Hugh Laurie, Matthe…"), with several versions
+   of the same books in the library. Expected: a way to see the whole title,
+   every narrator, and what tells versions apart (length, series number,
+   year). Where: `extension/src/popup.js` `rowsFor`, and the item fields in
+   `absh/abs_api.py` `normalize_item` (no duration, subtitle or year yet).
+   **NEEDS OWNER DECISION:** expand a row, group versions, or wrap - mocked up.
+2. **The tab count ignores the filter.** "To player 345" over seven filtered
+   rows. A count must agree with what is on screen: "7 of 345" while a filter
+   is on, from the same predicate as the list. Where: `popup.js` `render`.
+
+### N9. Reported on alpha.6 (2026-10-13): a copy disappears from view
+Seen: during a copy, reopening the popup shows "Checking the helper…" over an
+empty shelf, as if stalled. Expected: the copy's state from start to finish -
+what is copying, how far along, done or failed - whenever the popup opens,
+and an alert when it finishes. **Cause:** progress goes only to the popup
+that started the copy, and is lost when it closes; a new popup asks the
+helper for the shelf, which waits behind the copy, while the status line
+still says "Checking the helper…" though the helper has answered. Where:
+`popup.js` (progress held in the page), `background.js` `route` (no record
+of a running job), `absh/host.py` (status queued behind pull).
+**NEEDS OWNER DECISION:** how a running and a finished copy look, and how it
+alerts - mocked up with N8.
+
+### N10. Reported on alpha.6 (2026-10-13): nothing shows in Audiobookshelf
+Seen: no change to the Audiobookshelf pages; the maintainer wants to browse
+there and send books to the player. What exists: on `<server>/library/*`
+only, a badge on each book card and a "Sync to device" toolbar button, and
+only once Access is granted in Settings. Nothing on a book's own page
+(`/item/<id>`). **To establish:** whether Access was granted on this install
+(Settings → Access), and whether the library grid shows badges. **Gap either
+way:** no "copy to player" on a book's page. **NEEDS OWNER DECISION:** mocked up
+with N8 and N9.
+
+### N11. The upstream watch never reported a release — FIXED
+Audiobookshelf shipped v2.36.1, v2.37.0 and v2.37.1 while the tests stayed on
+v2.36.0, with no issue opened. The watch kept its own "last seen" record and
+deliberately said nothing on its first run; the workflow saved that record
+only when there was news. So it never saved one, and every weekly run was a
+first run. **Status:** the pinned version (`tests/real/abs-version.txt`) is
+now the only record: anything newer is news. Weekly, `upstream.yml` runs the
+full real-server suite (Chromium and Firefox) against the newest release, via
+the same `real-abs.yml` CI uses; if it passes it moves the pin and starts CI,
+and if it fails it opens an issue with the failing run and the changelog
+lines that touch what this extension uses. The pin moved to v2.37.1 by hand.
+
 ---
 
 ## Todo

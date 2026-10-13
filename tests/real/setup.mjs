@@ -15,16 +15,18 @@
  *   ABS_REF=main node tests/real/setup.mjs
  */
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, writeFileSync, existsSync, rmSync, openSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, rmSync, openSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const work = process.env.ABS_WORK || join(root, ".abs-real");
-// Pinned: a moving target turns an upstream change into a red PR on unrelated
-// work. .github/workflows/upstream.yml is where new releases get noticed.
-const REF = process.env.ABS_REF || "v2.36.0";
+// Pinned in abs-version.txt: a moving target turns an upstream change into a
+// red build on unrelated work. .github/workflows/upstream.yml tests each new
+// release against the full suite and moves the pin when it passes. ABS_REF
+// overrides it, which is how that job tests a release before the pin moves.
+const REF = process.env.ABS_REF || readFileSync(join(here, "abs-version.txt"), "utf8").trim();
 const PORT = Number(process.env.ABS_PORT || 13378);
 const USER = "root";
 const PASS = "testpass123";
