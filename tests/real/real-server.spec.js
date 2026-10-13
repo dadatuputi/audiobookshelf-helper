@@ -116,9 +116,8 @@ test.describe("against a real Audiobookshelf", () => {
   /** Open the library, logging in first only if the session needs it.
    *  The context is shared, so after the first test the app is already
    *  authenticated and /login redirects away before any form exists. */
-  async function libraryPage() {
+  async function libraryPage(url = `${state.absUrl}/library/${state.libraryId}`) {
     const page = await ctx.newPage();
-    const url = `${state.absUrl}/library/${state.libraryId}`;
 
     // Up to three passes, because two different things send this back to
     // /login: a context with no session yet, and a login whose token has not
@@ -343,9 +342,10 @@ test.describe("against a real Audiobookshelf", () => {
   test("the covers have their strips when the library is reached from the home page", async () => {
     // Nobody types a library address. They open the server, and the app
     // routes to the library itself, without loading a page - which a content
-    // script registered for <server>/library/* never matched.
-    const page = await libraryPage();
-    await page.goto(`${state.absUrl}/`, { waitUntil: "domcontentloaded" });
+    // script registered for <server>/library/* never matched. Opened through
+    // libraryPage, which signs in again if the app asks: Firefox's run once
+    // landed on the login form here, with no covers to put strips on.
+    const page = await libraryPage(`${state.absUrl}/`);
     await expect(page.locator(".absh-badge.absh-copy, .absh-badge.absh-on").first())
       .toBeVisible({ timeout: 45_000 });
     await page.close();

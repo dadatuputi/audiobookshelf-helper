@@ -204,9 +204,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     }
   }
 
-  async function libraryPage() {
+  async function libraryPage(url = `${state.absUrl}/library/${state.libraryId}`) {
     const page = await ctx.newPage();
-    const url = `${state.absUrl}/library/${state.libraryId}`;
 
     // Anything the content script logs or throws, kept for the failure
     // message. A content script that is injected and then dies says so here
@@ -391,12 +390,12 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
   test("the covers have their strips when the library is reached from the home page", async () => {
     // Nobody types a library address. They open the server, and the app
     // routes to the library itself, without loading a page - which a content
-    // script registered for <server>/library/* never matched.
-    const page = await libraryPage();
-    await page.goto(`${state.absUrl}/`, { waitUntil: "domcontentloaded" });
-    await strips(page);
+    // script registered for <server>/library/* never matched. Opened through
+    // libraryPage, which signs in again if the app asks: Firefox's run once
+    // landed on the login form here, with no covers to put strips on.
+    const page = await libraryPage(`${state.absUrl}/`);
     await expect(page.locator(".absh-badge.absh-copy, .absh-badge.absh-on").first())
-      .toBeVisible();
+      .toBeVisible({ timeout: 45_000 });
     await page.close();
   });
 
