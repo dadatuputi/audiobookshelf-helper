@@ -307,7 +307,7 @@ v2.36.0, with no issue opened. The watch kept its own "last seen" record and
 deliberately said nothing on its first run; the workflow saved that record
 only when there was news. So it never saved one, and every weekly run was a
 first run. **Status:** the pinned version (`tests/real/abs-version.txt`) is
-now the only record: anything newer is news. Weekly, `upstream.yml` runs the
+now the only record: anything newer is news. Daily, `upstream.yml` runs the
 full real-server suite (Chromium and Firefox) against the newest release, via
 the same `real-abs.yml` CI uses; if it passes it moves the pin and starts CI,
 and if it fails it opens an issue with the failing run and the changelog

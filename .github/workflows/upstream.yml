@@ -1,7 +1,7 @@
 name: Upstream watch
 
 # Audiobookshelf has no reason to care that this extension exists, so the only
-# warning of a breaking change is trying the new release. Weekly: if upstream
+# warning of a breaking change is trying the new release. Daily: if upstream
 # has published a release newer than tests/real/abs-version.txt, run the full
 # real-server suite against it. If it passes, move the pin, and the next CI run
 # tests against it; if it fails, open an issue saying what failed, with the
@@ -11,7 +11,7 @@ name: Upstream watch
 
 on:
   schedule:
-    - cron: "17 6 * * 1"      # Mondays, early
+    - cron: "17 6 * * *"      # daily, early; a release is tested within a day
   workflow_dispatch:
 
 permissions:

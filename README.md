@@ -568,7 +568,7 @@ it can be pinned beside the CI key. Rotation is described in
 
 ## Watching upstream
 
-`.github/workflows/upstream.yml` checks weekly for new Audiobookshelf releases
+`.github/workflows/upstream.yml` checks daily for new Audiobookshelf releases
 and opens an issue listing what this extension depends on, with the changelog
 lines that mention any of it. `tests/fixtures/abs/contract.json` is that
 dependency list; `tests/js/contract.test.js` asserts the shapes against recorded
