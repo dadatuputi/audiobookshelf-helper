@@ -130,6 +130,27 @@ class TestNativeArchive(PackageBase):
             shutil.rmtree(out, ignore_errors=True)
 
 
+    def test_the_installer_in_a_download_says_what_to_do_with_a_download(self):
+        """It used to print a checkout's instructions - load extension/dist -
+        to someone holding a release zip, where no such folder exists."""
+        import subprocess, sys, tempfile
+        out = Path(tempfile.mkdtemp())
+        try:
+            with zipfile.ZipFile(self.find("native")) as z:
+                z.extractall(out)
+            # A dry run: a real one writes to the registry on Windows.
+            p = subprocess.run([sys.executable, str(out / "install.py"), "--dry-run"],
+                               capture_output=True, text=True, timeout=60)
+            self.assertEqual(p.returncode, 0, p.stderr[:400])
+            self.assertNotIn("extension/dist", p.stdout)
+            self.assertIn("Quit and reopen your browser", p.stdout)
+            semver = self.TAG.lstrip("v")
+            self.assertIn(f"audiobookshelf-helper-firefox-extension-{semver}.xpi", p.stdout)
+            self.assertIn(f"audiobookshelf-helper-chrome-extension-{semver}.zip", p.stdout)
+        finally:
+            shutil.rmtree(out, ignore_errors=True)
+
+
 class TestManifest(PackageBase):
     """SHA256SUMS is what the maintainer signs and `absh update` checks."""
 

@@ -213,8 +213,8 @@ def main():
 
     browsers = ["firefox", "chrome"] if a.browser == "all" else [a.browser]
     ids = a.chrome_id or DEFAULT_CHROME_IDS
-    print(f"{'Uninstalling' if a.uninstall else 'Installing'} {HOST_NAME} "
-          f"on {platform.system()}")
+    print(f"{'Uninstalling' if a.uninstall else 'Installing'} the helper app "
+          f"({HOST_NAME}) on {platform.system()}")
     for b in browsers:
         if b == "chrome" and not ids and not a.uninstall:
             print("  chrome: skipped - no id. Set chromeKey in "
@@ -223,9 +223,38 @@ def main():
         print(f"  [{b}]")
         install(b, ids, a.dry_run, a.uninstall)
     if not a.uninstall:
-        print("\nNext: load the built extension")
-        print("  Firefox  about:debugging#/runtime/this-firefox -> extension/dist/firefox/manifest.json")
-        print("  Chrome   chrome://extensions -> Developer mode -> Load unpacked -> extension/dist/chrome")
+        print()
+        print(next_steps())
+
+
+def release_version():
+    """The release this copy came from, or None in a checkout."""
+    import re
+    try:
+        text = (HERE / "absh" / "version.py").read_text()
+    except OSError:
+        return None
+    m = re.search(r'^RELEASE\s*=\s*"([^"]+)"', text, re.M)
+    return m.group(1) if m and m.group(1) != "dev" else None
+
+
+def next_steps():
+    """What to do after installing - for a downloaded release, or a checkout."""
+    if _IDENTITY_DIR == HERE.parent / "extension":       # a checkout: build and load
+        return ("Next: restart the browser, then load the built extension\n"
+                "  Firefox  about:debugging#/runtime/this-firefox -> "
+                "extension/dist/firefox/manifest.json\n"
+                "  Chrome   chrome://extensions -> Developer mode -> Load unpacked -> "
+                "extension/dist/chrome")
+    v = release_version()
+    name = (lambda kind, ext: f"audiobookshelf-helper-{kind}-{v}.{ext}") if v else \
+           (lambda kind, ext: f"audiobookshelf-helper-{kind}-<version>.{ext}")
+    return ("Next:\n"
+            "  1. Quit and reopen your browser.\n"
+            "  2. If the extension is not installed yet, from the same release:\n"
+            f"     Firefox  open {name('firefox-extension', 'xpi')}\n"
+            f"     Chrome   unzip {name('chrome-extension', 'zip')}, then\n"
+            "              chrome://extensions -> Developer mode -> Load unpacked")
 
 
 if __name__ == "__main__":
