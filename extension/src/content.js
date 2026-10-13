@@ -37,6 +37,28 @@
   const KNOWN = new Map();
   /* The copy queue, as the background last said. */
   let JOB = { current: null, queue: [], last: null };
+
+  /* The background tells this tab when the copy queue moves. A tab it does
+     not find, though, waits forever - Firefox's own test run did, with the
+     book on the player and the cover still saying "Copying". So while a
+     copy is running the tab asks as well, and reads the player again when
+     it ends. */
+  const running = (j) => !!(j && (j.current || (j.queue && j.queue.length)));
+  let asking = null;
+  function setJob(job) {
+    const was = running(JOB);
+    JOB = job;
+    scheduleRender();
+    if (was && !running(job)) loadStatus();
+    if (running(job) && !asking) {
+      asking = setInterval(() => {
+        send({ type: "jobState" }).then((j) => { if (j) setJob(j); }).catch(() => {});
+      }, 1500);
+    } else if (!running(job) && asking) {
+      clearInterval(asking);
+      asking = null;
+    }
+  }
   let PLAYER = "the player";
   const ITEM_ID = "absh-item";
   /* Normalised title -> item id. See idForCard for why not by index. */
@@ -205,7 +227,7 @@
     const i = serverItem(id);
     return send({ type: "jobAdd", op: "pull", player: PLAYER,
                   items: [{ key: id, ref: id, title: i.title || "", bytes: i.size || 0 }] })
-      .then((job) => { JOB = job; render(); })
+      .then((job) => setJob(job))
       .catch((e) => note(String(e.message || e), true));
   }
 
@@ -538,7 +560,7 @@
         loadStatus();
       }
       // The copy queue moved on, or a copy finished and the player changed.
-      if (msg && msg.type === "job" && msg.job) { JOB = msg.job; scheduleRender(); }
+      if (msg && msg.type === "job" && msg.job) setJob(msg.job);
       if (msg && msg.type === "status" && msg.status) {
         STATUS = msg.status;
         TITLES = null;
@@ -569,7 +591,7 @@
       scheduleRender();
     }).catch(() => {});
   } catch { /* no storage here; "the player" it is */ }
-  send({ type: "jobState" }).then((job) => { if (job) JOB = job; scheduleRender(); }).catch(() => {});
+  send({ type: "jobState" }).then((job) => { if (job) setJob(job); }).catch(() => {});
 
   render();
   loadStatus();
