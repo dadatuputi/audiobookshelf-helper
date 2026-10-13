@@ -75,6 +75,30 @@ class TestParityVectors(unittest.TestCase):
               for c in n["targetName"]}
         self.assertEqual(tn[(json.dumps({"author": "{title}", "title": "Echo"},
                                         sort_keys=True), "{author} - {title}")], "Echo - Echo")
+        # Two editions of one book share a template name. Both land on the
+        # player, neither replacing nor merging into the other, and each is
+        # recorded as the book it is.
+        pulls = {c["name"]: c["expect"] for c in n["pull"]}
+        stone = "J.K. Rowling - Philosopher's Stone"
+        both = pulls["two editions of one book: neither replaces the other"]
+        self.assertEqual({k: v["itemId"] for k, v in both["index"].items()},
+                         {f"{stone}.m4a": "hp_dale", f"{stone} (Full Cast).m4a": "hp_cast"})
+        self.assertEqual(both["report"]["copied"], 2)
+        parts = pulls["two editions, the second a folder of parts"]["index"]
+        self.assertNotIn(stone, parts)                     # not merged into a folder
+        self.assertEqual(parts[f"{stone} (Full Cast)"]["kind"], "dir")
+        self.assertEqual(parts[f"{stone}.m4a"]["itemId"], "hp_dale")
+        three = pulls["two editions with no narrator to tell them apart"]["index"]
+        self.assertEqual(sorted(three), [f"{stone} (2).m4a", f"{stone} (3).m4a", f"{stone}.m4a"])
+        before = pulls["the other edition was copied before"]["index"]
+        self.assertEqual({k: v["itemId"] for k, v in before.items()},
+                         {f"{stone}.m4a": "hp_dale", f"{stone} (Full Cast).m4a": "hp_cast"})
+        stale = pulls["a record of a book since deleted holds nothing"]["index"]
+        self.assertEqual({k: v["itemId"] for k, v in stale.items()}, {f"{stone}.m4a": "hp_cast"})
+        free = {(c["item"].get("narrator"), json.dumps(c["taken"], sort_keys=True)): c["out"]
+                for c in n["freeName"]}
+        self.assertEqual(free[("日本語", '{"A - B": "1"}')], "A - B (2)")
+        self.assertEqual(free[("Full Cast", '{"a - b": "1"}')], "A - B (Full Cast)")
         # Paths sort part by part, not as strings: "Disc 1/01" before "Disc 1.m4a".
         mixed = self.fresh["device.json"]["cases"][0]["expect"]["scan"]
         parts = next(e for e in mixed if e["name"] == "Hobbit parts")["paths"]

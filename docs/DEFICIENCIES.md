@@ -168,6 +168,25 @@ server. Neither was true: every request authenticates with a header, and
 uploads write to the server on request. The unused function that could
 build a key-bearing URL is gone, and a test holds the code to the policy.
 
+### N5. Two editions of one book overwrote each other on the player — FIXED
+A full-cast recording and a single-narrator one share an author and a title,
+so the folder template gave them one name. Copying the second replaced a
+single-file first, merged into a folder first, or - at the same size - was
+skipped yet recorded as copied; the index then credited the name to the
+second, and the first showed as not on the player. Found on 2026-10-13 from
+a question about the full-cast Harry Potter, not from a report.
+**Status:** fixed after `v1.0.0-alpha.5`, in the helper and the Chrome folder
+backend alike. A name another library item holds (per the index, and only
+while its book is still on the player) is never reused: the second edition
+gets its narrator added, or a number, compared ignoring case as FAT32 and
+exFAT do. Something on the player this tool did not put there keeps the old
+behaviour, since it is most likely the same book copied by hand. Templates
+gain `{narrator}`, and the popup shows "read by" on each row. Five copy
+scenarios are pinned in the shared vectors, both languages are held to them,
+and `test_parity_vectors` asserts the outcome rather than only the agreement.
+**Not handled:** a player already damaged by the old behaviour; remove the
+affected book and copy both editions again.
+
 ---
 
 ## Todo

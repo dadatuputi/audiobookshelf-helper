@@ -297,6 +297,9 @@ BOOKS = [
     ({"author": "Pema Chödrön", "title": "When Things Fall Apart: Heart Advice"}, None),
     ({"author": "N", "title": "--Dashes--"}, "--{title}--"),
     ({"author": "Ann", "title": "Book", "series": "S"}, "{title}{title} [{series}]"),
+    ({"author": "J.K. Rowling", "title": "Philosopher's Stone", "narrator": "Full Cast"},
+     "{author} - {title} ({narrator})"),
+    ({"author": "J.K. Rowling", "title": "Philosopher's Stone"}, "{title} ({narrator})"),
     ({"author": "Ann", "title": 'What? "No" <way> | maybe*'}, "{author} - {title}"),
     ({"author": "日本", "title": "本"}, None),
     ({"author": "A", "title": "B"}, "{unknown} {title}"),
@@ -337,6 +340,25 @@ ITEMS = [
     {"relPath": "No id here", "media": {"metadata": {}}},
     {"id": "li_4", "media": {"numTracks": 0, "metadata": {"title": "T", "authorName": "",
                                                            "authors": [{"name": "Late"}]}}},
+    {"id": "li_5", "media": {"metadata": {"title": "PS", "narratorName": "Jim Dale"}}},
+    {"id": "li_6", "media": {"metadata": {"title": "PS", "narrators": ["Hugh Laurie", "", "Cast"]}}},
+]
+
+# naming.free_name: (name, item, taken) - two editions of one book share a name.
+FREE = [
+    ("A - B", {"id": "2", "narrator": "Full Cast"}, {}),
+    ("A - B", {"id": "2", "narrator": "Full Cast"}, {"A - B": "1"}),
+    ("A - B", {"id": "2"}, {"A - B": "1"}),
+    ("A - B", {"id": "2", "narrator": "Full Cast"}, {"A - B": None}),
+    ("A - B", {"id": "2", "narrator": "Full Cast"}, {"A - B": "2"}),
+    ("A - B", {"id": "2", "narrator": "Full Cast"}, {"a - b": "1"}),
+    ("A - B", {"id": "3", "narrator": "Full Cast"}, {"A - B": "1", "A - B (Full Cast)": "2"}),
+    ("A - B", {"id": "2", "narrator": "Full Cast"}, {"A - B": "1", "A - B (full cast)": "2"}),
+    ("A - B", {"id": "3"}, {"A - B": "1", "A - B (2)": None}),
+    ("Rowling - Stone (Jim Dale)", {"id": "2", "narrator": "Jim Dale"},
+     {"Rowling - Stone (Jim Dale)": "1"}),
+    ("A - B", {"id": "2", "narrator": "Fülł: Cäst?"}, {"A - B": "1"}),
+    ("A - B", {"id": "2", "narrator": "日本語"}, {"A - B": "1"}),
 ]
 
 
@@ -353,7 +375,36 @@ def pull_cases():
             ("The Hobbit/", b"")]
     single = lambda body, name, ctype="audio/mp4": {   # noqa: E731
         "contentType": ctype, "disposition": f'attachment; filename="{name}"', "body": B64(body)}
+    dale = {"id": "hp_dale", "title": "Philosopher's Stone", "author": "J.K. Rowling",
+            "series": "Harry Potter", "narrator": "Jim Dale"}
+    cast = {**dale, "id": "hp_cast", "narrator": "Full Cast"}
+    nobody = {**dale, "id": "hp_other", "narrator": ""}
+    stone = "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone"
     return [
+        {"name": "two editions of one book: neither replaces the other",
+         "items": [dale, cast], "opts": {},
+         "downloads": {"hp_dale": single(audio(300), "Stone.m4b"),
+                       "hp_cast": single(audio(400, 7), "Stone.m4b")}},
+        {"name": "two editions, the second a folder of parts", "items": [dale, cast], "opts": {},
+         "downloads": {"hp_dale": single(audio(300), "Stone.m4b"),
+                       "hp_cast": {"contentType": "application/zip", "disposition": None,
+                                   "body": B64(zipped(disc[:2]))}}},
+        {"name": "two editions with no narrator to tell them apart",
+         "items": [dale, nobody, {**nobody, "id": "hp_third"}], "opts": {},
+         "downloads": {"hp_dale": single(audio(300), "Stone.m4b"),
+                       "hp_other": single(audio(310), "Stone.m4b"),
+                       "hp_third": single(audio(320), "Stone.m4b")}},
+        {"name": "the other edition was copied before", "items": [cast], "opts": {},
+         "tree": {stone + ".m4a": B64(audio(300)),
+                  **index_tree({"J.K. Rowling - Philosopher's Stone.m4a": {
+                      "itemId": "hp_dale", "kind": "file", "title": "Philosopher's Stone",
+                      "author": "J.K. Rowling"}})},
+         "downloads": {"hp_cast": single(audio(400, 7), "Stone.m4b")}},
+        {"name": "a record of a book since deleted holds nothing", "items": [cast], "opts": {},
+         "tree": index_tree({"J.K. Rowling - Philosopher's Stone.m4a": {
+             "itemId": "hp_dale", "kind": "file", "title": "Philosopher's Stone",
+             "author": "J.K. Rowling"}}),
+         "downloads": {"hp_cast": single(audio(400, 7), "Stone.m4b")}},
         {"name": "single m4b renamed", "items": [redwall], "opts": {},
          "downloads": {"bk_r": single(one, "Redwall.m4b")}},
         {"name": "single m4b kept", "items": [redwall], "opts": {"renameM4b": False},
@@ -550,6 +601,8 @@ def naming_vectors(committed=None):
         "normKey": [{"title": t, "author": a, "out": list(naming.norm_key(t, a))}
                     for t, a in KEYS],
         "normalizeItem": [{"in": it, "out": normalize_item(it)} for it in ITEMS],
+        "freeName": [{"name": n, "item": i, "taken": t, "out": naming.free_name(n, i, t)}
+                     for n, i, t in FREE],
         "pull": [{**c, "expect": run_pull(c)} for c in pulls],
         "push": [{**c, "expect": run_push(c)} for c in push_cases()],
         "remove": [{**c, "expect": run_remove(c)} for c in remove_cases()],

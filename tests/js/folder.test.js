@@ -34,6 +34,11 @@ describe("naming matches absh/naming.py", () => {
   it.each(NAMING.clean.map((c) => [label(c.in), c]))("clean(%s)", (_, c) => {
     expect(F.clean(c.in)).toBe(c.out);
   });
+  it.each(NAMING.freeName.map((c) => [`${c.name} for ${c.item.id} among ${label(c.taken)}`, c]))(
+    "free name %s", (_, c) => {
+      expect(F.freeName(c.name, c.item, new Map(Object.entries(c.taken)))).toBe(c.out);
+    });
+
   it.each(NAMING.targetName.map((c) => [label(c.book), c]))("target name %s", (_, c) => {
     expect(F.targetName(c.book, c.template)).toBe(c.out);
   });

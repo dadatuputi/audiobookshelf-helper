@@ -22,7 +22,7 @@ from . import index as index_mod
 from . import tags as tags_mod
 from .abs_api import AbsError
 from .device import device_root
-from .naming import AUDIO_EXT, clean, out_ext, source_ext, target_name
+from .naming import AUDIO_EXT, clean, free_name, out_ext, source_ext, target_name
 
 
 def _noop(_ev):
@@ -55,6 +55,25 @@ def already_on_device(opts, item):
     return None
 
 
+def taken_names(device_path, root):
+    """Every name in use in the books folder, and which library item holds it.
+
+    A name is a folder's name or a file's stem: the template does not know
+    yet whether a book arrives as one file or a folder of them. An index
+    record whose book has since been deleted from the device holds nothing.
+    """
+    taken = {}
+    try:
+        for p in root.iterdir():
+            taken[p.stem if p.is_file() else p.name] = None
+    except OSError:
+        pass
+    for name, rec in index_mod.load(device_path).get("entries", {}).items():
+        if rec.get("itemId") and (root / name).exists():
+            taken[Path(name).stem if rec.get("kind") == "file" else name] = rec["itemId"]
+    return taken
+
+
 def pull_book(client, item, opts, report, emit=_noop):
     """Put one server book on the device, over the API."""
     root = device_root(opts["devicePath"], opts.get("subdir"))
@@ -73,6 +92,11 @@ def pull_book(client, item, opts, report, emit=_noop):
             step(1, 1, have)
             return have
 
+    try:
+        name = free_name(name, item, taken_names(opts["devicePath"], root))
+    except ValueError as e:
+        report.fail(title, str(e))
+        return None
     got = _download(client, item, root, name, rename, report, step)
     if got is None:
         return None

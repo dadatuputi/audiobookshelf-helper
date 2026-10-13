@@ -166,7 +166,7 @@ the same file.
 | API key | Audiobookshelf → Settings → API Keys |
 | Device path | Absolute, e.g. `/Volumes/PLAYER` or `E:\`. In the extension it is set from the toolbar popup's **Player** strip, not Options — it changes more often than anything else here. **Detect** lists what is plugged in, and the popup opens the strip by itself when the saved player isn't connected |
 | Folder on device | `AUDIOBOOKS` by default, set beside the player in the popup. Some players give a named folder resume and bookmarks — check your manual |
-| Folder template | `{author}` `{title}` `{series}`. Also how a book is recognised on the device, so changing it makes synced books look absent |
+| Folder template | `{author}` `{title}` `{series}` `{narrator}`. Also how a book is recognised on the device, so changing it makes synced books look absent. Two editions of one book (a full-cast recording and a single narrator) never share a name: the second gets its narrator added, or a number |
 | Rename m4b → m4a | Leave on unless your player handles `.m4b` |
 
 ### The permission grant

@@ -80,11 +80,16 @@ function playerLabel() {
   return PLAYER.devicePath ? baseName(PLAYER.devicePath) : "the player";
 }
 
+/* The narrator tells two editions of one book apart: a full-cast recording
+ * and a single reader share the author and the title. */
+const readBy = (i) => (i && i.narrator ? `read by ${i.narrator}` : "");
+
 const rowsFor = {
   server: () => ST.serverOnly.map((i) => ({ key: i.id, id: i.id, title: i.title,
-    sub: i.author || "", bytes: i.size })),
+    sub: [i.author, readBy(i)].filter(Boolean).join(" · "), bytes: i.size })),
   device: () => ST.both.map((b) => ({ key: b.name, name: b.name, id: b.itemId, title: b.title,
-    sub: [b.author, b.matchedBy && b.matchedBy !== "id" ? `matched by ${b.matchedBy}` : ""]
+    sub: [b.author, readBy(b.item),
+          b.matchedBy && b.matchedBy !== "id" ? `matched by ${b.matchedBy}` : ""]
       .filter(Boolean).join(" · "), bytes: b.bytes })),
   only: () => ST.deviceOnly.map((e) => ({ key: e.name, name: e.name, title: e.title || e.name,
     sub: e.author || "unknown author", bytes: e.bytes })),

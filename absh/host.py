@@ -113,7 +113,8 @@ def library_id(client, cfg):
 def _serialisable(st):
     """Trim the status for the wire - the extension does not need file paths."""
     def item(i):
-        return {k: i.get(k) for k in ("id", "title", "author", "series", "size", "numTracks")}
+        return {k: i.get(k) for k in ("id", "title", "author", "series", "narrator", "size",
+                                      "numTracks")}
 
     def entry(e):
         return {k: e.get(k) for k in

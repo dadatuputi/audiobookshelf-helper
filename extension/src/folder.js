@@ -101,11 +101,33 @@
     let name = template || "{author} - {title}";
     // In order, like str.replace in a loop: a placeholder that arrives inside
     // a value is itself replaced by the next pass.
-    for (const key of ["author", "title", "series"]) {
+    for (const key of ["author", "title", "series", "narrator"]) {
       const v = book[key];
       name = name.split(`{${key}}`).join(v ? String(v) : "");
     }
     return pyStrip(clean(name), " -") || "Untitled";
+  }
+
+  /** naming.free_name: `name`, unless another book already holds it - two
+   *  editions of one book share a title. `taken` is a Map of name to the item
+   *  holding it, or null for something this tool did not put there. */
+  function freeName(name, item, taken) {
+    const me = item.id === undefined ? null : item.id;
+    const held = new Map([...taken].map(([k, v]) => [k.toLowerCase(), v]));
+    const owner = held.has(name.toLowerCase()) ? held.get(name.toLowerCase()) : me;
+    if (owner === me || owner === null) return name;
+    let narrator = item.narrator ? clean(item.narrator) : "";
+    if (narrator === "Untitled") narrator = "";        // nothing survived clean()
+    const tries = [];
+    if (narrator && !name.toLowerCase().includes(narrator.toLowerCase())) {
+      tries.push(`${name} (${narrator})`);
+    }
+    for (let n = 2; n < 1000; n++) tries.push(`${name} (${n})`);
+    for (const t of tries.map(clean)) {
+      const k = t.toLowerCase();
+      if (!held.has(k) || held.get(k) === me) return t;
+    }
+    throw new Error(`no free name for '${name}' on the device`);
   }
 
   function fold(s) {
@@ -135,6 +157,10 @@
       series = meta.series.filter((s) => s)
         .map((s) => (typeof s === "object" ? s.name : String(s))).join(", ");
     }
+    let narrators = meta.narratorName;
+    if (!narrators && Array.isArray(meta.narrators)) {
+      narrators = meta.narrators.filter((n) => n).map((n) => String(n)).join(", ");
+    }
     let tracks = media.numTracks;
     if (!tracks && Array.isArray(media.audioFiles)) tracks = media.audioFiles.length;
     return {
@@ -142,6 +168,7 @@
       title: meta.title || it.relPath || "(untitled)",
       author: authors || "",
       series: series || "",
+      narrator: narrators || "",
       relPath: it.relPath || "",
       numTracks: tracks || 0,
       size: it.size || media.size || 0,
@@ -776,7 +803,8 @@
   /** host._serialisable: what the popup and the page are sent. */
   function serialisable(st) {
     const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k] === undefined ? null : o[k]]));
-    const item = (i) => pick(i, ["id", "title", "author", "series", "size", "numTracks"]);
+    const item = (i) => pick(i, ["id", "title", "author", "series", "narrator", "size",
+                                 "numTracks"]);
     const entry = (e) => pick(e, ["name", "kind", "bytes", "files", "title", "author",
                                   "series", "itemId", "source", "matchedBy"]);
     return {
@@ -903,9 +931,24 @@
     return null;
   }
 
+  /** sync.taken_names: each name in the books folder, and the item holding it. */
+  async function takenNames(dev, root) {
+    const taken = new Map();
+    if (!root) return taken;
+    for (const [name, h] of await sortedChildren(root)) {
+      taken.set(h.kind === "file" ? stem(name) : name, null);
+    }
+    for (const [name, rec] of Object.entries((await loadIndex(dev)).entries)) {
+      if (rec && rec.itemId && (await child(root, name))) {
+        taken.set(rec.kind === "file" ? stem(name) : name, rec.itemId);
+      }
+    }
+    return taken;
+  }
+
   async function pullBook(c, dev, item, opts, rep, emit) {
     const sub = safeSubdir(opts.subdir);
-    const name = targetName(item, opts.folderTemplate);
+    let name = targetName(item, opts.folderTemplate);
     const rename = opts.renameM4b !== false;
     const title = item.title || name;
     const step = (done, total, label) =>
@@ -918,6 +961,12 @@
       return have;
     }
 
+    try {
+      name = freeName(name, item, await takenNames(dev, await dirAt(dev, sub)));
+    } catch (e) {
+      rep.fail(title, explain(e));
+      return null;
+    }
     let got;
     try {
       step(0, 1, "downloading");
@@ -1296,7 +1345,7 @@
 
   const api = {
     // naming
-    AUDIO_EXT, clean, pathName, suffix, stem, outExt, sourceExt, safeSubdir, targetName,
+    AUDIO_EXT, clean, pathName, suffix, stem, outExt, sourceExt, safeSubdir, targetName, freeName,
     normKey, normalizeItem, pyStrip, cmpCodePoints, cmpParts,
     // tags and zip
     readTags, readBook, zipEntries, zipMemberStream,

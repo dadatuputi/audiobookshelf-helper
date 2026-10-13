@@ -61,13 +61,46 @@ def safe_subdir(s):
 def target_name(book, folder_template="{author} - {title}"):
     """The on-device folder/file stem for a book.
 
-    `book` is anything with title/author/series keys - a server item or a
-    device entry, so a round trip lands on the same name.
+    `book` is anything with title/author/series/narrator keys - a server item
+    or a device entry, so a round trip lands on the same name.
     """
     name = (folder_template or "{author} - {title}")
-    for key in ("author", "title", "series"):
+    for key in ("author", "title", "series", "narrator"):
         name = name.replace("{%s}" % key, str(book.get(key) or ""))
     return clean(name).strip(" -") or "Untitled"
+
+
+def free_name(name, item, taken):
+    """`name`, unless another book already holds it on the device.
+
+    Two editions of one book - a full-cast recording and a single narrator -
+    have the same author and title, so the template gives them the same
+    name, and copying the second used to overwrite or merge into the first.
+    The second gets the narrator added instead, or a number when that does
+    not tell them apart.
+
+    `taken` maps each name in use to the library item that holds it, or to
+    None for something on the device this tool did not put there. That is
+    left as it always was: most likely it is this same book, copied by hand.
+    Names are compared ignoring case, as FAT32 and exFAT players do.
+    """
+    me = item.get("id")
+    taken = {k.lower(): v for k, v in taken.items()}
+    if taken.get(name.lower(), me) in (me, None):
+        return name
+    # clean() says "Untitled" when nothing survives it - a narrator written
+    # in another script - and that tells two editions apart no better than a number.
+    narrator = clean(item.get("narrator")) if item.get("narrator") else ""
+    if narrator == "Untitled":
+        narrator = ""
+    tries = []
+    if narrator and narrator.lower() not in name.lower():
+        tries.append(f"{name} ({narrator})")
+    tries += [f"{name} ({n})" for n in range(2, 1000)]
+    for t in (clean(t) for t in tries):
+        if taken.get(t.lower(), me) == me:
+            return t
+    raise ValueError(f"no free name for {name!r} on the device")
 
 
 def _fold(s):

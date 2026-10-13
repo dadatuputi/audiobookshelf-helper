@@ -105,6 +105,139 @@
    "out": "ff"
   }
  ],
+ "freeName": [
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B",
+   "taken": {}
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B (Full Cast)",
+   "taken": {
+    "A - B": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "2"
+   },
+   "name": "A - B",
+   "out": "A - B (2)",
+   "taken": {
+    "A - B": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B",
+   "taken": {
+    "A - B": null
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B",
+   "taken": {
+    "A - B": "2"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B (Full Cast)",
+   "taken": {
+    "a - b": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "3",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B (2)",
+   "taken": {
+    "A - B": "1",
+    "A - B (Full Cast)": "2"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "A - B",
+   "out": "A - B (Full Cast)",
+   "taken": {
+    "A - B": "1",
+    "A - B (full cast)": "2"
+   }
+  },
+  {
+   "item": {
+    "id": "3"
+   },
+   "name": "A - B",
+   "out": "A - B (3)",
+   "taken": {
+    "A - B": "1",
+    "A - B (2)": null
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Jim Dale"
+   },
+   "name": "Rowling - Stone (Jim Dale)",
+   "out": "Rowling - Stone (Jim Dale) (2)",
+   "taken": {
+    "Rowling - Stone (Jim Dale)": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "F\u00fcl\u0142: C\u00e4st?"
+   },
+   "name": "A - B",
+   "out": "A - B (Ful Cast)",
+   "taken": {
+    "A - B": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "\u65e5\u672c\u8a9e"
+   },
+   "name": "A - B",
+   "out": "A - B (2)",
+   "taken": {
+    "A - B": "1"
+   }
+  }
+ ],
  "normKey": [
   {
    "author": "J.R.R. Tolkien",
@@ -277,6 +410,7 @@
    "out": {
     "author": "Brian Jacques",
     "id": "li_1",
+    "narrator": "",
     "numTracks": 1,
     "relPath": "Brian Jacques/Redwall",
     "series": "Redwall #1",
@@ -320,6 +454,7 @@
    "out": {
     "author": "A, B",
     "id": "li_2",
+    "narrator": "",
     "numTracks": 2,
     "relPath": "x",
     "series": "S1, S2",
@@ -334,6 +469,7 @@
    "out": {
     "author": "",
     "id": "li_3",
+    "narrator": "",
     "numTracks": 0,
     "relPath": "",
     "series": "",
@@ -351,6 +487,7 @@
    "out": {
     "author": "",
     "id": null,
+    "narrator": "",
     "numTracks": 0,
     "relPath": "No id here",
     "series": "",
@@ -377,11 +514,58 @@
    "out": {
     "author": "Late",
     "id": "li_4",
+    "narrator": "",
     "numTracks": 0,
     "relPath": "",
     "series": "",
     "size": 0,
     "title": "T"
+   }
+  },
+  {
+   "in": {
+    "id": "li_5",
+    "media": {
+     "metadata": {
+      "narratorName": "Jim Dale",
+      "title": "PS"
+     }
+    }
+   },
+   "out": {
+    "author": "",
+    "id": "li_5",
+    "narrator": "Jim Dale",
+    "numTracks": 0,
+    "relPath": "",
+    "series": "",
+    "size": 0,
+    "title": "PS"
+   }
+  },
+  {
+   "in": {
+    "id": "li_6",
+    "media": {
+     "metadata": {
+      "narrators": [
+       "Hugh Laurie",
+       "",
+       "Cast"
+      ],
+      "title": "PS"
+     }
+    }
+   },
+   "out": {
+    "author": "",
+    "id": "li_6",
+    "narrator": "Hugh Laurie, Cast",
+    "numTracks": 0,
+    "relPath": "",
+    "series": "",
+    "size": 0,
+    "title": "PS"
    }
   }
  ],
@@ -531,6 +715,652 @@
   }
  ],
  "pull": [
+  {
+   "downloads": {
+    "hp_cast": {
+     "body": "2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh46VnKOqsbi/xs3U2+Lp8PcDChEYHyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+Q==",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    },
+    "hp_dale": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 2,
+      "event": "item",
+      "id": "hp_dale",
+      "index": 1,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_dale",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone.m4a",
+      "id": "hp_dale",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "count": 2,
+      "event": "item",
+      "id": "hp_cast",
+      "index": 2,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone (Full Cast).m4a",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     }
+    ],
+    "index": {
+     "J.K. Rowling - Philosopher's Stone (Full Cast).m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 400,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone (Full Cast).m4a",
+        "size": 400
+       }
+      ],
+      "itemId": "hp_cast",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     },
+     "J.K. Rowling - Philosopher's Stone.m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "hp_dale",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     }
+    },
+    "report": {
+     "books": 2,
+     "copied": 2,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (Full Cast).m4a": 400,
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_dale",
+     "narrator": "Jim Dale",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    },
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_cast",
+     "narrator": "Full Cast",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    }
+   ],
+   "name": "two editions of one book: neither replaces the other",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "hp_cast": {
+     "body": "UEsDBBQAAAAAAAAAIVBijmKCeAAAAHgAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGI+RUxTWmFob3Z9hIuSmaCnrrW8w8rR2N/m7fQABw4VHCMqMTg/Rk1UW2JpcHd+hYyTmqGor7a9xMvS2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh45QSwMEFAAAAAAAAAAhUG/8wSiCAAAAggAAACYAAABUaGUgSG9iYml0L0Rpc2MgMS8wMiAtIENoYXB0ZXIgVHdvLk00Ql1ka3J5gIeOlZyjqrG4v8bN1Nvi6fD3AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQwTGiEoLzY9REtSWWBnbnV8g4qRmJ+mrbS7wsnQ197l7PNQSwECFAMUAAAAAAAAACFQYo5igngAAAB4AAAAJgAAAAAAAAAAAAAAgAEAAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGJQSwECFAMUAAAAAAAAACFQb/zBKIIAAACCAAAAJgAAAAAAAAAAAAAAgAG8AAAAVGhlIEhvYmJpdC9EaXNjIDEvMDIgLSBDaGFwdGVyIFR3by5NNEJQSwUGAAAAAAIAAgCoAAAAggEAAAAA",
+     "contentType": "application/zip",
+     "disposition": null
+    },
+    "hp_dale": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 2,
+      "event": "item",
+      "id": "hp_dale",
+      "index": 1,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_dale",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone.m4a",
+      "id": "hp_dale",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "count": 2,
+      "event": "item",
+      "id": "hp_cast",
+      "index": 2,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - 01 - Chapter One.m4a",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 2
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - 02 - Chapter Two.m4a",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 2
+     }
+    ],
+    "index": {
+     "J.K. Rowling - Philosopher's Stone (Full Cast)": {
+      "author": "J.K. Rowling",
+      "bytes": 250,
+      "files": [
+       {
+        "name": "001 - 01 - Chapter One.m4a",
+        "size": 120
+       },
+       {
+        "name": "002 - 02 - Chapter Two.m4a",
+        "size": 130
+       }
+      ],
+      "itemId": "hp_cast",
+      "kind": "dir",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     },
+     "J.K. Rowling - Philosopher's Stone.m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "hp_dale",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     }
+    },
+    "report": {
+     "books": 2,
+     "copied": 3,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (Full Cast)"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (Full Cast)/001 - 01 - Chapter One.m4a": 120,
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (Full Cast)/002 - 02 - Chapter Two.m4a": 130,
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_dale",
+     "narrator": "Jim Dale",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    },
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_cast",
+     "narrator": "Full Cast",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    }
+   ],
+   "name": "two editions, the second a folder of parts",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "hp_dale": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    },
+    "hp_other": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzug==",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    },
+    "hp_third": {
+     "body": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+QU=",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 3,
+      "event": "item",
+      "id": "hp_dale",
+      "index": 1,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_dale",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone.m4a",
+      "id": "hp_dale",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "count": 3,
+      "event": "item",
+      "id": "hp_other",
+      "index": 2,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_other",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone (2).m4a",
+      "id": "hp_other",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "count": 3,
+      "event": "item",
+      "id": "hp_third",
+      "index": 3,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_third",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone (3).m4a",
+      "id": "hp_third",
+      "title": "Philosopher's Stone",
+      "total": 1
+     }
+    ],
+    "index": {
+     "J.K. Rowling - Philosopher's Stone (2).m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 310,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone (2).m4a",
+        "size": 310
+       }
+      ],
+      "itemId": "hp_other",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     },
+     "J.K. Rowling - Philosopher's Stone (3).m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 320,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone (3).m4a",
+        "size": 320
+       }
+      ],
+      "itemId": "hp_third",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     },
+     "J.K. Rowling - Philosopher's Stone.m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 300,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone.m4a",
+        "size": 300
+       }
+      ],
+      "itemId": "hp_dale",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     }
+    },
+    "report": {
+     "books": 3,
+     "copied": 3,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (2).m4a": 310,
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (3).m4a": 320,
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_dale",
+     "narrator": "Jim Dale",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    },
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_other",
+     "narrator": "",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    },
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_third",
+     "narrator": "",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    }
+   ],
+   "name": "two editions with no narrator to tell them apart",
+   "opts": {}
+  },
+  {
+   "downloads": {
+    "hp_cast": {
+     "body": "2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh46VnKOqsbi/xs3U2+Lp8PcDChEYHyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+Q==",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "hp_cast",
+      "index": 1,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone (Full Cast).m4a",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     }
+    ],
+    "index": {
+     "J.K. Rowling - Philosopher's Stone (Full Cast).m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 400,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone (Full Cast).m4a",
+        "size": 400
+       }
+      ],
+      "itemId": "hp_cast",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     },
+     "J.K. Rowling - Philosopher's Stone.m4a": {
+      "author": "J.K. Rowling",
+      "itemId": "hp_dale",
+      "kind": "file",
+      "title": "Philosopher's Stone"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone (Full Cast).m4a": 400,
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone.m4a": 300
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_cast",
+     "narrator": "Full Cast",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    }
+   ],
+   "name": "the other edition was copied before",
+   "opts": {},
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkouSy4gUm93bGluZyAtIFBoaWxvc29waGVyJ3MgU3RvbmUubTRhIjogeyJpdGVtSWQiOiAiaHBfZGFsZSIsICJraW5kIjogImZpbGUiLCAidGl0bGUiOiAiUGhpbG9zb3BoZXIncyBTdG9uZSIsICJhdXRob3IiOiAiSi5LLiBSb3dsaW5nIn19fQ==",
+    "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone.m4a": "HyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10"
+   }
+  },
+  {
+   "downloads": {
+    "hp_cast": {
+     "body": "2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh46VnKOqsbi/xs3U2+Lp8PcDChEYHyYtNDtCSVBXXmVsc3qBiI+WnaSrsrnAx87V3OPq8fgECxIZICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM/W3eTr8vkFDBMaISgvNj1ES1JZYGdudXyDipGYn6attLvCydDX3uXs8/oGDRQbIikwNz5FTFNaYWhvdn2Ei5KZoKeutbzDytHY3+bt9AAHDhUcIyoxOD9GTVRbYmlwd36FjJOaoaivtr3Ey9LZ4Ofu9QEIDxYdJCsyOUBHTlVcY2pxeH+GjZSboqmwt77FzNPa4ejv9gIJEBceJSwzOkFIT1ZdZGtyeYCHjpWco6qxuL/GzdTb4unw9wMKERgfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PENKUVhfZm10e4KJkJeepayzusHIz9bd5Ovy+Q==",
+     "contentType": "audio/mp4",
+     "disposition": "attachment; filename=\"Stone.m4b\""
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "hp_cast",
+      "index": 1,
+      "op": "pull",
+      "title": "Philosopher's Stone"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "J.K. Rowling - Philosopher's Stone.m4a",
+      "id": "hp_cast",
+      "title": "Philosopher's Stone",
+      "total": 1
+     }
+    ],
+    "index": {
+     "J.K. Rowling - Philosopher's Stone.m4a": {
+      "author": "J.K. Rowling",
+      "bytes": 400,
+      "files": [
+       {
+        "name": "J.K. Rowling - Philosopher's Stone.m4a",
+        "size": 400
+       }
+      ],
+      "itemId": "hp_cast",
+      "kind": "file",
+      "series": "Harry Potter",
+      "sourceExt": ".m4b",
+      "title": "Philosopher's Stone"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 1,
+     "errors": [],
+     "freed": 0,
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS"
+     ],
+     "files": {
+      "AUDIOBOOKS/J.K. Rowling - Philosopher's Stone.m4a": 400
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "J.K. Rowling",
+     "id": "hp_cast",
+     "narrator": "Full Cast",
+     "series": "Harry Potter",
+     "title": "Philosopher's Stone"
+    }
+   ],
+   "name": "a record of a book since deleted holds nothing",
+   "opts": {},
+   "tree": {
+    ".absh/index.json": "eyJ2ZXJzaW9uIjogMSwgImVudHJpZXMiOiB7IkouSy4gUm93bGluZyAtIFBoaWxvc29waGVyJ3MgU3RvbmUubTRhIjogeyJpdGVtSWQiOiAiaHBfZGFsZSIsICJraW5kIjogImZpbGUiLCAidGl0bGUiOiAiUGhpbG9zb3BoZXIncyBTdG9uZSIsICJhdXRob3IiOiAiSi5LLiBSb3dsaW5nIn19fQ=="
+   }
+  },
   {
    "downloads": {
     "bk_r": {
@@ -2607,6 +3437,23 @@
    },
    "out": "BookBook [S]",
    "template": "{title}{title} [{series}]"
+  },
+  {
+   "book": {
+    "author": "J.K. Rowling",
+    "narrator": "Full Cast",
+    "title": "Philosopher's Stone"
+   },
+   "out": "J.K. Rowling - Philosopher's Stone (Full Cast)",
+   "template": "{author} - {title} ({narrator})"
+  },
+  {
+   "book": {
+    "author": "J.K. Rowling",
+    "title": "Philosopher's Stone"
+   },
+   "out": "Philosopher's Stone ()",
+   "template": "{title} ({narrator})"
   },
   {
    "book": {

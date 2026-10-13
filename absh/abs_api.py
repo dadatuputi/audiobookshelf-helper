@@ -200,6 +200,9 @@ def normalize_item(it):
     if not series and isinstance(meta.get("series"), list):
         series = ", ".join(s.get("name") if isinstance(s, dict) else str(s)
                            for s in meta["series"] if s)
+    narrators = meta.get("narratorName")
+    if not narrators and isinstance(meta.get("narrators"), list):
+        narrators = ", ".join(str(n) for n in meta["narrators"] if n)
     tracks = media.get("numTracks")
     if not tracks and isinstance(media.get("audioFiles"), list):
         tracks = len(media["audioFiles"])
@@ -208,6 +211,7 @@ def normalize_item(it):
         "title": meta.get("title") or it.get("relPath") or "(untitled)",
         "author": authors or "",
         "series": series or "",
+        "narrator": narrators or "",
         "relPath": it.get("relPath") or "",
         "numTracks": tracks or 0,
         "size": it.get("size") or media.get("size") or 0,
