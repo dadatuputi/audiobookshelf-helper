@@ -2,10 +2,11 @@ name: Upstream watch
 
 # Audiobookshelf has no reason to care that this extension exists, so the only
 # warning of a breaking change is trying the new release. Daily: if upstream
-# has published a release newer than tests/real/abs-version.txt, run the full
-# real-server suite against it. If it passes, move the pin, and the next CI run
-# tests against it; if it fails, open an issue saying what failed, with the
-# changelog lines that touch what this extension uses.
+# has published a release newer than the newest supported one
+# (extension/abs-versions.json), run the full real-server suite against it.
+# If it passes, it becomes the newest supported, and CI tests it from then on;
+# if it fails, open an issue saying what failed, with the changelog lines that
+# touch what this extension uses. The oldest supported never moves from here.
 #
 # The contract itself is asserted by tests/js/contract.test.js on every push.
 
@@ -59,23 +60,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Move the pin and run CI on it
+      - name: Support it, and run CI on it
         env:
           GH_TOKEN: ${{ github.token }}
           LATEST: ${{ needs.check.outputs.latest }}
           PINNED: ${{ needs.check.outputs.pinned }}
         run: |
-          echo "$LATEST" > tests/real/abs-version.txt
+          python3 tools/check_upstream.py --set-newest "$LATEST"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/real/abs-version.txt
-          git commit -m "Test against Audiobookshelf $LATEST" \
-                     -m "It passed the full real-server suite in run $GITHUB_RUN_ID, replacing $PINNED."
+          git add extension/abs-versions.json
+          git commit -m "Support Audiobookshelf $LATEST" \
+                     -m "It passed the full real-server suite in run $GITHUB_RUN_ID; the newest supported was $PINNED."
           git push
           # A push made with this token starts no workflow of its own, so ask
           # for the full CI run on the new pin explicitly.
           gh workflow run ci.yml --ref "$GITHUB_REF_NAME"
-          echo "::notice title=Audiobookshelf $LATEST::passed; now pinned, CI started"
+          echo "::notice title=Audiobookshelf $LATEST::passed; now the newest supported, CI started"
 
   report-failure:
     name: say what broke
@@ -94,7 +95,7 @@ jobs:
           PINNED: ${{ needs.check.outputs.pinned }}
         run: |
           RUN="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          { echo "The real-server suite fails against **Audiobookshelf $LATEST**; the tests stay pinned to $PINNED until it passes."
+          { echo "The real-server suite fails against **Audiobookshelf $LATEST**; the newest supported stays $PINNED until it passes."
             echo
             echo "Failing run: $RUN (the job summaries and the playwright artifacts say what failed)."
             echo

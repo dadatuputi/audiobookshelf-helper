@@ -7,14 +7,15 @@ field or stops accepting ?token=, the extension shows an empty book list or a
 download that fails, with nothing pointing at the cause. Upstream has no reason
 to consider us, so the only defence is noticing when they ship.
 
-    python3 tools/check_upstream.py          # anything newer than the pinned version?
+    python3 tools/check_upstream.py                    # anything newer than the newest supported?
+    python3 tools/check_upstream.py --set-newest v2.38.0   # it passed; support it
 
-The version the real-server suite runs against is pinned in
-tests/real/abs-version.txt, and that file is the only record of what has been
-seen: a release newer than it is news. (It used to keep its own record, which
-the workflow only saved when there was news - so it never saved one, and never
-reported a release.) .github/workflows/upstream.yml runs the full suite
-against what this finds, and moves the pin when it passes.
+The supported range is in extension/abs-versions.json, and its "newest" is
+the only record of what has been seen: a release newer than it is news. (This
+used to keep its own record, which the workflow only saved when there was news
+- so it never saved one, and never reported a release.)
+.github/workflows/upstream.yml runs the full suite against what this finds,
+and moves "newest" when it passes. "oldest" is never moved from here.
 
 Writes a markdown report to --output when there is something newer, and exits
 0 either way. GITHUB_TOKEN is used if present, purely for rate limits.
@@ -24,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "tests" / "fixtures" / "abs" / "contract.json"
-PIN = ROOT / "tests" / "real" / "abs-version.txt"
+VERSIONS = ROOT / "extension" / "abs-versions.json"
 API = "https://api.github.com/repos/{repo}/releases?per_page=10"
 
 # Words in a changelog that plausibly touch what we depend on. Deliberately
@@ -117,13 +118,27 @@ def build_report(new_releases, contract, pinned=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pin", default=str(PIN), help="the file holding the tested version")
+    ap.add_argument("--versions", default=str(VERSIONS),
+                    help="the file naming the oldest and newest supported releases")
     ap.add_argument("--output", default="upstream-report.md")
+    ap.add_argument("--set-newest", metavar="TAG",
+                    help="record TAG as the newest supported release, and stop")
     a = ap.parse_args()
+
+    path = Path(a.versions)
+    versions = json.loads(path.read_text())
+    if a.set_newest:
+        if not version_key(a.set_newest):
+            print(f"not a release tag: {a.set_newest}", file=sys.stderr)
+            return 2
+        versions["newest"] = a.set_newest
+        path.write_text(json.dumps(versions, indent=2) + "\n")
+        print(f"newest supported: {a.set_newest} (oldest: {versions['oldest']})")
+        return 0
 
     contract = json.loads(CONTRACT.read_text())
     repo = contract["upstream"]
-    pinned = Path(a.pin).read_text().strip()
+    pinned = versions["newest"]
 
     try:
         releases = fetch(API.format(repo=repo))

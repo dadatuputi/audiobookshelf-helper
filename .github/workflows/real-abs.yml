@@ -1,20 +1,21 @@
 name: Real Audiobookshelf
 
 # The extension driven against a real Audiobookshelf, built from source and
-# seeded with books. Called by ci.yml at the pinned version, and by
-# upstream.yml at a newer release to decide whether the pin can move.
+# seeded with books. Called by ci.yml for both ends of the supported range in
+# extension/abs-versions.json, and by upstream.yml for a newer release, to
+# decide whether it becomes the newest supported.
 
 on:
   workflow_call:
     inputs:
       abs_ref:
-        description: "Audiobookshelf tag to test against; empty means the pinned one"
+        description: "Audiobookshelf tag to test against; empty means both ends of the supported range"
         type: string
         default: ""
   workflow_dispatch:
     inputs:
       abs_ref:
-        description: "Audiobookshelf tag to test against; empty means the pinned one"
+        description: "Audiobookshelf tag to test against; empty means both ends of the supported range"
         type: string
         default: ""
 
@@ -22,13 +23,36 @@ permissions:
   contents: read
 
 jobs:
+  versions:
+    name: which Audiobookshelf
+    runs-on: ubuntu-latest
+    outputs:
+      refs: ${{ steps.refs.outputs.refs }}
+    steps:
+      - uses: actions/checkout@v5
+      # Supporting a range means testing it: the oldest is where a feature we
+      # start relying on breaks, the newest is where upstream changes break.
+      # The releases between were each tested as they shipped (upstream.yml).
+      - id: refs
+        env:
+          REF: ${{ inputs.abs_ref }}
+        run: |
+          if [ -n "$REF" ]; then refs="[\"$REF\"]"
+          else refs=$(python3 -c 'import json; v = json.load(open("extension/abs-versions.json")); print(json.dumps(sorted({v["oldest"], v["newest"]})))')
+          fi
+          echo "refs=$refs" >> "$GITHUB_OUTPUT"
+          echo "Audiobookshelf: $refs"
+
   real:
-    name: ${{ matrix.project }} on Audiobookshelf ${{ inputs.abs_ref || 'pinned' }}
+    name: ${{ matrix.project }} on Audiobookshelf ${{ matrix.ref }}
+    needs: versions
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
+        ref: ${{ fromJSON(needs.versions.outputs.refs) }}
+        project: [real, real-firefox]
         # real-firefox installs the add-on over Firefox's remote debugging
         # protocol, since Playwright cannot load one itself.
         include:
@@ -51,13 +75,11 @@ jobs:
       - name: Install browser
         run: npx playwright install --with-deps ${{ matrix.browser }}
 
-      # Pinned in tests/real/abs-version.txt, so an upstream release cannot
-      # turn unrelated work red; upstream.yml passes a newer one to test.
       - name: Which Audiobookshelf
         id: abs
         env:
-          REF: ${{ inputs.abs_ref }}
-        run: echo "ref=${REF:-$(cat tests/real/abs-version.txt)}" >> "$GITHUB_OUTPUT"
+          REF: ${{ matrix.ref }}
+        run: echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
       - name: Cache the Audiobookshelf build
         uses: actions/cache@v4

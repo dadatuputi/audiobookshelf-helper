@@ -149,6 +149,9 @@ class Workflow(unittest.TestCase):
         for d in ("absh", "tools"):
             shutil.copytree(ROOT / d, self.tmp / d,
                             ignore=shutil.ignore_patterns("__pycache__"))
+        # The notes name the supported Audiobookshelf range from this file.
+        (self.tmp / "extension").mkdir()
+        shutil.copy(ROOT / "extension" / "abs-versions.json", self.tmp / "extension")
         (self.tmp / "release").mkdir()
         (self.tmp / "release" / "SHA256SUMS").write_bytes(
             signing.make_manifest(TAG, {"a.zip": "0" * 64}))

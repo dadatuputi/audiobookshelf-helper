@@ -82,13 +82,13 @@ class TestRun(unittest.TestCase):
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.pin = self.tmp / "abs-version.txt"
-        self.pin.write_text("v2.36.0\n")
+        self.pin = self.tmp / "abs-versions.json"
+        self.pin.write_text('{"_comment": "kept", "oldest": "v2.26.0", "newest": "v2.36.0"}\n')
         self.out = self.tmp / "report.md"
         self.gh = self.tmp / "gh-output"
 
     def run_with(self, releases):
-        argv = ["check_upstream", "--pin", str(self.pin), "--output", str(self.out)]
+        argv = ["check_upstream", "--versions", str(self.pin), "--output", str(self.out)]
         with mock.patch.object(UP, "fetch", return_value=releases), \
              mock.patch("sys.argv", argv), \
              mock.patch.dict("os.environ", {"GITHUB_OUTPUT": str(self.gh)}):
@@ -122,8 +122,26 @@ class TestRun(unittest.TestCase):
                        {**rel("v2.38.0"), "prerelease": True}, rel("v2.37.0")])
         self.assertEqual(self.outputs()["latest"], "v2.37.0")
 
+    def test_set_newest_moves_only_the_newest(self):
+        argv = ["check_upstream", "--versions", str(self.pin), "--set-newest", "v2.38.0"]
+        with mock.patch("sys.argv", argv):
+            self.assertEqual(UP.main(), 0)
+        self.assertEqual(json.loads(self.pin.read_text()),
+                         {"_comment": "kept", "oldest": "v2.26.0", "newest": "v2.38.0"})
+
+    def test_set_newest_refuses_what_is_not_a_tag(self):
+        argv = ["check_upstream", "--versions", str(self.pin), "--set-newest", "main"]
+        with mock.patch("sys.argv", argv):
+            self.assertEqual(UP.main(), 2)
+        self.assertIn('"newest": "v2.36.0"', self.pin.read_text())
+
+    def test_the_real_range_file_names_both_ends(self):
+        v = json.loads(UP.VERSIONS.read_text())
+        self.assertTrue(UP.version_key(v["oldest"]) and UP.version_key(v["newest"]))
+        self.assertLessEqual(UP.version_key(v["oldest"]), UP.version_key(v["newest"]))
+
     def test_an_unreachable_github_is_a_warning_not_a_failure(self):
-        argv = ["check_upstream", "--pin", str(self.pin), "--output", str(self.out)]
+        argv = ["check_upstream", "--versions", str(self.pin), "--output", str(self.out)]
         with mock.patch.object(UP, "fetch", side_effect=urllib.error.URLError("down")), \
              mock.patch("sys.argv", argv):
             self.assertEqual(UP.main(), 0)

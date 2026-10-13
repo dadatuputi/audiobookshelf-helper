@@ -22,11 +22,13 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const work = process.env.ABS_WORK || join(root, ".abs-real");
-// Pinned in abs-version.txt: a moving target turns an upstream change into a
-// red build on unrelated work. .github/workflows/upstream.yml tests each new
-// release against the full suite and moves the pin when it passes. ABS_REF
-// overrides it, which is how that job tests a release before the pin moves.
-const REF = process.env.ABS_REF || readFileSync(join(here, "abs-version.txt"), "utf8").trim();
+// The supported range is in extension/abs-versions.json; CI runs both ends of it, and
+// a moving target would turn an upstream change into a red build on unrelated
+// work. ABS_REF picks the release; without it, the newest supported.
+// .github/workflows/upstream.yml tests each new release before it becomes
+// the newest.
+const VERSIONS = JSON.parse(readFileSync(join(root, "extension/abs-versions.json"), "utf8"));
+const REF = process.env.ABS_REF || VERSIONS.newest;
 const PORT = Number(process.env.ABS_PORT || 13378);
 const USER = "root";
 const PASS = "testpass123";
@@ -188,8 +190,22 @@ for (let i = 0; i < 30; i++) {
 }
 if (!items.length) { server.kill(); throw new Error("scan produced no items"); }
 
+// What a user pastes into Settings: an API key from Settings -> API Keys,
+// not the session token the browser holds. The extension, the helper and
+// every test below use this, so the suite proves the way people connect.
+// Releases before v2.26.0 have no API keys; that is why it is the oldest
+// supported (abs-versions.json), and this says so rather than failing later.
+const made = await api("/api/api-keys", { method: "POST", headers: auth,
+  body: JSON.stringify({ name: "absh tests", userId: login.body.user.id, isActive: true }) });
+const apiKey = made.body?.apiKey?.apiKey;
+if (!apiKey) {
+  server.kill();
+  throw new Error(`Audiobookshelf ${REF} made no API key (HTTP ${made.status}); ` +
+                  "API keys arrived in v2.26.0, the oldest this extension supports");
+}
+
 const state = {
-  absUrl: abs, token, libraryId, device, pid: server.pid,
+  absUrl: abs, token: apiKey, libraryId, device, pid: server.pid,
   libraryFolder: join(data, "books"),
   deviceOnly: { ...ONLY, source: onlyFile,
                 folder: `${ONLY.author} - ${ONLY.title}`,

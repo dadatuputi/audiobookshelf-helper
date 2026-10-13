@@ -26,6 +26,9 @@ not a second implementation. It puts badges on the book cards in Audiobookshelf
 itself and adds buttons to copy, upload or delete without leaving the page.
 
 Firefox and Chrome. The Python side runs on macOS, Linux and Windows.
+Audiobookshelf **v2.26.0 or newer** — the release that added API keys, which is
+how this connects. Settings says so if your server is older. See
+[Which Audiobookshelf](#which-audiobookshelf).
 
 ## Every book is in one of three states
 
@@ -172,7 +175,7 @@ the same file.
 |---|---|
 | Audiobookshelf URL | e.g. `http://media.local:13378` |
 | **Grant access** | Extension only. Required — [see below](#the-permission-grant) |
-| API key | Audiobookshelf → Settings → API Keys |
+| API key | Audiobookshelf → Settings → API Keys (v2.26.0 or newer) |
 | Device path | Absolute, e.g. `/Volumes/PLAYER` or `E:\`. In the extension it is set from the toolbar popup's **Player** strip, not Options — it changes more often than anything else here. **Detect** lists what is plugged in, and the popup opens the strip by itself when the saved player isn't connected |
 | Folder on device | `AUDIOBOOKS` by default, set beside the player in the popup. Some players give a named folder resume and bookmarks — check your manual |
 | Folder template | `{author}` `{title}` `{series}` `{narrator}`. Also how a book is recognised on the device, so changing it makes synced books look absent. Two editions of one book (a full-cast recording and a single narrator) never share a name: the second gets its narrator added, or a number |
@@ -566,16 +569,29 @@ steps. The stronger arrangement keeps a key off GitHub —
 it can be pinned beside the CI key. Rotation is described in
 `absh/release_keys.py`.
 
-## Watching upstream
+## Which Audiobookshelf
 
-`.github/workflows/upstream.yml` checks daily for new Audiobookshelf releases
-and opens an issue listing what this extension depends on, with the changelog
-lines that mention any of it. `tests/fixtures/abs/contract.json` is that
-dependency list; `tests/js/contract.test.js` asserts the shapes against recorded
-fixtures on every push. The workflow is the heads-up; the test is the tripwire.
+`extension/abs-versions.json` names the supported range: the oldest and the
+newest release. On every push, CI runs the real-server suite — a real
+Audiobookshelf built from source, driven in Chromium and Firefox — against
+both ends. Breaks happen at the ends, not in the middle: at the oldest when
+this starts relying on something newer, at the newest when upstream changes
+something.
 
-If an upgrade does break something, re-record the fixtures from the new server
-and fix `lib.js` until they pass — don't loosen the assertions.
+- **The oldest** moves only by decision, with the reason in its commit. It is
+  v2.26.0 because that release added API keys. The extension builds it in, and
+  Settings names it when a server is older.
+- **The newest** moves by itself. `.github/workflows/upstream.yml` checks daily
+  for a newer release and runs the full suite against it. If it passes, it
+  becomes the newest supported and CI tests it from then on; each of those
+  commits records the run it passed. If it fails, it opens an issue labelled
+  `upstream` with the failing run and the changelog lines that touch what this
+  depends on, and the range stays where it was.
+
+`tests/fixtures/abs/contract.json` lists exactly what this uses from the API;
+`tests/js/contract.test.js` asserts those shapes against recorded fixtures on
+every push. If an upgrade does break something, re-record the fixtures from the
+new server and fix `lib.js` until they pass — don't loosen the assertions.
 
 ## Licence
 

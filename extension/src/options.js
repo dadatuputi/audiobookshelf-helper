@@ -66,13 +66,35 @@ function hostOf(url) {
   }
 }
 
+/* Which Audiobookshelf the server is. It says on /status without signing in,
+   but reading it needs the site access, so before that is granted this is
+   null and the row says nothing about it. */
+async function serverVersion(absUrl) {
+  try {
+    const r = await fetch(`${ABSH.baseUrl(absUrl)}/status`,
+                          { credentials: "omit", signal: AbortSignal.timeout(4000) });
+    const j = await r.json();
+    return j && j.serverVersion ? String(j.serverVersion) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function serverRow() {
   const s = await browser.storage.local.get({ absUrl: "", apiKey: "" });
   const host = hostOf(s.absUrl);
-  if (!s.absUrl) setRow("server", "err", "Not set");
-  else if (!host) setRow("server", "err", "The URL isn't a full address");
-  else if (!s.apiKey) setRow("server", "err", `${host} · no API key`);
-  else setRow("server", "ok", `${host} · key saved`);
+  if (!s.absUrl) return setRow("server", "err", "Not set");
+  if (!host) return setRow("server", "err", "The URL isn't a full address");
+  // Before the key: a server too old has no API Keys page to get one from.
+  const v = await serverVersion(s.absUrl);
+  const oldest = (globalThis.ABSH_CONFIG || {}).absOldest;
+  if (v && oldest && ABSH.compareVersions(v, oldest) < 0) {
+    // What to do first: the row ends in an ellipsis when it runs long.
+    return setRow("server", "err", `Needs Audiobookshelf ${oldest.replace(/^v/, "")} or newer · this is ${v}`);
+  }
+  const seen = v ? ` · Audiobookshelf ${v}` : "";
+  if (!s.apiKey) setRow("server", "err", `${host} · no API key${seen}`);
+  else setRow("server", "ok", `${host} · key saved${seen}`);
 }
 
 async function namingRow() {
@@ -170,7 +192,7 @@ $("grant").addEventListener("click", async () => {
     // The toolbar button is registered against this origin, so tell the
     // background to (re)register now that the grant exists.
     await browser.runtime.sendMessage({ type: "permissionChanged" });
-    await refreshPermissionState();
+    await Promise.all([refreshPermissionState(), serverRow()]);
   } catch (e) {
     note($("permState"), String(e.message || e), "err");
   }

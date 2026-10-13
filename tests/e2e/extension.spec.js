@@ -58,6 +58,8 @@ const BOOKS = [
 /** A stand-in Audiobookshelf. The helper now talks to this directly - the
  *  same client the CLI uses - so it needs the real endpoint surface. */
 const UPLOADS = [];
+/** What the stub says it is on /status, which needs no sign-in. */
+let ABS_VERSION = "2.37.1";
 
 /* Audiobookshelf behind a reverse proxy at a subpath - the deployment that
  * broke the in-page UI. Everything the stub serves lives under it. */
@@ -87,6 +89,9 @@ function startAbs() {
           send({ id: "li_new", ok: true });
         });
         return;
+      }
+      if (req.url === "/status") {
+        return send({ app: "audiobookshelf", serverVersion: ABS_VERSION, isInit: true });
       }
       if (req.url.startsWith("/api/me")) return send({ username: "tester" });
       if (/\/api\/items\/[^/]+\/download/.test(req.url)) {
@@ -316,6 +321,27 @@ test.describe("full loop in a real browser", () => {
     const granted = await page.evaluate(() => chrome.permissions.getAll());
     expect(granted.origins).toEqual([`${new URL(env.absUrl).origin}/*`]);
     expect(granted.origins).not.toContain("*://*/*");
+    await page.close();
+  });
+
+  test("Settings names the server's Audiobookshelf, and says when it is too old", async () => {
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await expect(page.locator("#sum-server")).toHaveText(/· key saved · Audiobookshelf 2\.37\.1$/);
+    await expect(page.locator("#sec-server")).toHaveAttribute("data-state", "ok");
+
+    // Older than API keys: there is no key to be had, so say why, first.
+    const oldest = await page.evaluate(() => ABSH_CONFIG.absOldest);
+    expect(oldest).toMatch(/^v\d+\.\d+\.\d+$/);
+    ABS_VERSION = "2.25.1";
+    try {
+      await page.reload();
+      await expect(page.locator("#sum-server"))
+        .toHaveText(`Needs Audiobookshelf ${oldest.slice(1)} or newer · this is 2.25.1`);
+      await expect(page.locator("#sec-server")).toHaveAttribute("data-state", "err");
+    } finally {
+      ABS_VERSION = "2.37.1";
+    }
     await page.close();
   });
 

@@ -120,7 +120,10 @@ jobs:
           NOTES=$(mktemp)
           P="audiobookshelf-helper"
           V="$SEMVER"
+          read -r ABS_OLDEST ABS_NEWEST < <(python3 -c 'import json; v = json.load(open("extension/abs-versions.json")); print(v["oldest"], v["newest"])')
           {
+            echo "Works with **Audiobookshelf $ABS_OLDEST or newer**: tested against $ABS_OLDEST and $ABS_NEWEST in Chromium and Firefox."
+            echo
             echo "## Which file do I need?"
             echo
             echo "Two: the helper app, and the extension for your browser."

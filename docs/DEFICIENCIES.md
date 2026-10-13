@@ -306,7 +306,8 @@ Audiobookshelf shipped v2.36.1, v2.37.0 and v2.37.1 while the tests stayed on
 v2.36.0, with no issue opened. The watch kept its own "last seen" record and
 deliberately said nothing on its first run; the workflow saved that record
 only when there was news. So it never saved one, and every weekly run was a
-first run. **Status:** the pinned version (`tests/real/abs-version.txt`) is
+first run. **Status:** the pinned version (`tests/real/abs-version.txt`, since N12 the newest in
+`extension/abs-versions.json`) is
 now the only record: anything newer is news. Daily, `upstream.yml` runs the
 full real-server suite (Chromium and Firefox) against the newest release, via
 the same `real-abs.yml` CI uses; if it passes it moves the pin and starts CI,
@@ -358,6 +359,20 @@ Chrome rather than Chromium, and Windows/macOS.
 ### T8. Surface that Windows is polling — DONE (`0138d94`)
 
 ---
+
+### N12. Support was "whatever the latest passes" — DECIDED
+The suite ran against one pinned release, and the watch moved it forward, so
+what the extension supported was never stated and an older server was never
+tested. The tests also connected with the browser's session token, while
+every user pastes an API key. **DECIDED** (maintainer, 2026-10-13): a stated
+range, tested at both ends. `extension/abs-versions.json` names the oldest
+and newest; CI runs the real-server suite against both, in Chromium and
+Firefox. The oldest is **v2.26.0**, the first release with API keys, and moves
+only by decision; Settings names it when a server is older (`/status` gives
+the version without signing in). The newest moves when a new release passes
+(N11). The tests now create an API key and use it everywhere. Rejected:
+testing every release on every push, since breaks come at the ends and each
+release between was tested as it shipped.
 
 ## Needs the maintainer
 
