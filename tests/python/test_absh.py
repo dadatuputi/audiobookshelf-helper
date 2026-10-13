@@ -676,6 +676,63 @@ class TestPlatformRoots(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    MAC_MOUNT = (
+        "/dev/disk3s1s1 on / (apfs, sealed, local, read-only, journaled)\n"
+        "/dev/disk4s1 on /Volumes/SANSA CLIPZ (msdos, local, nodev, nosuid, noowners)\n"
+        "//bradford@nas.local/Media on /Volumes/Media (smbfs, nodev, nosuid, mounted by bradford)\n"
+        "nas:/export/books on /Volumes/Books (nfs, nodev, nosuid)\n")
+    MOUNTINFO = (
+        "29 1 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw\n"
+        "88 29 8:17 / /media/me/SANSA\\040CLIPZ rw,nosuid - vfat /dev/sdb1 rw\n"
+        "90 29 0:51 / /mnt/nas rw,relatime - cifs //nas/media rw,vers=3.0\n"
+        "91 29 0:52 / /mnt/nfs rw - nfs4 nas:/books rw\n")
+
+    def test_reads_filesystem_types_from_mac_mount(self):
+        t = devices_mod.parse_mac_mounts(self.MAC_MOUNT)
+        self.assertEqual(t["/Volumes/SANSA CLIPZ"], "msdos")
+        self.assertEqual(t["/Volumes/Media"], "smbfs")
+        self.assertEqual(t["/Volumes/Books"], "nfs")
+
+    def test_reads_filesystem_types_from_linux_mountinfo(self):
+        t = devices_mod.parse_mountinfo(self.MOUNTINFO)
+        self.assertEqual(t["/media/me/SANSA CLIPZ"], "vfat", "\\040 is a space")
+        self.assertEqual(t["/mnt/nas"], "cifs")
+        self.assertEqual(t["/mnt/nfs"], "nfs4")
+
+    def test_a_network_share_is_never_offered_as_a_player(self):
+        """A share under /Volumes held the device list up for minutes, and a
+        player is never one. It is left out before anything in it is read."""
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        vols = tmp / "Volumes"
+        for name in ("SANSA CLIPZ", "Media", "MUSICSD"):
+            (vols / name).mkdir(parents=True)
+        share = {str(vols / "Media")}
+        self.assertEqual([p.name for p in devices_mod._mac_roots(vols, network=share)],
+                         ["MUSICSD", "SANSA CLIPZ"])
+        types = devices_mod.parse_mac_mounts(self.MAC_MOUNT)
+        self.assertEqual({p for p, fs in types.items() if fs in devices_mod.NETWORK_FS},
+                         {"/Volumes/Media", "/Volumes/Books"})
+
+    def test_linux_leaves_out_shares_mounted_under_mnt(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "nas").mkdir()
+        (tmp / "stick").mkdir()
+        # /mnt is where shares are usually mounted by hand; stand tmp in for it.
+        real = Path
+        bases = {"/mnt": tmp}
+        with mock.patch.object(devices_mod, "Path",
+                               side_effect=lambda *a: real(bases.get(str(real(*a)), real(*a)))):
+            found = devices_mod._linux_roots(network={str(tmp / "nas")})
+        self.assertIn(tmp / "stick", found)
+        self.assertNotIn(tmp / "nas", found)
+
+    def test_cannot_tell_means_nothing_is_left_out(self):
+        with mock.patch.object(devices_mod.subprocess, "run", side_effect=OSError("no mount")):
+            self.assertEqual(devices_mod.network_mounts("darwin"), set())
+        self.assertEqual(devices_mod.network_mounts("win32"), set())
+
     def test_mac_handles_no_volumes_directory(self):
         self.assertEqual(devices_mod._mac_roots("/definitely/not/here"), [])
 

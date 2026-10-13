@@ -232,8 +232,12 @@ the old loop); a big volume and a dead one are bounded.
 held `Macintosh HD`, `MUSICSD` and `SANSA CLIPZ`, and
 `python3 -m absh.cli devices` from Terminal was not slow. That fits the cause
 above: the unbounded audio search ran over the share. The guards bound it.
-**Not done:** leaving network shares out of the list altogether, since a
-player is never one (decision pending). A second possible cause stays open:
+Network shares are now left out of the list altogether, since a player is
+never one (maintainer's decision): by filesystem type from `mount` on macOS
+and `/proc/self/mountinfo` on Linux, before anything inside is touched.
+Windows already listed only removable drives, but asked whether each letter
+existed first, which can block on a disconnected network drive; it now asks
+the type first. A second possible cause stays open:
 the macOS prompt "Firefox would like to access files on a removable volume",
 which blocks the helper's first touch of a USB volume until answered.
 

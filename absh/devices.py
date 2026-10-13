@@ -11,8 +11,10 @@ Set ABSH_DEVICE_ROOTS to search somewhere else entirely - see _env_roots.
 Deliberately stdlib-only, like everything the native host can reach.
 """
 import os
+import re
 import shutil
 import string
+import subprocess
 import sys
 import threading
 import time
@@ -26,12 +28,72 @@ from .naming import AUDIO_EXT, safe_subdir
 PLAYER_MAX_BYTES = 128 * 1024 ** 3
 
 
-def _mac_roots(base="/Volumes"):
+# A player is never a network share, and a share is the slowest thing there
+# is to look through: one under /Volumes held the whole device list up. These
+# are left out by name, before anything inside them is touched.
+NETWORK_FS = {
+    "smbfs", "cifs", "smb3", "nfs", "nfs4", "afpfs", "webdav", "davfs", "ftp",
+    "fuse.sshfs", "fuse.rclone", "fuse.davfs2", "fuse.glusterfs", "glusterfs",
+    "ceph", "afs", "ncpfs", "9p",
+}
+
+
+def parse_mac_mounts(text):
+    """{mount point: filesystem type} from the output of macOS `mount`.
+
+    Each line reads `//user@nas/share on /Volumes/share (smbfs, nodev, ...)`.
+    """
+    out = {}
+    for line in text.splitlines():
+        head, sep, rest = line.rpartition(" (")
+        if not sep or " on " not in head:
+            continue
+        point = head.split(" on ", 1)[1]
+        out[point] = rest.split(",", 1)[0].rstrip(")").strip()
+    return out
+
+
+def parse_mountinfo(text):
+    """{mount point: filesystem type} from Linux /proc/self/mountinfo."""
+    out = {}
+    for line in text.splitlines():
+        left, sep, right = line.partition(" - ")
+        fields = left.split()
+        if not sep or len(fields) < 5 or not right.split():
+            continue
+        # Spaces and the like are written as octal escapes: \040 is a space.
+        point = re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), fields[4])
+        out[point] = right.split()[0]
+    return out
+
+
+def network_mounts(system=None):
+    """Mount points that are network shares. Empty if it cannot tell."""
+    system = system or sys.platform
+    try:
+        if system == "darwin":
+            text = subprocess.run(["/sbin/mount"], capture_output=True, text=True,
+                                  timeout=3).stdout
+            table = parse_mac_mounts(text)
+        elif system.startswith("linux"):
+            with open("/proc/self/mountinfo", encoding="utf-8", errors="replace") as f:
+                table = parse_mountinfo(f.read())
+        else:
+            return set()
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    return {point for point, fs in table.items() if fs.lower() in NETWORK_FS}
+
+
+def _mac_roots(base="/Volumes", network=None):
     vols = Path(base)
     if not vols.is_dir():
         return []
+    network = network_mounts("darwin") if network is None else network
     out = []
     for p in sorted(vols.iterdir()):
+        if str(p) in network:
+            continue
         try:
             # The boot volume is mounted here too, as a symlink to /.
             if p.is_symlink() or p.resolve() == Path("/"):
@@ -43,7 +105,8 @@ def _mac_roots(base="/Volumes"):
     return out
 
 
-def _linux_roots():
+def _linux_roots(network=None):
+    network = network_mounts("linux") if network is None else network
     out = []
     user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
     bases = [Path("/media"), Path("/run/media"), Path("/mnt")]
@@ -54,6 +117,8 @@ def _linux_roots():
             continue
         try:
             for p in sorted(base.iterdir()):
+                if str(p) in network:
+                    continue
                 if p.is_dir() and not p.is_symlink() and p not in out:
                     out.append(p)
         except OSError:
@@ -71,14 +136,16 @@ def _windows_roots():
         kernel32 = None
     for letter in string.ascii_uppercase:
         root = Path(f"{letter}:\\")
-        if not root.exists():
-            continue
+        # The type first: it does not touch the drive, and asking whether a
+        # disconnected network drive exists can block for many seconds.
         if kernel32 is not None:
             try:
                 if kernel32.GetDriveTypeW(str(root)) != DRIVE_REMOVABLE:
                     continue
             except Exception:               # pragma: no cover
                 pass
+        if not root.exists():
+            continue
         out.append(root)
     return out
 
