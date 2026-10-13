@@ -719,12 +719,8 @@ class TestPlatformRoots(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         (tmp / "nas").mkdir()
         (tmp / "stick").mkdir()
-        # /mnt is where shares are usually mounted by hand; stand tmp in for it.
-        real = Path
-        bases = {"/mnt": tmp}
-        with mock.patch.object(devices_mod, "Path",
-                               side_effect=lambda *a: real(bases.get(str(real(*a)), real(*a)))):
-            found = devices_mod._linux_roots(network={str(tmp / "nas")})
+        # /mnt is where shares are usually mounted by hand; tmp stands in for it.
+        found = devices_mod._linux_roots(network={str(tmp / "nas")}, bases=[tmp])
         self.assertIn(tmp / "stick", found)
         self.assertNotIn(tmp / "nas", found)
 

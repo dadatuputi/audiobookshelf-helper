@@ -105,13 +105,14 @@ def _mac_roots(base="/Volumes", network=None):
     return out
 
 
-def _linux_roots(network=None):
+def _linux_roots(network=None, bases=None):
     network = network_mounts("linux") if network is None else network
     out = []
-    user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
-    bases = [Path("/media"), Path("/run/media"), Path("/mnt")]
-    if user:
-        bases[:0] = [Path("/media") / user, Path("/run/media") / user]
+    if bases is None:
+        user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+        bases = [Path("/media"), Path("/run/media"), Path("/mnt")]
+        if user:
+            bases[:0] = [Path("/media") / user, Path("/run/media") / user]
     for base in bases:
         if not base.is_dir():
             continue
