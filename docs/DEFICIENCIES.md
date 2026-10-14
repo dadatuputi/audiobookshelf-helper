@@ -6,10 +6,11 @@ and can be wrong in public. Every claim here was checked against the code or
 a real run on the date noted; where something is believed rather than
 verified, it says so.
 
-Last reviewed: 2026-10-04, against `4c76f2f`. Status lines record what
-changed since the list was written, with the commit that did it. CI at
-`4c76f2f` is green on every job, including the helper's suite on Windows,
-macOS and Linux under Python 3.9, 3.11 and 3.13.
+Last reviewed: 2026-10-14, after `v1.0.0-alpha.7`. Status lines record what
+changed since an entry was written, with the commit or release that did it.
+CI runs the helper's suite on Windows, macOS and Linux under Python 3.9, 3.11
+and 3.13, and the real-server suite in Chromium and Firefox against both ends
+of the supported Audiobookshelf range (N12).
 
 ---
 
@@ -239,7 +240,10 @@ Windows already listed only removable drives, but asked whether each letter
 existed first, which can block on a disconnected network drive; it now asks
 the type first. A second possible cause stays open:
 the macOS prompt "Firefox would like to access files on a removable volume",
-which blocks the helper's first touch of a USB volume until answered.
+which blocks the helper's first touch of a USB volume until answered. It
+cannot be prevented from here, but it is no longer silent: on a Mac, when
+Detect finds a player that does not answer, the popup says to look for that
+prompt, click Allow, and detect again (`ABSH.slowPlayerHint`).
 
 ### N8. Reported on alpha.6 (2026-10-13): telling versions of a book apart
 1. **Not enough detail per book.** Seen: filtering "Harry Potter" shows seven
@@ -253,11 +257,11 @@ which blocks the helper's first touch of a USB volume until answered.
    versions apart, narrator then length; a 44px chevron opens the rest
    (title, every narrator, series and number, length and files, year) under
    the row. Rejected: grouping versions (1B), wrapping every row (1C).
-   **Status:** built for alpha.7.
+   **Status:** shipped in `v1.0.0-alpha.7`.
 2. **The tab count ignores the filter.** "To player 345" over seven filtered
    rows. A count must agree with what is on screen: "7 of 345" while a filter
    is on, from the same predicate as the list. Where: `popup.js` `render`.
-   **Status:** built for alpha.7.
+   **Status:** shipped in `v1.0.0-alpha.7`.
 
 ### N9. Reported on alpha.6 (2026-10-13): a copy disappears from view
 Seen: during a copy, reopening the popup shows "Checking the helper…" over an
@@ -275,7 +279,7 @@ a bar, waiting) and the button becomes the overall progress; the shelf stays
 usable and more books join the queue. Finished: the footer says what was
 copied; the toolbar icon carries a count while copying and a check when done;
 a system notification says it finished (needs the notifications permission).
-Rejected: a separate copy card (2B). **Status:** built for alpha.7, with
+Rejected: a separate copy card (2B). **Status:** shipped in `v1.0.0-alpha.7`, with
 one deviation: a book that is one file reports no progress until it lands,
 so its bar is indeterminate rather than a percentage.
 
@@ -296,10 +300,16 @@ in-app navigation, which never matches a registration; only a full load of a
 `/library/` address did. Two more, found once it ran: a cover's strip was
 attached to the card, which includes the title under it, and the book page
 followed the first green Play in the document, which is a hidden one in the
-select-many bar. **Status:** built for alpha.7. Registered for the whole
+select-many bar. **Status:** shipped in `v1.0.0-alpha.7`. Registered for the whole
 origin; covers carry their book's id from the app's own state, so two
 versions of one title are told apart; the strip sits on the cover; the page
 follows the Play that is drawn. The real-server suite checks each of these.
+After alpha.7 (maintainer, 2026-10-14): **Remove** on a book's page asks
+once more, in place ("Yes, remove" / "Keep", lapsing after six seconds),
+since it deletes from the player in one click; and the old "Sync to device"
+button in Audiobookshelf's toolbar now says how the player stands ("SANSA ·
+3 of 28 on it", or "Player not connected") and still opens the picker. Not
+yet confirmed on the maintainer's own server.
 
 ### N11. The upstream watch never reported a release — FIXED
 Audiobookshelf shipped v2.36.1, v2.37.0 and v2.37.1 while the tests stayed on
@@ -315,6 +325,30 @@ and if it fails it opens an issue with the failing run and the changelog
 lines that touch what this extension uses. The pin moved to v2.37.1 by hand.
 
 ---
+
+### N12. Support was "whatever the latest passes" — DECIDED
+The suite ran against one pinned release, and the watch moved it forward, so
+what the extension supported was never stated and an older server was never
+tested. The tests also connected with the browser's session token, while
+every user pastes an API key. **DECIDED** (maintainer, 2026-10-13): a stated
+range, tested at both ends. `extension/abs-versions.json` names the oldest
+and newest; CI runs the real-server suite against both, in Chromium and
+Firefox. The oldest is **v2.26.0**, the first release with API keys, and moves
+only by decision; Settings names it when a server is older (`/status` gives
+the version without signing in). The newest moves when a new release passes
+(N11). The tests now create an API key and use it everywhere. Rejected:
+testing every release on every push, since breaks come at the ends and each
+release between was tested as it shipped.
+
+### N13. The API contract described code that no longer existed — FIXED
+`tests/fixtures/abs/contract.json` said downloads send the API key as
+`?token=`, and the README explained "why the token goes in the URL"; the
+code sends it only as a header, as the privacy policy says. Both, and the
+upstream report, named `tests/js/contract.test.js`, which never existed. The
+contract now lists every endpoint in use, the fields alpha.7 added, and the
+parts of Audiobookshelf's pages the strips and buttons rely on; it points at
+`TestContract` in `tests/python/test_absh.py`, which checks the new fields
+and that no endpoint carries a key in its URL.
 
 ## Todo
 
@@ -360,19 +394,6 @@ Chrome rather than Chromium, and Windows/macOS.
 
 ---
 
-### N12. Support was "whatever the latest passes" — DECIDED
-The suite ran against one pinned release, and the watch moved it forward, so
-what the extension supported was never stated and an older server was never
-tested. The tests also connected with the browser's session token, while
-every user pastes an API key. **DECIDED** (maintainer, 2026-10-13): a stated
-range, tested at both ends. `extension/abs-versions.json` names the oldest
-and newest; CI runs the real-server suite against both, in Chromium and
-Firefox. The oldest is **v2.26.0**, the first release with API keys, and moves
-only by decision; Settings names it when a server is older (`/status` gives
-the version without signing in). The newest moves when a new release passes
-(N11). The tests now create an API key and use it everywhere. Rejected:
-testing every release on every push, since breaks come at the ends and each
-release between was tested as it shipped.
 
 ## Needs the maintainer
 
@@ -387,11 +408,10 @@ Add the `CWS_PUBLISHER_ID` secret; create the Chrome Web Store item by hand
 (the v2 API cannot create items); run a dispatched dry run, which signs in
 and reads the item without publishing.
 
-### M3. Optionally, delete the stale `claude/plugin-release-pipeline-kzlr09` branch
-Every commit on it reached main through PRs #1–#6, and `git diff` against
-its squash commit `044bd74` is empty, so nothing is lost. Deleting it only
-tidies the branch list. Nothing under `.claude/` has ever been committed on
-any ref, and `.claude/` is ignored since `22711c5`.
+### M3. The `claude/plugin-release-pipeline-kzlr09` branch
+Claude's sessions are told to push there, so it is kept level with `main`
+(every push goes to both) rather than deleted. Nothing under `.claude/` has
+ever been committed on any ref, and `.claude/` is ignored since `22711c5`.
 
 ---
 
@@ -404,6 +424,6 @@ any ref, and `.claude/` is ignored since `22711c5`.
   says "already exists".
 - The "Pin release-signing key" workflow has run only in tests; the key was
   pinned by hand with the same code, from the line the release guard printed.
-- Users on alpha.2 and alpha.3 run the old updater, which does not check
-  signatures: they trust GitHub once more, for the first signed release.
-  alpha.1 shipped no updater and must install the next release by hand.
+- alpha.1 to alpha.3 were deleted from the releases (tags kept) on
+  2026-10-13; nobody runs them, and a helper from before alpha.6 cannot find
+  the renamed release files, so it is reinstalled by hand once.
