@@ -376,7 +376,14 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
     const remove = page.locator("#absh-item button", { hasText: "Remove from" });
     await expect(remove).toBeVisible({ timeout: 30_000 });
+    // Deleting asks once more, in place, and "Keep" leaves it alone.
     await remove.click();
+    await page.locator("#absh-item button", { hasText: "Keep" }).click();
+    await expect(remove).toBeVisible();
+    expect(deviceFiles(state.device).length, "Keep removed it anyway").toBeGreaterThan(0);
+    await remove.click();
+    await expect(page.locator("#absh-item")).toContainText("The library keeps it.");
+    await page.locator("#absh-item button", { hasText: "Yes, remove" }).click();
 
     const gone = await until(() => (deviceFiles(state.device).length === 0 ? true : null));
     expect(gone, `still on the device: ${deviceFiles(state.device)}`).toBe(true);

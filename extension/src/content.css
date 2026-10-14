@@ -40,8 +40,10 @@ button.absh-badge::after { content: ""; position: absolute; inset: -4px; }
 .absh-item-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .absh-btn.absh-big { position: relative; height: 36px; margin-left: 0; padding: 0 14px; font-weight: 600; }
 .absh-btn.absh-big::after { content: ""; position: absolute; inset: -4px; }
-.absh-btn.absh-ghost { background: #333; color: #E8E8E8; }
-.absh-btn.absh-ghost:hover { background: #B42318; color: #fff; }
+.absh-btn.absh-ghost { background: #333; color: #E8E8E8; box-shadow: inset 0 0 0 1px #4b5563; }
+.absh-btn.absh-ghost:hover { background: #444; }
+.absh-btn.absh-remove:hover, .absh-btn.absh-danger { background: #B42318; color: #fff; }
+.absh-btn.absh-danger:hover { background: #912018; }
 .absh-item-line { font-size: 13px; color: #9A9A9A; }
 .absh-item-line:empty { display: none; }
 .absh-bad-line { color: #F08A7E; }

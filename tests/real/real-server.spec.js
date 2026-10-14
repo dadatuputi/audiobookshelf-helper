@@ -328,7 +328,14 @@ test.describe("against a real Audiobookshelf", () => {
       return box.top >= play.bottom && Math.abs(box.left - play.left) < 2;
     });
     expect(under, "the buttons are not under Play").toBe(true);
+    // Deleting asks once more, in place, and "Keep" leaves it alone.
     await remove.click();
+    await page.locator("#absh-item button", { hasText: "Keep" }).click();
+    await expect(remove).toBeVisible();
+    expect(deviceFiles(state.device).length, "Keep removed it anyway").toBeGreaterThan(0);
+    await remove.click();
+    await expect(page.locator("#absh-item")).toContainText("The library keeps it.");
+    await page.locator("#absh-item button", { hasText: "Yes, remove" }).click();
 
     const gone = await until(() => (deviceFiles(state.device).length === 0 ? true : null));
     expect(gone, `still on the device: ${deviceFiles(state.device)}`).toBe(true);
@@ -417,6 +424,9 @@ test.describe("against a real Audiobookshelf", () => {
     await expect(remove).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: join(dir, "book-on.png") });
     await remove.click();
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: join(dir, "book-confirm.png") });
+    await page.locator("#absh-item button", { hasText: "Yes, remove" }).click();
     await expect(page.locator("#absh-item button", { hasText: "Copy to" }))
       .toBeVisible({ timeout: 45_000 });
     await page.screenshot({ path: join(dir, "book-off.png") });

@@ -342,20 +342,43 @@
       el = document.createElement("div");
       el.id = ITEM_ID;
       el.dataset.abshId = id;
+      el.addEventListener("keydown", (e) => { if (e.key === "Escape" && CONFIRM) unconfirm(); });
       row.after(el);
     }
+    const down = !STATUS || STATUS.error;
+    const here = down ? null : onDevice(id);
+    const st = down ? null : standing(id);
+    const asking = !!(here && CONFIRM && CONFIRM.id === id);
+    // The app changes the page all the time; rebuild only when what this box
+    // says has changed, or a click lands on a button that is being replaced.
+    const sig = JSON.stringify([id, PLAYER, down && STATUS && STATUS.error, here && here.name,
+      st && st.it.state, st && st.it.error, asking, STATUS && STATUS.free && STATUS.free.free]);
+    if (el.dataset.sig === sig) return;
+    el.dataset.sig = sig;
     el.textContent = "";
-    if (!STATUS || STATUS.error) {
+    if (down) {
       el.append(line(STATUS && STATUS.error ? `Audiobookshelf Helper: ${STATUS.error}` : "", true));
       return;
     }
-    const here = onDevice(id);
-    const st = standing(id);
     const actions = document.createElement("div");
     actions.className = "absh-item-actions";
-    if (here) {
-      actions.append(bigButton(`Remove from ${PLAYER}`, "absh-ghost",
-        (b) => act(b, { type: "remove", names: [here.name] }, "removing")));
+    if (asking) {
+      // Deleting from the player takes a second click, in place: no dialog,
+      // and it lapses by itself. The library keeps the book either way.
+      const keep = bigButton("Keep", "absh-ghost", () => unconfirm());
+      actions.append(
+        bigButton(`Yes, remove`, "absh-danger", (b) => {
+          unconfirm(false);
+          act(b, { type: "remove", names: [here.name] }, "removing");
+        }),
+        keep);
+      el.append(actions, line(`Remove from ${PLAYER}? The library keeps it.`));
+      keep.focus({ preventScroll: true });
+    } else if (here) {
+      actions.append(bigButton(`Remove from ${PLAYER}`, "absh-ghost absh-remove", () => {
+        CONFIRM = { id, timer: setTimeout(() => unconfirm(), CONFIRM_SECONDS * 1000) };
+        itemPage();
+      }));
       el.append(actions, line(`✓ On ${PLAYER}`));
     } else if (st && st.it.state !== "failed") {
       el.append(line(st.it.state === "copying" ? `Copying to ${PLAYER}…` : `Waiting to copy to ${PLAYER}`));
@@ -365,6 +388,15 @@
       el.append(actions, line(st ? `Copy failed: ${st.it.error || "try again"}`
         : `Not on ${PLAYER} yet${free ? ` · ${sizeOf(free)} free` : ""}`, !!st));
     }
+  }
+
+  /* Remove, clicked once: which book, until when. */
+  let CONFIRM = null;
+  const CONFIRM_SECONDS = 6;
+  function unconfirm(redraw = true) {
+    if (CONFIRM) clearTimeout(CONFIRM.timer);
+    CONFIRM = null;
+    if (redraw) itemPage();
   }
 
   function line(text, bad) {
