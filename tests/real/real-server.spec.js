@@ -200,7 +200,8 @@ test.describe("against a real Audiobookshelf", () => {
     const page = await libraryPage();
     const btn = page.locator("#absh-sync-btn");
     await expect(btn).toBeVisible({ timeout: 20_000 });
-    await expect(btn).toContainText("Sync to device");
+    // How much of the library is on the player, counted as the popup counts.
+    await expect(btn).toHaveText(new RegExp(` · \\d+ of ${state.titles.length} on it$`));
     await page.close();
   });
 

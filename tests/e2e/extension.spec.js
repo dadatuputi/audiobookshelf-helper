@@ -557,7 +557,7 @@ test.describe("full loop in a real browser", () => {
     await lib.goto(`${env.absUrl}/library/main`);
     const btn = lib.locator("#absh-sync-btn");
     await expect(btn).toBeVisible({ timeout: 20_000 });
-    await expect(btn).toContainText("Sync to device");
+    await expect(btn).toHaveText(/ · \d+ of \d+ on it$/);
     expect(await btn.evaluate((el) => el.closest("#toolbar") !== null)).toBe(true);
     await lib.close();
   });
@@ -712,7 +712,7 @@ test.describe("when the player is plugged in while the page is open", () => {
     // only be the event.
     await expect(page.locator("button.absh-badge.absh-copy").first())
       .toBeVisible({ timeout: 20_000 });
-    await expect(page.locator("#absh-sync-btn")).toContainText("Sync to device");
+    await expect(page.locator("#absh-sync-btn")).toHaveText(/ · \d+ of \d+ on it$/);
     await page.close();
   });
 });

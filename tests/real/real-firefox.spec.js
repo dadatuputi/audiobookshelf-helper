@@ -293,7 +293,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     const page = await libraryPage();
     const btn = page.locator("#absh-sync-btn");
     await expect(btn).toBeVisible({ timeout: 30_000 });
-    await expect(btn).toContainText("Sync to device");
+    await expect(btn).toHaveText(/ · \d+ of \d+ on it$/);
     await page.close();
   });
 

@@ -512,13 +512,20 @@
   /* -------------------------------------------------------------- toolbar */
   /* The button's words follow the player: with none answering, the covers say
      nothing, so this is where the reason is. */
+  /* The one place on the page that says how the player stands: which, and
+     how much of the library is on it, by the same count as the popup. */
   function toolbarState(b) {
     const down = STATUS && STATUS.error;
-    const text = down ? "Player not connected" : "Sync to device";
+    const on = STATUS && !down ? (STATUS.both || []).length : 0;
+    const all = STATUS && !down ? on + (STATUS.serverOnly || []).length : 0;
+    const text = down ? "Player not connected"
+      : !STATUS ? "Looking for the player…"
+      : running(JOB) ? `${PLAYER} · copying…`
+      : `${PLAYER} · ${on} of ${all} on it`;
     const label = b.querySelector(".absh-label");
     if (label && label.textContent !== text) label.textContent = text;
     b.title = down ? `Audiobookshelf Helper: ${STATUS.error}`
-      : "Audiobookshelf Helper - pick books and sync to your player";
+      : "Audiobookshelf Helper - choose books to copy";
     b.classList.toggle("absh-down", !!down);
   }
 
@@ -532,7 +539,7 @@
     b.type = "button";
     b.className = "absh-btn";
     b.title = "Audiobookshelf Helper - pick books and sync to your player";
-    b.innerHTML = '<span class="absh-ico">⤓</span><span class="absh-label">Sync to device</span>';
+    b.innerHTML = '<span class="absh-ico">⤓</span><span class="absh-label"></span>';
     b.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
