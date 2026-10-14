@@ -57,3 +57,28 @@ export async function until(fn, { timeout = 45_000, every = 500 } = {}) {
     await new Promise((r) => setTimeout(r, every));
   }
 }
+
+/** Where a cover's strip sits: on the cover, and clear of the title under it,
+ *  which is where it first landed (attached to the card, not the cover). */
+export function stripPlacement(card) {
+  return card.evaluate((c) => {
+    const s = c.querySelector(".absh-badge").getBoundingClientRect();
+    const cover = c.querySelector('[id^="cover-area-"]').getBoundingClientRect();
+    const title = c.querySelector('[cy-id="title"]')?.getBoundingClientRect();
+    return { inCover: s.top >= cover.top && s.bottom <= cover.bottom,
+             clearOfTitle: !title || s.bottom <= title.top };
+  });
+}
+
+/** Whether a book page's buttons sit under the Play people can see. The app
+ *  keeps a second, hidden Play in its select-many bar, and following that
+ *  one put them over the side rail. */
+export function underPlay(page) {
+  return page.evaluate(() => {
+    const box = document.getElementById("absh-item").getBoundingClientRect();
+    const play = [...document.querySelectorAll("button.abs-btn.bg-success")]
+      .find((b) => b.getClientRects().length && !b.closest(".modal, .h-16"))
+      .getBoundingClientRect();
+    return box.top >= play.bottom && Math.abs(box.left - play.left) < 2;
+  });
+}

@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { cardFor, deviceFiles, until } from "./shared.mjs";
+import { cardFor, deviceFiles, until, stripPlacement, underPlay } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -292,15 +292,7 @@ test.describe("against a real Audiobookshelf", () => {
     await expect(card.locator("div.absh-badge.absh-on"))
       .toContainText("✓ On ", { timeout: 45_000 });
 
-    // On the cover, not over the title under it - where it first landed.
-    const place = await card.evaluate((c) => {
-      const s = c.querySelector(".absh-badge").getBoundingClientRect();
-      const cover = c.querySelector('[id^="cover-area-"]').getBoundingClientRect();
-      const title = c.querySelector('[cy-id="title"]')?.getBoundingClientRect();
-      return { inCover: s.top >= cover.top && s.bottom <= cover.bottom,
-               clearOfTitle: !title || s.bottom <= title.top };
-    });
-    expect(place).toEqual({ inCover: true, clearOfTitle: true });
+    expect(await stripPlacement(card)).toEqual({ inCover: true, clearOfTitle: true });
     await page.close();
   });
 
@@ -318,17 +310,7 @@ test.describe("against a real Audiobookshelf", () => {
     await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
     const remove = page.locator("#absh-item button", { hasText: "Remove from" });
     await expect(remove).toBeVisible({ timeout: 30_000 });
-    // Under the Play people can see. The app keeps a second, hidden Play in
-    // its select-many bar, and following that one put these buttons over the
-    // side rail.
-    const under = await page.evaluate(() => {
-      const box = document.getElementById("absh-item").getBoundingClientRect();
-      const play = [...document.querySelectorAll("button.abs-btn.bg-success")]
-        .find((b) => b.getClientRects().length && !b.closest(".modal, .h-16"))
-        .getBoundingClientRect();
-      return box.top >= play.bottom && Math.abs(box.left - play.left) < 2;
-    });
-    expect(under, "the buttons are not under Play").toBe(true);
+    expect(await underPlay(page), "the buttons are not under Play").toBe(true);
     // Deleting asks once more, in place, and "Keep" leaves it alone.
     await remove.click();
     await page.locator("#absh-item button", { hasText: "Keep" }).click();

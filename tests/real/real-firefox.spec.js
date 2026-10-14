@@ -20,7 +20,7 @@ import net from "node:net";
 import { installTemporaryAddon, seedLocalStorage,
          readLocalStorage, grantInStore, writeProbeAddon,
          withDeclaredHostPermission, FIREFOX_PREFS } from "./firefox-addon.mjs";
-import { cardFor, deviceFiles, until } from "./shared.mjs";
+import { cardFor, deviceFiles, until, stripPlacement, underPlay } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -359,6 +359,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     // And the page catches up on its own, without a reload.
     await expect(card.locator("div.absh-badge.absh-on"))
       .toContainText("✓ On ", { timeout: 45_000 });
+    expect(await stripPlacement(card)).toEqual({ inCover: true, clearOfTitle: true });
     await page.close();
   });
 
@@ -376,6 +377,7 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
     const remove = page.locator("#absh-item button", { hasText: "Remove from" });
     await expect(remove).toBeVisible({ timeout: 30_000 });
+    expect(await underPlay(page), "the buttons are not under Play").toBe(true);
     // Deleting asks once more, in place, and "Keep" leaves it alone.
     await remove.click();
     await page.locator("#absh-item button", { hasText: "Keep" }).click();
