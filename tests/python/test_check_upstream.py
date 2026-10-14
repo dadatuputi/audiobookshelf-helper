@@ -40,6 +40,11 @@ class TestRelevantLines(unittest.TestCase):
                      "numTracks removed from minified items"):
             self.assertTrue(UP.relevant_lines(f"- {line}"), line)
 
+    def test_catches_what_the_page_buttons_rely_on(self):
+        for line in ("Book card redesign", "Item page: new Play button layout",
+                     "Upgrade to Nuxt 3", "Router base path changes", "/status returns more"):
+            self.assertTrue(UP.relevant_lines(f"- {line}"), line)
+
     def test_ignores_unrelated_notes(self):
         self.assertEqual(UP.relevant_lines("- Fix player seek bar on mobile"), [])
 
@@ -74,7 +79,8 @@ class TestReport(unittest.TestCase):
     def test_points_at_the_fixtures_to_re_record(self):
         r = UP.build_report([rel("v2.30.0")], CONTRACT)
         self.assertIn("tests/fixtures/abs", r)
-        self.assertIn("contract.test.js", r)
+        self.assertIn("TestContract", r)
+        self.assertIn("What the page buttons depend on", r)
 
 
 class TestRun(unittest.TestCase):

@@ -1,11 +1,23 @@
 {
-  "_comment": "Exactly what this extension needs from the Audiobookshelf API. If upstream changes any of it, the extension breaks in a way that looks like an empty book list rather than an error - so it is pinned here, asserted by tests/js/contract.test.js, and quoted into the issue that tools/check_upstream.py opens.",
+  "_comment": "Exactly what this extension needs from Audiobookshelf. If upstream changes any of it, the extension breaks in a way that looks like an empty book list or covers with no strips rather than an error - so it is listed here, the API shapes are asserted against the recorded fixtures beside this file by TestContract in tests/python/test_absh.py, the whole of it is exercised against a real server by tests/real at both ends of the supported range, and tools/check_upstream.py quotes it into the issue it opens.",
   "upstream": "advplyr/audiobookshelf",
   "endpoints": [
     {
       "method": "GET",
+      "path": "/status",
+      "used_for": "Settings naming the server's version, and saying when it is older than the oldest supported",
+      "fields": ["serverVersion, answered without signing in"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/me",
+      "used_for": "checking that the URL and API key work",
+      "fields": ["username or id"]
+    },
+    {
+      "method": "GET",
       "path": "/api/libraries",
-      "used_for": "populating the library dropdown",
+      "used_for": "choosing the library",
       "fields": [
         "libraries[] (or a bare array)",
         "libraries[].id",
@@ -15,32 +27,80 @@
     },
     {
       "method": "GET",
+      "path": "/api/libraries/{id}",
+      "used_for": "the folder an upload goes into",
+      "fields": ["library.folders[].id (or folders[] bare)", "library.folders[].fullPath"]
+    },
+    {
+      "method": "GET",
       "path": "/api/libraries/{id}/items?limit=0",
-      "used_for": "the book picker",
+      "used_for": "the book list",
       "fields": [
         "results[]",
         "results[].id",
         "results[].relPath",
         "results[].size",
-        "results[].media.numTracks",
-        "results[].media.audioFiles[]",
+        "results[].media.numTracks, or results[].media.audioFiles[]",
+        "results[].media.duration",
         "results[].media.metadata.title",
-        "results[].media.metadata.authorName",
-        "results[].media.metadata.authors[].name",
-        "results[].media.metadata.series[].name"
+        "results[].media.metadata.subtitle",
+        "results[].media.metadata.authorName, or authors[].name",
+        "results[].media.metadata.narratorName, or narrators[]",
+        "results[].media.metadata.seriesName, or series[].name and sequence",
+        "results[].media.metadata.publishedYear"
       ]
     },
     {
       "method": "GET",
-      "path": "/api/items/{id}/download?token={apiKey}",
-      "used_for": "fetching a book when no local share is mounted",
+      "path": "/api/items/{id}/download",
+      "used_for": "fetching a book to copy to the player",
       "fields": [
-        "accepts the JWT as a ?token= query parameter, not only as a Bearer header",
+        "accepts the API key as an Authorization: Bearer header",
         "returns a single audio file, or a zip for a multi-file book",
         "Content-Disposition filename",
         "Content-Type contains \"zip\" for the multi-file case"
       ],
-      "note": "The token-in-URL form is load-bearing: downloads.download cannot set headers, and the native helper is handed a URL. Auth.js uses ExtractJwt.fromExtractors([fromAuthHeaderAsBearerToken(), fromUrlQueryParameter('token')])."
+      "note": "Audiobookshelf also takes the key as ?token=, but a key in a URL ends up in logs and proxies, so it is never sent that way (store/PRIVACY.md)."
+    },
+    {
+      "method": "POST",
+      "path": "/api/upload",
+      "used_for": "uploading a book that is only on the player",
+      "fields": ["multipart: library, folder, title, author, series, file0..n",
+                 "places the book under <folder>/<author>/<title>"]
+    },
+    {
+      "method": "POST",
+      "path": "/api/api-keys",
+      "used_for": "the tests only, making a key the way a user does; added in v2.26.0, which is why that is the oldest supported",
+      "fields": ["apiKey.apiKey"]
+    }
+  ],
+  "page": [
+    {
+      "what": "Covers carry their book",
+      "relies_on": "[id^=\"book-card-\"] or [id^=\"item-card-\"] elements whose Vue component (el.__vue__) has libraryItem.id",
+      "used_for": "which book each cover strip belongs to, telling two versions of one title apart"
+    },
+    {
+      "what": "The cover itself",
+      "relies_on": "[id^=\"cover-area-\"] inside the card, sized in em so the strip can sit clear of its menu",
+      "used_for": "putting the strip on the cover rather than over the title under it"
+    },
+    {
+      "what": "A book's page",
+      "relies_on": "/item/<id> routes, and its Play button as button.abs-btn.bg-success (a hidden one also sits in the select-many bar)",
+      "used_for": "Copy to / Remove from the player, under Play"
+    },
+    {
+      "what": "In-app navigation",
+      "relies_on": "a single-page app on one origin (window.$nuxt.$router), reached from the server's root",
+      "used_for": "why the page script registers for the whole origin"
+    },
+    {
+      "what": "The library's own requests",
+      "relies_on": "/api/libraries/{id}/personalized returning a bare array of shelves with entities[]",
+      "used_for": "learning titles and ids from what the page already fetched"
     }
   ]
 }

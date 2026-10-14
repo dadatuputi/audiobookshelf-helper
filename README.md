@@ -394,12 +394,13 @@ simple player; keep a book as multiple files if you want to skip around.
 </details>
 
 <details>
-<summary><b>Why the token goes in the URL</b></summary>
+<summary><b>Why the API key never goes in a URL</b></summary>
 
-Audiobookshelf accepts the JWT as `?token=` as well as a Bearer header —
-`Auth.js` uses `ExtractJwt.fromExtractors([fromAuthHeaderAsBearerToken(),
-fromUrlQueryParameter('token')])`. That is what lets the helper authenticate a
-download without setting headers.
+Audiobookshelf accepts a key as `?token=` as well as a Bearer header, and an
+early version of this built such URLs for downloads. A key in a URL ends up in
+server logs, proxy logs and browser history, so every request — downloads
+included — sends it only in the `Authorization` header. `store/PRIVACY.md`
+says so, and a test holds the code to it.
 </details>
 
 <details>
@@ -588,10 +589,12 @@ something.
   `upstream` with the failing run and the changelog lines that touch what this
   depends on, and the range stays where it was.
 
-`tests/fixtures/abs/contract.json` lists exactly what this uses from the API;
-`tests/js/contract.test.js` asserts those shapes against recorded fixtures on
-every push. If an upgrade does break something, re-record the fixtures from the
-new server and fix `lib.js` until they pass — don't loosen the assertions.
+`tests/fixtures/abs/contract.json` lists exactly what this uses: the API, and
+the parts of Audiobookshelf's pages the cover strips and book-page buttons rely
+on. `TestContract` in `tests/python/test_absh.py` asserts the API shapes against
+recorded fixtures on every push; the real-server suite covers the pages. If an
+upgrade does break something, re-record the fixtures from the new server and
+fix the code until they pass — don't loosen the assertions.
 
 ## Licence
 

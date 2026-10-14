@@ -3,7 +3,7 @@
 Watch Audiobookshelf for releases that might break this extension.
 
 The failure mode being guarded against is quiet: if ABS renames a metadata
-field or stops accepting ?token=, the extension shows an empty book list or a
+field or reshapes a book's page, the extension shows an empty book list or a
 download that fails, with nothing pointing at the cause. Upstream has no reason
 to consider us, so the only defence is noticing when they ship.
 
@@ -33,7 +33,9 @@ API = "https://api.github.com/repos/{repo}/releases?per_page=10"
 INTERESTING = re.compile(
     r"\b(api|endpoint|token|auth|jwt|permission|apikey|api key|library items?|"
     r"libraries|download|zip|metadata|relpath|numtracks|audiofiles|series|"
-    r"authorname|breaking|migrat)", re.I)
+    r"authorname|narrator|duration|breaking|migrat|"
+    r"book ?cards?|cover ?area|item page|play button|toolbar|router|nuxt|vue|"
+    r"personalized|server ?version|upload|base ?path)|/status\b", re.I)
 
 
 def fetch(url):
@@ -104,13 +106,20 @@ def build_report(new_releases, contract, pinned=None):
         if e.get("note"):
             lines.append(f"  - _{e['note']}_")
         lines.append("")
+    if contract.get("page"):
+        lines += ["### What the page buttons depend on", ""]
+        for p in contract["page"]:
+            lines.append(f"**{p['what']}** — {p['used_for']}")
+            lines.append(f"  - {p['relies_on']}")
+        lines.append("")
 
     lines += [
         "### If something did change",
         "",
-        "`tests/js/contract.test.js` asserts these shapes against recorded"
-        " fixtures in `tests/fixtures/abs/`. Re-record the fixtures from the new"
-        " server and fix `extension/src/lib.js` until they pass — do not loosen"
+        "`TestContract` in `tests/python/test_absh.py` asserts the API shapes"
+        " against recorded fixtures in `tests/fixtures/abs/`; the failing run's"
+        " real-server suite shows what the page lost. Re-record the fixtures"
+        " from the new server and fix the code until they pass — do not loosen"
         " the assertions.",
     ]
     return "\n".join(lines)

@@ -281,6 +281,16 @@ class TestContract(unittest.TestCase):
         self.assertEqual(b["numTracks"], 1)
         self.assertEqual(normalize_item(results[1])["numTracks"], 12)
 
+    def test_what_tells_versions_apart(self):
+        """Narrator, length, year: the popup's second line and its details."""
+        b = normalize_item(self.fixture("items-minified.json")["results"][0])
+        self.assertEqual(b["narrator"], "Full Cast")
+        self.assertEqual(b["duration"], 28801, "rounded half up, as the JS does")
+        self.assertEqual(b["publishedYear"], "1986")
+        self.assertEqual(b["subtitle"], "", "null is no subtitle")
+        full = normalize_item(self.fixture("items-full.json")["results"][0])
+        self.assertEqual(full["narrator"], "Full Cast", "from narrators[]")
+
     def test_full_form_authors_and_series_arrays(self):
         it = self.fixture("items-full.json")["results"][0]
         b = normalize_item(it)
@@ -297,6 +307,12 @@ class TestContract(unittest.TestCase):
         paths = [e["path"] for e in self.fixture("contract.json")["endpoints"]]
         self.assertIn("/api/libraries", paths)
         self.assertIn("/api/libraries/{id}/items?limit=0", paths)
+        self.assertIn("/api/items/{id}/download", paths)
+
+    def test_the_contract_never_puts_the_key_in_a_url(self):
+        """It once said downloads used ?token=, which the code never did."""
+        for e in self.fixture("contract.json")["endpoints"]:
+            self.assertNotIn("token=", e["path"])
 
 
 # ------------------------------------------------ device, index, matching
