@@ -256,3 +256,20 @@ describe("updateState", () => {
       .toEqual({ kind: "unreachable", error: "not found" });
   });
 });
+
+describe("slowPlayerHint", () => {
+  const slow = [{ name: "SANSA", slow: true }];
+  it("on a Mac, names the removable-volume prompt", () => {
+    expect(ABSH.slowPlayerHint(slow, "MacIntel")).toMatch(/removable volume, click Allow/);
+  });
+  it("says nothing when every player answered", () => {
+    expect(ABSH.slowPlayerHint([{ name: "SANSA" }], "MacIntel")).toBe("");
+  });
+  it("says nothing off a Mac, where there is no such prompt", () => {
+    expect(ABSH.slowPlayerHint(slow, "Linux x86_64")).toBe("");
+    expect(ABSH.slowPlayerHint(slow, "Win32")).toBe("");
+  });
+  it("copes with nothing", () => {
+    expect(ABSH.slowPlayerHint(null, undefined)).toBe("");
+  });
+});

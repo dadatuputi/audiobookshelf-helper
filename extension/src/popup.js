@@ -608,6 +608,14 @@ async function detect() {
       return [];
     }
     for (const d of DEVICES) list.appendChild(pickRow(d));
+    // On a Mac, a USB player that will not answer is most often waiting on
+    // macOS's "would like to access files on a removable volume", which holds
+    // the helper's first look at it until someone clicks Allow (N7).
+    const hint = ABSH.slowPlayerHint(DEVICES, navigator.platform || navigator.userAgent);
+    if (hint) {
+      const was = $("#playerNote").textContent;
+      playerNote(was ? `${was} ${hint}` : hint, $("#playerNote").className.includes("err") ? "err" : "");
+    }
     // The player you chose before, if it is here; otherwise the one most like
     // a player - or the only one there is - offered rather than taken. A path
     // you typed that matches nothing here is left as you typed it.

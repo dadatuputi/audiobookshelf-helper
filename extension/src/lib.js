@@ -203,7 +203,18 @@
              label: `Download the helper app ${String(tag).replace(/^v/, "")}` };
   }
 
-  const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, originPattern, libraryPattern, libraryPrefix,
+  /** What to say when a detected player will not answer. On a Mac that is
+   *  most often macOS asking "would like to access files on a removable
+   *  volume", which holds the helper's first look until someone clicks Allow.
+   *  Elsewhere there is nothing more useful than the row's own "Not answering". */
+  function slowPlayerHint(devices, platform) {
+    if (!(devices || []).some((d) => d && d.slow)) return "";
+    if (!/mac/i.test(String(platform || ""))) return "";
+    return "Not answering? Look for a macOS prompt to allow access to a " +
+           "removable volume, click Allow, then Detect.";
+  }
+
+  const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, originPattern, libraryPattern, libraryPrefix,
                 formatBytes, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;
