@@ -110,5 +110,9 @@ jobs:
         if: failure()
         run: |
           tail -80 "$RUNNER_TEMP/snap-firefox.log" || true
+          echo "--- listening"; ss -ltnp 2>/dev/null | head -20 || true
+          echo "--- firefox"; pgrep -a firefox | head || true
+          echo "--- AppArmor denials"
+          sudo journalctl -k --since "-20 min" --no-pager | grep -i "apparmor=\"DENIED\"" | tail -30 || true
           journalctl --user -n 120 --no-pager || true
           ls -la ~/.mozilla/native-messaging-hosts ~/.local/share/audiobookshelf-helper || true

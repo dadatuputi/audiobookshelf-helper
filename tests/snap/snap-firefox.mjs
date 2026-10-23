@@ -22,7 +22,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import net from "node:net";
-import { installTemporaryAddon, FIREFOX_PREFS } from "../real/firefox-addon.mjs";
+import { connect, installTemporaryAddon, FIREFOX_PREFS } from "../real/firefox-addon.mjs";
 import { RdpClient, openExtensionPage } from "../real/firefox-rdp.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -41,7 +41,16 @@ mkdirSync(profile, { recursive: true });
 cpSync(join(root, "extension/dist/firefox"), addon, { recursive: true });
 
 const uuid = randomUUID();
+// Playwright's Firefox, which the other suites use, turns on what its own
+// driver needs; a stock Firefox serves the debugging protocol only with
+// these too - they are what Mozilla's web-ext sets - and first-run screens off.
 const prefs = { ...FIREFOX_PREFS,
+                "devtools.chrome.enabled": true,
+                "browser.shell.checkDefaultBrowser": false,
+                "browser.startup.homepage_override.mstone": "ignore",
+                "browser.aboutwelcome.enabled": false,
+                "datareporting.policy.dataSubmissionEnabled": false,
+                "toolkit.telemetry.reportingpolicy.firstRun": false,
                 "extensions.webextensions.uuids": JSON.stringify({ [GECKO_ID]: uuid }) };
 // widget.use-xdg-desktop-portal.native-messaging is left at the Snap's own
 // default: what is being tested is what a user gets.
@@ -76,6 +85,8 @@ const fail = (msg) => {
 
 let rdp;
 try {
+  // A Snap's first start sets itself up, which takes a while on a runner.
+  (await connect(port, 240)).end();
   const installed = await installTemporaryAddon(port, addon);
   const id = installed.addon.uuid || uuid;
   rdp = await RdpClient.open(port);
