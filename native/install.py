@@ -186,7 +186,7 @@ def sandboxed_browsers(root: Path = Path("/"), home: Path = None):
 def portal_has_webextensions(run=None):
     """True, False, or None when there is no way to ask (no gdbus, no bus)."""
     import subprocess
-    run = run or (lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=5))
+    run = run or (lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=10))
     try:
         r = run(["gdbus", "introspect", "--session", *PORTAL])
     except (OSError, subprocess.SubprocessError):
@@ -196,13 +196,19 @@ def portal_has_webextensions(run=None):
     return "org.freedesktop.portal.WebExtensions" in r.stdout
 
 
-def allow_command(host_name: str = None) -> str:
-    """Re-allow the helper for the Firefox Snap, after "Don't allow". gdbus is
-    on every Ubuntu desktop; the flatpak tool, which can do the same, is not."""
+# How the portal names each sandboxed Firefox when it records a choice.
+PORTAL_APP = {"snap": "snap.firefox", "flatpak": "org.mozilla.firefox"}
+
+
+def allow_command(kind: str = "snap", host_name: str = None) -> str:
+    """Re-allow the helper for a sandboxed Firefox after "Don't allow". gdbus
+    is on every Ubuntu desktop; the flatpak tool, which can do the same, is
+    not always. The portal keys the choice by app, so a Snap and a Flatpak
+    each need their own."""
     return ("gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore "
             "--object-path /org/freedesktop/impl/portal/PermissionStore "
             "--method org.freedesktop.impl.portal.PermissionStore.SetPermission "
-            f"webextensions true {host_name or HOST_NAME} snap.firefox \"['yes']\"")
+            f"webextensions true {host_name or HOST_NAME} {PORTAL_APP[kind]} \"['yes']\"")
 
 
 def sandbox_advice(found, portal=None) -> str:
@@ -220,6 +226,15 @@ def sandbox_advice(found, portal=None) -> str:
             lines += ["  If you chose Don't allow, run this, then restart Firefox:",
                       "    " + allow_command()]
             out.append("\n".join(lines))
+        elif (browser, kind) == ("firefox", "flatpak") and portal is True:
+            # Where the portal exists - Ubuntu's - a Flatpak uses it as a Snap
+            # does, and the choice it remembers is keyed to the Flatpak's id.
+            out.append("\n".join([
+                "Firefox here is a Flatpak, and this system's desktop portal can "
+                "start the helper for it: the first time the extension connects, "
+                "you are asked whether to allow it - choose Allow.",
+                "  If you chose Don't allow, run this, then restart Firefox:",
+                "    " + allow_command("flatpak")]))
         elif (browser, kind) == ("firefox", "flatpak"):
             out.append("Firefox here is a Flatpak. A Flatpak Firefox can start the helper "
                        "only through a desktop portal most systems do not have yet "
@@ -452,7 +467,7 @@ def main():
         if platform.system() == "Linux":
             found = [f for f in sandboxed_browsers() if a.browser in ("all", f[0])]
             portal = (portal_has_webextensions()
-                      if ("firefox", "snap") in found else None)
+                      if any(b == "firefox" for b, _ in found) else None)
             advice = sandbox_advice(found, portal)
             if advice:
                 print()

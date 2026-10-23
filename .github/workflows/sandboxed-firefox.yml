@@ -1,0 +1,174 @@
+name: Sandboxed Firefox
+
+# A Snap or Flatpak Firefox cannot start the helper itself. Ubuntu's desktop
+# portal does it, from the manifest install.py writes, once the user allows
+# it; where there is no portal - most systems a Flatpak runs on - nothing can,
+# and the extension has to say so. Nothing in ci.yml runs either path - its
+# Firefox is Playwright's - so this does, weekly and whenever the files it
+# exercises change. It is kept out of ci.yml because it leans on snapd,
+# Flatpak, a user session and the portal on a CI runner, and none of that
+# should be able to turn unrelated work red.
+
+on:
+  schedule:
+    - cron: "37 7 * * 2"       # Tuesdays
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - native/install.py
+      - absh/host.py
+      - extension/src/background.js
+      - extension/src/options.js
+      - tests/sandbox/**
+      - .github/workflows/sandboxed-firefox.yml
+
+permissions:
+  contents: read
+
+jobs:
+  firefox:
+    name: ${{ matrix.title }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - title: Firefox Snap reaches the helper through the portal
+            kind: snap
+            portal: true
+            expect: answers
+            says: "Firefox here is a Snap"
+          - title: Firefox Flatpak reaches the helper through the portal
+            kind: flatpak
+            portal: true
+            expect: answers
+            says: "choose Allow"
+          # Most systems a Flatpak runs on have no WebExtensions portal. With
+          # Ubuntu's switched off, Firefox finds none and falls back to what
+          # it would do anywhere else.
+          - title: Firefox Flatpak with no portal says why
+            kind: flatpak
+            portal: false
+            expect: absent
+            says: "most systems do not have yet"
+    env:
+      KIND: ${{ matrix.kind }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+
+      - name: Install Ubuntu's desktop portal
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdg-desktop-portal xdg-desktop-portal-gtk libglib2.0-bin dbus-user-session
+          apt-cache policy xdg-desktop-portal | head -3
+
+      - name: Install the Firefox Snap
+        if: matrix.kind == 'snap'
+        run: |
+          snap list firefox 2>/dev/null || sudo snap install firefox
+          snap list firefox
+
+      # Flathub's Firefox, as a user installs it. Ubuntu 24.04 keeps
+      # unprivileged user namespaces behind AppArmor, and Flatpak's sandbox
+      # needs one; a desktop install gets its profile from the distribution,
+      # a bare runner does not.
+      - name: Install the Firefox Flatpak
+        if: matrix.kind == 'flatpak'
+        run: |
+          sudo apt-get install -y -qq flatpak
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.mozilla.firefox
+          flatpak info --user org.mozilla.firefox | head -12
+
+      # A user session like a desktop's: systemd --user, its session bus, and
+      # D-Bus activation for the portal and its permission store. The portal
+      # tells which app is asking from the snap.firefox scope snap run makes,
+      # or from the Flatpak's own sandbox.
+      - name: Start a user session
+        run: |
+          sudo loginctl enable-linger "$USER"
+          uid=$(id -u)
+          for i in $(seq 1 30); do [ -S "/run/user/$uid/bus" ] && break; sleep 1; done
+          ls -l "/run/user/$uid/bus"
+          {
+            echo "XDG_RUNTIME_DIR=/run/user/$uid"
+            echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus"
+            echo "DISPLAY=:99"
+            echo "XDG_CURRENT_DESKTOP=ubuntu:GNOME"
+          } >> "$GITHUB_ENV"
+          Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
+          # A desktop session hands its display to the user's services; here
+          # nothing does, and the portal's GTK backend then dies with "cannot
+          # open display", leaving every portal call to time out.
+          export XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus"
+          export DISPLAY=:99 XDG_CURRENT_DESKTOP=ubuntu:GNOME
+          systemctl --user import-environment DISPLAY XDG_CURRENT_DESKTOP
+          dbus-update-activation-environment --systemd DISPLAY XDG_CURRENT_DESKTOP
+
+      - name: Switch the portal off, as on a system without it
+        if: matrix.portal == false
+        run: |
+          systemctl --user mask --now xdg-desktop-portal.service
+          if gdbus introspect --session --dest org.freedesktop.portal.Desktop \
+               --object-path /org/freedesktop/portal/desktop >/dev/null 2>&1; then
+            echo "::error::the portal still answers"; exit 1
+          fi
+
+      - name: Build the add-on, and package the helper as a release
+        run: |
+          python extension/build.py --target firefox
+          python tools/package.py --tag v1.0.0-rc.99 --out "$RUNNER_TEMP/release"
+
+      - name: Install the helper from the download, as a user does
+        env:
+          SAYS: ${{ matrix.says }}
+        run: |
+          dl="$RUNNER_TEMP/Downloads/app"
+          python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
+            "$RUNNER_TEMP/release/audiobookshelf-helper-app-1.0.0-rc.99.zip" "$dl"
+          python "$dl/install.py" --browser firefox | tee "$RUNNER_TEMP/install.log"
+          rm -rf "$RUNNER_TEMP/Downloads"
+          grep -qF "$SAYS" "$RUNNER_TEMP/install.log" \
+            || { echo "::error::install.py did not say \"$SAYS\" for the $KIND"; exit 1; }
+          if grep -q "no WebExtensions support" "$RUNNER_TEMP/install.log"; then
+            echo "::error::install.py says this runner's portal has no WebExtensions support"
+            exit 1
+          fi
+
+      # What a user does after clicking "Don't allow" - the command install.py
+      # prints for this kind of Firefox - stands in for clicking Allow, which a
+      # runner cannot.
+      - name: Allow the helper, with the command install.py prints
+        if: matrix.portal == true
+        run: |
+          gdbus introspect --session --dest org.freedesktop.portal.Desktop \
+            --object-path /org/freedesktop/portal/desktop | grep WebExtensions \
+            || { echo "::error::the desktop portal has no WebExtensions interface"; exit 1; }
+          cmd=$(python -c "import importlib.util as u, sys; s = u.spec_from_file_location('i', 'native/install.py'); m = u.module_from_spec(s); s.loader.exec_module(m); print(m.allow_command(sys.argv[1]))" "$KIND")
+          echo "$cmd"
+          eval "$cmd"
+
+      - name: Drive Firefox to Settings and check what the Helper row says
+        env:
+          SANDBOX_LOG: ${{ runner.temp }}/firefox.log
+        run: node tests/sandbox/firefox.mjs "$KIND" "${{ matrix.expect }}" 1.0.0-rc.99
+
+      - name: What the portal and Firefox said
+        if: failure()
+        run: |
+          tail -80 "$RUNNER_TEMP/firefox.log" || true
+          echo "--- listening"; ss -ltnp 2>/dev/null | head -20 || true
+          echo "--- firefox"; pgrep -a firefox | head || true
+          echo "--- AppArmor denials"
+          sudo journalctl -k --since "-20 min" --no-pager | grep -i "apparmor=\"DENIED\"" | tail -30 || true
+          journalctl --user -n 120 --no-pager || true
+          ls -la ~/.mozilla/native-messaging-hosts ~/.local/share/audiobookshelf-helper || true

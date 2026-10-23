@@ -392,7 +392,7 @@ to expect, including the `gdbus` command that undoes "Don't allow". On Linux,
 Settings and the popup link the README's "Sandboxed browsers on Linux" from
 their install steps. The location rule the portal states - the helper out
 of the confined browser's reach - holds since N14 put it under a hidden
-folder, which a Snap cannot write. `snap-firefox.yml` installs the Snap and a
+folder, which a Snap cannot write. `sandboxed-firefox.yml` installs the Snap and a
 packaged helper on Ubuntu 24.04, allows it with the printed command, and
 drives Settings until the Helper row shows that copy answering through the
 portal; weekly, and on changes to what it covers, outside ci.yml. It also
@@ -403,7 +403,15 @@ showed the installed 1.0.0-rc.99 answering. Getting there on a runner took
 handing the virtual display to the user session (the portal's GTK backend
 died without it), `devtools.chrome.enabled` for the debugger, and a file
 rather than a data: address to mark the tab. Flatpak remains untested end
-to end: there is no supported path to test.
+to end: there is no supported path to test. *(Superseded below: the same
+job now covers Flatpak too.)* Flatpak, added after: the same workflow runs
+Flathub's Firefox twice - with Ubuntu's portal, expecting the installed helper
+to answer through it, and with the portal switched off, as on most systems a
+Flatpak runs on, expecting Settings to say "Not installed" and link the
+README. Writing it found that the "undo Don't allow" command named the Snap
+alone; the portal keys the choice by app, so a Flatpak gets one naming
+`org.mozilla.firefox`, and install.py now tells a Flatpak user on a system
+with the portal to choose Allow, like a Snap user.
 
 ## Todo
 

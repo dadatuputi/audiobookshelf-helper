@@ -118,8 +118,10 @@ finds.
   Firefox. The portal needs Ubuntu 22.04 or later; `install.py` says if yours
   lacks it. A weekly CI job installs the Snap and checks this end to end.
 - **Firefox as a Flatpak** works only where the same portal exists, which on
-  most distributions it does not yet. Without it, Settings will say the helper
-  is not installed. Use Firefox from your distribution or from Mozilla instead.
+  most distributions it does not yet; where it does (Ubuntu), it works as the
+  Snap does, and `install.py` prints the Flatpak's own "undo Don't allow"
+  command. Without it, Settings will say the helper is not installed. The
+  weekly job checks both. Use Firefox from your distribution or from Mozilla instead.
   There is a workaround — give the Flatpak permission to run programs on the
   host (`flatpak override --user --talk-name=org.freedesktop.Flatpak
   org.mozilla.firefox`) and point a manifest at a `flatpak-spawn --host`

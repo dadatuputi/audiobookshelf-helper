@@ -363,6 +363,18 @@ class TestSandboxedBrowsers(unittest.TestCase):
         self.assertNotIn("no WebExtensions support",
                          INSTALL.sandbox_advice([("firefox", "snap")], portal=None))
 
+    def test_flatpak_firefox_with_the_portal_is_told_to_allow_with_its_own_id(self):
+        text = INSTALL.sandbox_advice([("firefox", "flatpak")], portal=True)
+        self.assertIn("choose Allow", text)
+        self.assertIn(f"{INSTALL.HOST_NAME} org.mozilla.firefox", text)
+        self.assertNotIn("snap.firefox", text)
+
+    def test_flatpak_firefox_without_a_known_portal_gets_the_honest_story(self):
+        for portal in (False, None):
+            text = INSTALL.sandbox_advice([("firefox", "flatpak")], portal=portal)
+            self.assertIn("most systems do not have yet", text)
+            self.assertNotIn("choose Allow", text)
+
     def test_flatpak_firefox_is_not_given_a_sandbox_escape(self):
         text = INSTALL.sandbox_advice([("firefox", "flatpak")])
         self.assertIn("Sandboxed browsers on Linux", text)
