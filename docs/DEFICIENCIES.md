@@ -395,7 +395,15 @@ of the confined browser's reach - holds since N14 put it under a hidden
 folder, which a Snap cannot write. `snap-firefox.yml` installs the Snap and a
 packaged helper on Ubuntu 24.04, allows it with the printed command, and
 drives Settings until the Helper row shows that copy answering through the
-portal; weekly, and on changes to what it covers, outside ci.yml.
+portal; weekly, and on changes to what it covers, outside ci.yml. It also
+requires Firefox's own log of the portal call. **Proven** on `ac0e0db`
+(Ubuntu 24.04, xdg-desktop-portal 1.18.4-1ubuntu2.24.04.3): the portal found
+the manifest, started `io.github.abshelper` for this add-on, and Settings
+showed the installed 1.0.0-rc.99 answering. Getting there on a runner took
+handing the virtual display to the user session (the portal's GTK backend
+died without it), `devtools.chrome.enabled` for the debugger, and a file
+rather than a data: address to mark the tab. Flatpak remains untested end
+to end: there is no supported path to test.
 
 ## Todo
 
