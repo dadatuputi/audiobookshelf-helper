@@ -71,7 +71,10 @@ you need two files:
 
 - `audiobookshelf-helper-app-<version>.zip` — **the helper app, for your
   computer**. Unzip it, run `python3 install.py` in that folder, restart the
-  browser.
+  browser. It copies itself to a folder of its own — `~/Library/Application
+  Support/Audiobookshelf Helper` on a Mac, `~/.local/share/audiobookshelf-helper`
+  on Linux, `%LOCALAPPDATA%\Audiobookshelf Helper` on Windows — so the
+  download can be deleted afterwards. Updates go there too.
 - `audiobookshelf-helper-firefox-extension-<version>.xpi` (open it in Firefox),
   or `audiobookshelf-helper-chrome-extension-<version>.zip` (unzip it, then
   Load unpacked).
@@ -91,9 +94,13 @@ Then load the extension:
 - **Chrome** — `chrome://extensions` → Developer mode → Load unpacked →
   `extension/dist/chrome`
 
-`install.py` takes `--dry-run` and `--uninstall`. On Windows it points the
-browser at a generated `.bat`, because Windows browsers cannot execute a `.py`
-directly.
+`install.py` takes `--dry-run` and `--uninstall` (which removes the installed
+copy too). A checkout is registered where it is, so what you edit is what
+runs. The browser is pointed at a generated launcher — a `.bat` on Windows,
+which cannot execute a `.py` directly, and a shell script elsewhere — that
+names the Python you installed with, falls back to `/usr/bin/python3` if that
+one goes, and says on stderr (Firefox's Browser Console) if the helper's files
+are missing.
 
 ### Chrome, without the helper
 

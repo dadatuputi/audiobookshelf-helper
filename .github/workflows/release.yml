@@ -130,7 +130,7 @@ jobs:
             echo
             echo "| File | What it is |"
             echo "|---|---|"
-            echo "| \`$P-app-$V.zip\` | **Helper app, for your computer. Required.** Copies books to your player. Unzip it, run \`python3 install.py\` in that folder, restart the browser. |"
+            echo "| \`$P-app-$V.zip\` | **Helper app, for your computer. Required.** Copies books to your player. Unzip it, run \`python3 install.py\` in that folder, restart the browser. It installs a copy of itself, so the download can be deleted after. |"
             echo "| \`$P-firefox-extension-$V.xpi\` | **Firefox extension.** Open it in Firefox. |"
             echo "| \`$P-chrome-extension-$V.zip\` | **Chrome extension.** Unzip it, then *Load unpacked* at \`chrome://extensions\` (Developer mode). |"
             echo "| \`$P-firefox-extension-unsigned-$V.zip\` | Firefox extension before Mozilla signs it, for \`about:debugging\`. |"

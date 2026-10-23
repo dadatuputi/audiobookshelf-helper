@@ -39,7 +39,9 @@ function port() {
   if (PORT) return PORT;
   const self = browser.runtime.connectNative(HOST);
   PORT = self;
+  let heard = false;
   PORT.onMessage.addListener((msg) => {
+    heard = true;
     // The helper speaks unprompted too: it watches for volumes appearing and
     // disappearing, and says so. Those carry no rid, because they answer no
     // request - they used to be dropped here as unmatched replies.
@@ -73,7 +75,15 @@ function port() {
     // only lastError left every Firefox user with "disconnected" and no reason.
     const why = (p && p.error && p.error.message) ||
                 (browser.runtime.lastError && browser.runtime.lastError.message);
-    dropPort(why || "native helper disconnected");
+    // Firefox gives no reason when the helper exits by itself. One that quit
+    // before saying a word did not start: most often its files were moved or
+    // deleted - it used to run from wherever it was unzipped - or the Python
+    // it was installed with is gone. Its stderr is in the Browser Console.
+    // Chrome says only "Native host has exited.", which is no better.
+    const quit = !heard && (!why || /has exited/i.test(why));
+    dropPort(quit ? "The helper app quit as soon as it started. If its folder was " +
+                    "moved or deleted, install it again."
+      : why || "native helper disconnected");
   });
   return PORT;
 }

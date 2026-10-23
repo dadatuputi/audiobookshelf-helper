@@ -719,6 +719,35 @@ test.describe("when the player is plugged in while the page is open", () => {
 
 /* First run, before the user has granted anything: the add-on has to explain
  * itself rather than fail with a bare network error. */
+test.describe("when the helper's files are gone", () => {
+  test.skip(({ browserName }) => browserName !== "chromium",
+            "chromium project only - needs --load-extension");
+
+  let ctx;
+
+  test.beforeAll(async () => {
+    // What install.py's launcher does when the folder it points at is gone:
+    // say so on stderr, and exit before a word on stdout. A release used to
+    // run from wherever it was unzipped, so tidying Downloads did exactly this.
+    const gone = join(mkdtempSync(join(tmpdir(), "absh-gone-")), "absh_host.sh");
+    writeFileSync(gone, "#!/bin/sh\necho 'Audiobookshelf Helper: its files are gone' >&2\nexit 1\n");
+    chmodSync(gone, 0o755);
+    ctx = await launch(makeProfile(null, gone));
+  });
+
+  test.afterAll(async () => { await ctx?.close(); });
+
+  test("Settings says it quit at once, and how to put it back", async () => {
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await expect(page.locator("#sum-helper")).toHaveText("Not starting", { timeout: 20_000 });
+    await expect(page.locator("#sec-helper")).toContainText("quit as soon as it started");
+    await expect(page.locator("#sec-helper")).toContainText("install it again");
+    await expect(page.locator("#sec-helper")).not.toContainText("native helper disconnected");
+    await page.close();
+  });
+});
+
 test.describe("before access is granted", () => {
   test.skip(({ browserName }) => browserName !== "chromium",
             "chromium project only - needs --load-extension");

@@ -350,6 +350,25 @@ parts of Audiobookshelf's pages the strips and buttons rely on; it points at
 `TestContract` in `tests/python/test_absh.py`, which checks the new fields
 and that no endpoint carries a key in its URL.
 
+### N14. The helper ran from wherever it was unzipped (alpha.8, macOS) — FIXED
+Seen: Settings at "Helper · Not starting", "native helper disconnected",
+"regularly". The Browser Console had the cause: the launcher ran
+`~/Downloads/audiobookshelf-helper-app-1.0.0-alpha.6/absh_host.py`, a folder
+since deleted. `install.py` registered the folder it was run from, so tidying
+Downloads broke the helper, and an update replaced files in Downloads too.
+**Status:** fixed after `v1.0.0-alpha.8`. A release copies itself to
+`app_home()` (Application Support on a Mac, `~/.local/share` on Linux,
+`%LOCALAPPDATA%` on Windows), swapping a whole fresh copy in on a reinstall,
+and registers that; it says the download can be deleted, and `--uninstall`
+removes the copy. A checkout still runs in place. The launcher falls back to
+`/usr/bin/python3` if the recorded interpreter goes, and says on stderr if the
+helper's files are missing. A helper that quits before replying is now named
+as such in Settings and the popup ("quit as soon as it started … install it
+again"), instead of "native helper disconnected" or Chrome's "Native host has
+exited.". Tests install an unpacked release into a scratch home, delete the
+download, and ping through the launcher. An existing install stays where it
+is until `install.py` is run again from a new download.
+
 ## Todo
 
 ### T1. Consume ping's `release` and offer the update — DONE (`0138d94`)

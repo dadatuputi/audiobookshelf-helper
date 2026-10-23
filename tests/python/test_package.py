@@ -4,7 +4,7 @@ The store-rejection this guards against is silent and slow: a zip whose
 manifest sits one directory down is refused at upload with a message that
 never mentions nesting.
 """
-import importlib.util, json, shutil, tempfile, unittest, zipfile
+import importlib.util, json, os, shutil, sys, tempfile, unittest, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -149,6 +149,87 @@ class TestNativeArchive(PackageBase):
             self.assertIn(f"audiobookshelf-helper-chrome-extension-{semver}.zip", p.stdout)
         finally:
             shutil.rmtree(out, ignore_errors=True)
+
+
+@unittest.skipIf(sys.platform.startswith("win"), "a real install writes the registry")
+class TestReleaseInstallsItself(PackageBase):
+    """A release used to register itself wherever it was unzipped. Once that
+    folder in Downloads was tidied away, Firefox launched a host that was not
+    there and said only "native helper disconnected". It copies itself to a
+    home of its own now, so the download can go."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.home = self.tmp / "home"
+        self.home.mkdir()
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith("XDG_")} | {"HOME": str(self.home)}
+
+    def unzip(self):
+        dl = self.tmp / "Downloads" / "app"
+        with zipfile.ZipFile(self.find("native")) as z:
+            z.extractall(dl)
+        return dl
+
+    def run_installer(self, folder, *args):
+        import subprocess
+        return subprocess.run([sys.executable, str(folder / "install.py"),
+                               "--browser", "firefox", *args],
+                              env=self.env, capture_output=True, text=True,
+                              timeout=60, check=True)
+
+    def manifest(self):
+        found = list(self.home.rglob("io.github.abshelper.json"))
+        self.assertEqual(len(found), 1, found)
+        return json.loads(found[0].read_text())
+
+    def ping(self, launcher):
+        import subprocess, struct
+        body = json.dumps({"cmd": "ping"}).encode()
+        p = subprocess.run([launcher], input=struct.pack("<I", len(body)) + body,
+                           capture_output=True, timeout=60,
+                           env={"PATH": "/nonexistent", "HOME": str(self.home)})
+        self.assertEqual(p.returncode, 0, p.stderr.decode()[:400])
+        n = struct.unpack("<I", p.stdout[:4])[0]
+        return json.loads(p.stdout[4:4 + n])
+
+    def test_it_still_starts_after_the_download_is_deleted(self):
+        dl = self.unzip()
+        out = self.run_installer(dl).stdout
+        self.assertIn(f"You can delete {dl}", out)
+        shutil.rmtree(dl.parent)
+        launcher = self.manifest()["path"]
+        self.assertNotIn("Downloads", Path(launcher).read_text())
+        self.assertTrue(self.ping(launcher)["ok"])
+
+    def test_a_reinstall_replaces_the_copy_rather_than_layering_on_it(self):
+        self.run_installer(self.unzip())
+        home = next(self.home.rglob("absh_host.py")).parent
+        (home / "absh" / "stale_module.py").write_text("raise SystemExit")
+        shutil.rmtree(self.tmp / "Downloads")
+        self.run_installer(self.unzip())
+        self.assertFalse((home / "absh" / "stale_module.py").exists())
+        self.assertTrue(self.ping(self.manifest()["path"])["ok"])
+
+    def test_uninstall_takes_the_copy_too(self):
+        self.run_installer(self.unzip())
+        home = next(self.home.rglob("absh_host.py")).parent
+        import subprocess
+        subprocess.run([sys.executable, str(home / "install.py"), "--uninstall"],
+                       env=self.env, capture_output=True, timeout=60, check=True)
+        self.assertFalse(home.exists())
+        self.assertEqual(list(self.home.rglob("io.github.abshelper.json")), [])
+
+    def test_a_gone_helper_says_so_where_firefox_shows_it(self):
+        self.run_installer(self.unzip())
+        launcher = self.manifest()["path"]
+        shutil.rmtree(next(self.home.rglob("absh_host.py")).parent)
+        import subprocess
+        p = subprocess.run([launcher], input=b"", capture_output=True, timeout=30)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn(b"run install.py again", p.stderr)
 
 
 class TestManifest(PackageBase):
