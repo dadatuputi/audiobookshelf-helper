@@ -265,6 +265,11 @@ function showHelper({ helper, check }, checking) {
     $("helperLink").href = get.url;
     $("helperLink").textContent = get.label;
     if (get.page) $("helperPage").href = get.page;
+    const sandbox = ABSH.sandboxHelp(navigator.platform, globalThis.ABSH_CONFIG);
+    if (sandbox) {
+      $("helperSandbox").href = sandbox.url;
+      $("helperSandbox").textContent = sandbox.label;
+    }
     when.textContent = "";
     helperRow(s);
     return;

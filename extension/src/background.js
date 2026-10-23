@@ -79,8 +79,10 @@ function port() {
     // before saying a word did not start: most often its files were moved or
     // deleted - it used to run from wherever it was unzipped - or the Python
     // it was installed with is gone. Its stderr is in the Browser Console.
-    // Chrome says only "Native host has exited.", which is no better.
-    const quit = !heard && (!why || /has exited/i.test(why));
+    // Chrome says only "Native host has exited." or, depending on timing,
+    // "Error when communicating with the native messaging host.", which are
+    // no better. Not found, and not allowed, are left as they are.
+    const quit = !heard && (!why || /has exited|error when communicating/i.test(why));
     dropPort(quit ? "The helper app quit as soon as it started. If its folder was " +
                     "moved or deleted, install it again."
       : why || "native helper disconnected");

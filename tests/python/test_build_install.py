@@ -316,6 +316,95 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(INSTALL.build_manifest("firefox", [])["allowed_extensions"], [built])
 
 
+class TestSandboxedBrowsers(unittest.TestCase):
+    """Snap and Flatpak browsers on Linux reach the helper differently, or
+    not at all; install.py says which, from what is on disk."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.home = self.root / "home" / "u"
+        self.home.mkdir(parents=True)
+
+    def have(self, path):
+        p = self.home / path[2:] if path.startswith("~/") else self.root / path.lstrip("/")
+        p.mkdir(parents=True)
+
+    def found(self):
+        return INSTALL.sandboxed_browsers(self.root, self.home)
+
+    def test_nothing_sandboxed_says_nothing(self):
+        self.assertEqual(self.found(), [])
+        self.assertEqual(INSTALL.sandbox_advice([]), "")
+
+    def test_each_package_is_recognised(self):
+        for path, want in [("/snap/firefox/current", ("firefox", "snap")),
+                           ("~/.var/app/org.mozilla.firefox", ("firefox", "flatpak")),
+                           ("/var/lib/flatpak/app/org.mozilla.firefox", ("firefox", "flatpak")),
+                           ("/snap/chromium/current", ("chrome", "snap")),
+                           ("~/.var/app/com.google.Chrome", ("chrome", "flatpak"))]:
+            with self.subTest(path=path):
+                shutil.rmtree(self.root / "snap", ignore_errors=True)
+                shutil.rmtree(self.root / "var", ignore_errors=True)
+                shutil.rmtree(self.home / ".var", ignore_errors=True)
+                self.have(path)
+                self.assertEqual(self.found(), [want])
+
+    def test_snap_firefox_is_told_to_allow_and_how_to_undo_a_no(self):
+        text = INSTALL.sandbox_advice([("firefox", "snap")], portal=True)
+        self.assertIn("choose Allow", text)
+        self.assertIn(f"webextensions true {INSTALL.HOST_NAME} snap.firefox", text)
+        self.assertNotIn("no WebExtensions support", text)
+
+    def test_snap_firefox_without_the_portal_is_told_it_cannot_work(self):
+        self.assertIn("no WebExtensions support",
+                      INSTALL.sandbox_advice([("firefox", "snap")], portal=False))
+        # Not knowing is not the same as knowing it is missing.
+        self.assertNotIn("no WebExtensions support",
+                         INSTALL.sandbox_advice([("firefox", "snap")], portal=None))
+
+    def test_flatpak_firefox_is_not_given_a_sandbox_escape(self):
+        text = INSTALL.sandbox_advice([("firefox", "flatpak")])
+        self.assertIn("Sandboxed browsers on Linux", text)
+        self.assertNotIn("flatpak override", text)
+        self.assertNotIn("flatpak-spawn", text)
+
+    def test_sandboxed_chromium_is_pointed_at_folder_mode(self):
+        for kind in ("snap", "flatpak"):
+            self.assertIn("folder mode", INSTALL.sandbox_advice([("chrome", kind)]))
+
+    def test_the_portal_check(self):
+        Ok = type("R", (), {})
+        def ran(code, out):
+            r = Ok(); r.returncode = code; r.stdout = out
+            return lambda argv: r
+        iface = "interface org.freedesktop.portal.WebExtensions {"
+        self.assertIs(INSTALL.portal_has_webextensions(ran(0, iface)), True)
+        self.assertIs(INSTALL.portal_has_webextensions(ran(0, "interface x.y {")), False)
+        self.assertIsNone(INSTALL.portal_has_webextensions(ran(1, "")))
+        def missing(argv):
+            raise FileNotFoundError("gdbus")
+        self.assertIsNone(INSTALL.portal_has_webextensions(missing))
+
+
+class TestWhereTheSnapPortalLooks(unittest.TestCase):
+    """The portal reads the manifest from the real home's ~/.mozilla, and
+    wants the manifest and the helper out of the confined browser's reach.
+    A Snap's home access stops at hidden folders, so the helper must live in
+    one - never in Downloads, where it used to."""
+
+    def test_the_manifest_is_where_the_portal_reads(self):
+        d = INSTALL.manifest_dirs("Linux", "firefox")[0]
+        self.assertEqual(d, Path.home() / ".mozilla" / "native-messaging-hosts")
+
+    def test_the_helper_lives_in_a_hidden_folder(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("XDG_DATA_HOME", None)
+            home = INSTALL.app_home("Linux")
+        rel = home.relative_to(Path.home())
+        self.assertTrue(rel.parts[0].startswith("."), home)
+
+
 class TestInstallDryRun(unittest.TestCase):
     def test_dry_run_writes_nothing(self):
         tmp = Path(tempfile.mkdtemp())

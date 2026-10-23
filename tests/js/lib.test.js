@@ -273,3 +273,19 @@ describe("slowPlayerHint", () => {
     expect(ABSH.slowPlayerHint(null, undefined)).toBe("");
   });
 });
+
+describe("sandboxHelp", () => {
+  it("on Linux, links the README of this build's own release", () => {
+    const h = ABSH.sandboxHelp("Linux x86_64", { repo: "o/r", release: "v1.0.0-alpha.9" });
+    expect(h.url).toBe("https://github.com/o/r/blob/v1.0.0-alpha.9/README.md#sandboxed-browsers-on-linux");
+    expect(h.label).toMatch(/Snap or Flatpak/);
+  });
+  it("a local build, which is no release, links main", () => {
+    expect(ABSH.sandboxHelp("Linux x86_64", {}).url).toMatch(/\/blob\/main\/README\.md#/);
+  });
+  it("says nothing elsewhere", () => {
+    for (const p of ["MacIntel", "Win32", "Linux armv8l Android", "", undefined]) {
+      expect(ABSH.sandboxHelp(p, {})).toBeNull();
+    }
+  });
+});

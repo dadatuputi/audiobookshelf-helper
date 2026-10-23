@@ -142,6 +142,99 @@ def unplace(dry: bool, system: str = None):
           else f"  could not remove {dest} - delete it by hand")
 
 
+# ------------------------------------------------- sandboxed browsers (Linux)
+#
+# A Snap or Flatpak browser cannot start a program outside its sandbox itself.
+# Ubuntu's Firefox Snap asks the desktop portal to do it: the portal reads the
+# same ~/.mozilla/native-messaging-hosts manifest this writes, asks the user
+# once, and starts the helper outside the sandbox. Elsewhere there is usually
+# no such portal, and nothing here can make one - so this says what to expect
+# rather than trying. See "Sandboxed browsers on Linux" in the README.
+
+# Where each package shows up. Paths starting "~" are under the user's home.
+SANDBOXES = [
+    ("firefox", "snap", ["/snap/firefox/current"]),
+    ("firefox", "flatpak", ["~/.var/app/org.mozilla.firefox",
+                            "~/.local/share/flatpak/app/org.mozilla.firefox",
+                            "/var/lib/flatpak/app/org.mozilla.firefox"]),
+    ("chrome", "snap", ["/snap/chromium/current"]),
+    ("chrome", "flatpak", ["~/.var/app/org.chromium.Chromium",
+                           "~/.var/app/com.google.Chrome",
+                           "~/.local/share/flatpak/app/org.chromium.Chromium",
+                           "~/.local/share/flatpak/app/com.google.Chrome",
+                           "/var/lib/flatpak/app/org.chromium.Chromium",
+                           "/var/lib/flatpak/app/com.google.Chrome"]),
+]
+
+PORTAL = ("--dest", "org.freedesktop.portal.Desktop",
+          "--object-path", "/org/freedesktop/portal/desktop")
+
+
+def sandboxed_browsers(root: Path = Path("/"), home: Path = None):
+    """[(browser, "snap" | "flatpak")] installed here, in SANDBOXES order."""
+    home = home or Path.home()
+    found = []
+    for browser, kind, paths in SANDBOXES:
+        for p in paths:
+            where = home / p[2:] if p.startswith("~/") else root / p.lstrip("/")
+            if where.exists():
+                found.append((browser, kind))
+                break
+    return found
+
+
+def portal_has_webextensions(run=None):
+    """True, False, or None when there is no way to ask (no gdbus, no bus)."""
+    import subprocess
+    run = run or (lambda argv: subprocess.run(argv, capture_output=True, text=True, timeout=5))
+    try:
+        r = run(["gdbus", "introspect", "--session", *PORTAL])
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0:
+        return None
+    return "org.freedesktop.portal.WebExtensions" in r.stdout
+
+
+def allow_command(host_name: str = None) -> str:
+    """Re-allow the helper for the Firefox Snap, after "Don't allow". gdbus is
+    on every Ubuntu desktop; the flatpak tool, which can do the same, is not."""
+    return ("gdbus call --session --dest org.freedesktop.impl.portal.PermissionStore "
+            "--object-path /org/freedesktop/impl/portal/PermissionStore "
+            "--method org.freedesktop.impl.portal.PermissionStore.SetPermission "
+            f"webextensions true {host_name or HOST_NAME} snap.firefox \"['yes']\"")
+
+
+def sandbox_advice(found, portal=None) -> str:
+    """What to expect from each sandboxed browser found, or "" if none."""
+    out = []
+    for browser, kind in found:
+        if (browser, kind) == ("firefox", "snap"):
+            lines = ["Firefox here is a Snap. It reaches the helper through Ubuntu's "
+                     "desktop portal: the first time the extension connects, Ubuntu "
+                     "asks whether to allow it - choose Allow."]
+            if portal is False:
+                lines.append("  But this system's desktop portal has no WebExtensions "
+                             "support, so the Snap cannot start the helper. Update "
+                             "xdg-desktop-portal, or use Firefox from Mozilla's .deb.")
+            lines += ["  If you chose Don't allow, run this, then restart Firefox:",
+                      "    " + allow_command()]
+            out.append("\n".join(lines))
+        elif (browser, kind) == ("firefox", "flatpak"):
+            out.append("Firefox here is a Flatpak. A Flatpak Firefox can start the helper "
+                       "only through a desktop portal most systems do not have yet "
+                       "(Ubuntu's does); without one, the extension will say the helper "
+                       "is not installed. Use Firefox from your distribution or Mozilla "
+                       "instead - or see \"Sandboxed browsers on Linux\" in the README, "
+                       "which explains a workaround and what it costs.")
+        elif browser == "chrome":
+            name = "a Snap" if kind == "snap" else "a Flatpak"
+            out.append(f"Chromium or Chrome here is {name}, which cannot start the "
+                       "helper. Use the extension's folder mode instead: Settings -> "
+                       "Folder, no helper needed.")
+    return "\n\n".join(out)
+
+
 def manifest_dirs(system: str, browser: str):
     home = Path.home()
     if system == "Darwin":
@@ -356,6 +449,14 @@ def main():
     else:
         print()
         print(next_steps(host))
+        if platform.system() == "Linux":
+            found = [f for f in sandboxed_browsers() if a.browser in ("all", f[0])]
+            portal = (portal_has_webextensions()
+                      if ("firefox", "snap") in found else None)
+            advice = sandbox_advice(found, portal)
+            if advice:
+                print()
+                print(advice)
 
 
 def release_version():

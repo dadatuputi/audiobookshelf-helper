@@ -214,7 +214,19 @@
            "removable volume, click Allow, then Detect.";
   }
 
-  const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, originPattern, libraryPattern, libraryPrefix,
+  /** On Linux, where to read about a Snap or Flatpak browser before
+   *  installing the helper - they reach it differently, or not at all. The
+   *  README of the release this build is, so the advice matches it. */
+  function sandboxHelp(platform, cfg) {
+    if (!/linux/i.test(String(platform || "")) || /android/i.test(String(platform || ""))) return null;
+    cfg = cfg || {};
+    const repo = cfg.repo || "dadatuputi/audiobookshelf-helper";
+    const ref = cfg.release ? encodeURIComponent(cfg.release) : "main";
+    return { label: "Firefox or Chromium from a Snap or Flatpak? Read this first",
+             url: `https://github.com/${repo}/blob/${ref}/README.md#sandboxed-browsers-on-linux` };
+  }
+
+  const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, sandboxHelp, originPattern, libraryPattern, libraryPrefix,
                 formatBytes, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;

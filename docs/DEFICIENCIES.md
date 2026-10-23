@@ -377,6 +377,26 @@ rename the old folder - Windows refuses while a file in it is open - copies
 over it instead. `TestPlacedOnEveryOS` runs the copy and the launcher on the
 Windows, macOS and Linux runners alike, without touching the registry.
 
+### N15. Snap and Flatpak browsers on Linux were never considered — ADDRESSED
+A sandboxed browser cannot start the helper itself. **Snap Firefox**
+(Ubuntu's default) asks Ubuntu's WebExtensions desktop portal, which reads
+the manifest install.py already writes to `~/.mozilla/native-messaging-hosts`,
+asks the user once, and starts the helper outside the sandbox. **Flatpak
+Firefox** has that portal only where the distribution carries Ubuntu's patch,
+which most do not; the known workaround lets Firefox run anything on the
+host, so it is described, not set up (maintainer, 2026-10-23). **Sandboxed
+Chromium** cannot start the helper at all; the helper-free folder mode is
+the answer. **Status:** install.py recognises each from what is on disk,
+checks a Snap's portal for WebExtensions support over D-Bus, and says what
+to expect, including the `gdbus` command that undoes "Don't allow". On Linux,
+Settings and the popup link the README's "Sandboxed browsers on Linux" from
+their install steps. The location rule the portal states - the helper out
+of the confined browser's reach - holds since N14 put it under a hidden
+folder, which a Snap cannot write. `snap-firefox.yml` installs the Snap and a
+packaged helper on Ubuntu 24.04, allows it with the printed command, and
+drives Settings until the Helper row shows that copy answering through the
+portal; weekly, and on changes to what it covers, outside ci.yml.
+
 ## Todo
 
 ### T1. Consume ping's `release` and offer the update — DONE (`0138d94`)

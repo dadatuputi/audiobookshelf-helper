@@ -102,6 +102,34 @@ names the Python you installed with, falls back to `/usr/bin/python3` if that
 one goes, and says on stderr (Firefox's Browser Console) if the helper's files
 are missing.
 
+### Sandboxed browsers on Linux
+
+A browser installed as a Snap or a Flatpak cannot start a program outside its
+sandbox by itself, and the helper is one. `install.py` says which of these it
+finds.
+
+- **Firefox as a Snap** (Ubuntu's default) works. It asks Ubuntu's desktop
+  portal to start the helper. The portal reads the manifest `install.py` writes
+  to `~/.mozilla/native-messaging-hosts` and starts the helper outside the
+  sandbox, where it can reach your player. The first time the extension
+  connects, Ubuntu asks whether to allow it: choose **Allow**. If you chose
+  *Don't allow*, run the command `install.py` printed (a `gdbus call …
+  SetPermission webextensions … snap.firefox "['yes']"`), then restart
+  Firefox. The portal needs Ubuntu 22.04 or later; `install.py` says if yours
+  lacks it. A weekly CI job installs the Snap and checks this end to end.
+- **Firefox as a Flatpak** works only where the same portal exists, which on
+  most distributions it does not yet. Without it, Settings will say the helper
+  is not installed. Use Firefox from your distribution or from Mozilla instead.
+  There is a workaround — give the Flatpak permission to run programs on the
+  host (`flatpak override --user --talk-name=org.freedesktop.Flatpak
+  org.mozilla.firefox`) and point a manifest at a `flatpak-spawn --host`
+  wrapper — but that lets anything in Firefox run anything on your computer,
+  which is the protection a Flatpak exists to give. This project does not set
+  it up for you.
+- **Chromium or Chrome as a Snap or Flatpak** cannot start the helper. Use
+  [Chrome without the helper](#chrome-without-the-helper): it writes to the
+  player's folder itself.
+
 ### Chrome, without the helper
 
 If you can't install the helper, or would rather not, Chrome can write to the

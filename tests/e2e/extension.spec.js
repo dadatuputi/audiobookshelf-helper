@@ -744,6 +744,12 @@ test.describe("when the helper's files are gone", () => {
     await expect(page.locator("#sec-helper")).toContainText("quit as soon as it started");
     await expect(page.locator("#sec-helper")).toContainText("install it again");
     await expect(page.locator("#sec-helper")).not.toContainText("native helper disconnected");
+    // On Linux, beside the install steps: read this first if the browser is a
+    // Snap or a Flatpak. The runners are Linux; elsewhere it is not shown.
+    if (process.platform === "linux") {
+      await expect(page.locator("#helperSandbox"))
+        .toHaveAttribute("href", /README\.md#sandboxed-browsers-on-linux$/);
+    }
     await page.close();
   });
 });

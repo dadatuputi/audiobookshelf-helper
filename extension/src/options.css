@@ -53,6 +53,8 @@ h1 { margin: 0; flex: 1 1 auto; font-size: 22px; font-weight: 600; }
 #helperVersion:empty { display: none; }
 #helperPage { min-height: 44px; display: inline-flex; align-items: center; }
 #helperPage:not([href]) { display: none; }
+#helperSandbox { min-height: 44px; display: inline-flex; align-items: center; }
+#helperSandbox:not([href]) { display: none; }
 #updateSteps { margin: 0; padding-left: 1.2rem; font-size: 12px; color: var(--muted); }
 #updateSteps:empty { display: none; }
 

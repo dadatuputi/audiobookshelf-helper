@@ -426,6 +426,17 @@ function setup({ title, why = "", steps = [], get = null, opts = false, retry = 
     a.href = get.url;
     a.textContent = get.label;
   }
+  // Only beside an install: a Snap or Flatpak browser on Linux reaches the
+  // helper differently, or not at all.
+  const sandbox = get && ABSH.sandboxHelp(navigator.platform, globalThis.ABSH_CONFIG);
+  const sb = $("#setupSandbox");
+  if (sandbox) {
+    sb.href = sandbox.url;
+    sb.textContent = sandbox.label;
+  } else {
+    sb.removeAttribute("href");
+    sb.textContent = "";
+  }
   $("#setupOpts").classList.toggle("hidden", !opts);
   $("#setupRetry").classList.toggle("hidden", !retry);
   $("#setup").classList.remove("hidden");
