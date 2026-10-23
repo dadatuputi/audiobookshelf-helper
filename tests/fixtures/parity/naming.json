@@ -2860,6 +2860,7 @@
       "count": 1,
       "event": "item",
       "index": 1,
+      "name": "scruffy_rip.m4a",
       "op": "push",
       "title": "The Silmarillion"
      },
@@ -2911,6 +2912,7 @@
       "count": 1,
       "event": "item",
       "index": 1,
+      "name": "LOUD.M4A",
       "op": "push",
       "title": "The Silmarillion"
      },
@@ -2962,6 +2964,7 @@
       "count": 1,
       "event": "item",
       "index": 1,
+      "name": "Some Book.mp3",
       "op": "push",
       "title": "Some Book"
      },
@@ -3011,6 +3014,7 @@
       "count": 1,
       "event": "item",
       "index": 1,
+      "name": "Big Book",
       "op": "push",
       "title": "Big"
      },
@@ -3087,6 +3091,7 @@
       "count": 1,
       "event": "item",
       "index": 1,
+      "name": "Holes.m4a",
       "op": "push",
       "title": "Holes"
      },

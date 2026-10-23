@@ -1101,7 +1101,7 @@
     const rep = report();
     for (let n = 0; n < entries.length; n++) {
       const e = entries[n];
-      emit({ event: "item", title: e.title, index: n + 1, count: entries.length, op: "push" });
+      emit({ event: "item", title: e.title, name: e.name, index: n + 1, count: entries.length, op: "push" });
       try {
         await pushEntry(c, e, opts, rep, emit);
       } catch (err) {
