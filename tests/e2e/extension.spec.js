@@ -13,7 +13,7 @@ import { test, expect, chromium } from "@playwright/test";
 import { createServer } from "node:http";
 import {
   mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, statSync,
-  copyFileSync, chmodSync
+  copyFileSync, chmodSync, rmSync
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -627,6 +627,28 @@ test.describe("full loop in a real browser", () => {
     // Seen now, so the check mark goes.
     await expect.poll(badge, { timeout: 10_000 }).toBe("");
     await again.close();
+  });
+
+  test("books queued one at a time are counted as one run, not each as 1 of N", async () => {
+    // Clicking cover after cover queues one job per book. The footer counted
+    // only what was running and waiting, so a finished book left the count:
+    // "Copying 1 of 34", then "1 of 33", and it ended at "Copied 1".
+    for (const f of deviceFiles(env.dev)) rmSync(join(env.dev, "AUDIOBOOKS", f), { recursive: true });
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await page.evaluate(async (books) => {
+      for (const b of books) {
+        await chrome.runtime.sendMessage({ type: "jobAdd", op: "pull", player: "test",
+          items: [{ key: b.id, ref: b.id, title: b.title, bytes: 2048 }] });
+      }
+    }, BOOKS);
+    await page.close();
+    await expect.poll(() => deviceFiles(env.dev).length, { timeout: 30_000 }).toBe(BOOKS.length);
+
+    const pop = await env.ctx.newPage();
+    await pop.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(pop.locator("#jobBox")).toContainText(`Copied ${BOOKS.length} to`, { timeout: 20_000 });
+    await pop.close();
   });
 });
 

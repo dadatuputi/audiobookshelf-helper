@@ -478,12 +478,13 @@ async function route(msg, onProgress) {
  *
  * Jobs run one at a time, in the order asked for; a new one asked for while
  * another runs waits its turn. */
-const JOBS = { current: null, queue: [], last: null, seq: 0, seen: true };
+const JOBS = { current: null, queue: [], last: null, seq: 0, seen: true, batch: null };
 const POPUPS = new Set();                // open popups and settings pages
 let LAST_STATUS = null;                  // so a popup opened mid-copy has a shelf
 
 function snapshot() {
-  return { current: JOBS.current, queue: JOBS.queue, last: JOBS.last, seen: JOBS.seen };
+  return { current: JOBS.current, queue: JOBS.queue, last: JOBS.last, seen: JOBS.seen,
+           batch: JOBS.batch };
 }
 
 let BROADCAST = null;
@@ -544,6 +545,10 @@ function notify(job) {
 /* Queue a job: op is pull, push or remove; each item names what it acts on
  * (`ref`: a library item id to pull, a name on the player otherwise). */
 function addJob(op, items, player) {
+  // A run is everything queued from idle until idle again - ten covers
+  // clicked one after another are one run of ten, whatever the jobs. Counted
+  // as a run, so a finished book is "2 of 10", not gone from "1 of 9".
+  if (!JOBS.current && !JOBS.queue.length) JOBS.batch = { startedAt: Date.now(), finished: [] };
   const job = {
     id: ++JOBS.seq, op, player: player || "",
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
@@ -564,12 +569,18 @@ async function runJobs() {
     JOBS.current = job;
     job.startedAt = Date.now();
     changed();
-    // The helper reports each item as it starts, in the order asked for.
+    // The helper reports each item as it starts - in library order, not the
+    // order asked for, so matched by what it names (a pull's id, an upload's
+    // or removal's name). Matching by position put one book's title on
+    // another's progress.
     let at = -1;
     const onProgress = (ev) => {
       if (ev.event === "item") {
-        if (at >= 0 && job.items[at].state === "copying") job.items[at].state = "done";
-        at += 1;
+        const key = ev.id ?? ev.name ?? (job.op === "remove" ? ev.title : undefined);
+        let i = key == null ? -1 : job.items.findIndex((x) => x.ref === key);
+        if (i < 0) i = at + 1;
+        for (const it of job.items) if (it.state === "copying") it.state = "done";
+        at = i;
         if (job.items[at]) Object.assign(job.items[at], { state: "copying", done: 0, total: 0 });
       } else if (ev.event === "progress" && job.items[at]) {
         job.items[at].done = ev.done || 0;
@@ -595,6 +606,7 @@ async function runJobs() {
       for (const it of job.items) if (it.state !== "done") it.state = "failed";
     }
     job.finishedAt = Date.now();
+    if (JOBS.batch) JOBS.batch.finished.push(...job.items);
     JOBS.last = job;
     JOBS.current = null;
     changed();

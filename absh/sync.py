@@ -231,8 +231,8 @@ def push_entry(client, entry, opts, report, emit=_noop):
 def push(client, entries, opts, emit=_noop):
     report = Report()
     for n, entry in enumerate(entries, 1):
-        emit({"event": "item", "title": entry.get("title"), "index": n,
-              "count": len(entries), "op": "push"})
+        emit({"event": "item", "title": entry.get("title"), "name": entry.get("name"),
+              "index": n, "count": len(entries), "op": "push"})
         try:
             push_entry(client, entry, opts, report, emit)
         except Exception as e:

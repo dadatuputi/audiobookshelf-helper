@@ -199,7 +199,13 @@ function renderJob() {
   box.classList.toggle("hidden", !j);
   if (!j) return;
   const where = j.op === "push" ? (LIB || "the library") : (j.player || playerLabel());
-  const items = [j, ...(JOB.current ? JOB.queue : [])].flatMap((x) => x.items);
+  // The whole run: what finished earlier in it, what is running, what waits.
+  // Once it is over, the run is what is summed up, not just its last job.
+  const run = (JOB.batch && JOB.batch.finished) || [];
+  const items = JOB.current
+    ? [...run, ...[j, ...JOB.queue].flatMap((x) => x.items)]
+    : run.length ? run : j.items;
+  const startedAt = (JOB.batch && JOB.batch.startedAt) || j.startedAt;
   const done = items.filter((i) => i.state === "done");
   const failed = items.filter((i) => i.state === "failed");
   const total = items.reduce((n, i) => n + i.bytes, 0);
@@ -222,14 +228,14 @@ function renderJob() {
   bar.classList.toggle("hidden", !JOB.current);
   bar.firstElementChild.style.width = total ? `${Math.round(100 * moved / total)}%` : "0%";
   let sub = "";
-  if (JOB.current && done.length && j.startedAt) {
-    const rate = (moved || 1) / (Date.now() - j.startedAt);
+  if (JOB.current && done.length && startedAt) {
+    const rate = (moved || 1) / (Date.now() - startedAt);
     const left = Math.round((total - moved) / rate / 60000);
     sub = left >= 1 ? `About ${left} ${left === 1 ? "minute" : "minutes"} left` : "Under a minute left";
   } else if (JOB.current && cur) {
     sub = cur.title;
   } else if (!JOB.current) {
-    const mins = Math.max(1, Math.round((j.finishedAt - j.startedAt) / 60000));
+    const mins = Math.max(1, Math.round((j.finishedAt - startedAt) / 60000));
     sub = j.error || (failed.length ? failed.map((i) => `${i.title}: ${i.error || "failed"}`).join("\n")
                                     : `${mins} min`);
   }
