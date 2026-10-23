@@ -119,9 +119,24 @@ jobs:
           # nothing does, and the portal's GTK backend then dies with "cannot
           # open display", leaving every portal call to time out.
           export XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus"
-          export DISPLAY=:99 XDG_CURRENT_DESKTOP=ubuntu:GNOME
-          systemctl --user import-environment DISPLAY XDG_CURRENT_DESKTOP
-          dbus-update-activation-environment --systemd DISPLAY XDG_CURRENT_DESKTOP
+          # GTK also waits on an accessibility bus a runner does not have,
+          # which made the portal's backend slow enough to start that a
+          # caller's 25s timeout ran out first.
+          export DISPLAY=:99 XDG_CURRENT_DESKTOP=ubuntu:GNOME NO_AT_BRIDGE=1 GTK_A11Y=none
+          systemctl --user import-environment DISPLAY XDG_CURRENT_DESKTOP NO_AT_BRIDGE GTK_A11Y
+          dbus-update-activation-environment --systemd DISPLAY XDG_CURRENT_DESKTOP NO_AT_BRIDGE GTK_A11Y
+
+      # Started once, and waited for, before anything depends on it - its
+      # first start on a runner has been slow enough to time a caller out.
+      - name: Wait for the portal
+        if: matrix.portal == true
+        run: |
+          for i in $(seq 1 12); do
+            gdbus introspect --session --dest org.freedesktop.portal.Desktop \
+              --object-path /org/freedesktop/portal/desktop >/dev/null 2>&1 && { echo "up after try $i"; exit 0; }
+            sleep 5
+          done
+          echo "::error::the desktop portal did not start"; exit 1
 
       - name: Switch the portal off, as on a system without it
         if: matrix.portal == false
