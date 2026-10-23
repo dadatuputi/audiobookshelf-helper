@@ -366,6 +366,8 @@ class TestSandboxedBrowsers(unittest.TestCase):
     def test_flatpak_firefox_with_the_portal_is_told_to_allow_with_its_own_id(self):
         text = INSTALL.sandbox_advice([("firefox", "flatpak")], portal=True)
         self.assertIn("choose Allow", text)
+        # Flathub's Firefox leaves the portal off; without this it never asks.
+        self.assertIn("widget.use-xdg-desktop-portal.native-messaging = 1", text)
         self.assertIn(f"{INSTALL.HOST_NAME} org.mozilla.firefox", text)
         self.assertNotIn("snap.firefox", text)
 

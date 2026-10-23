@@ -40,11 +40,20 @@ jobs:
             portal: true
             expect: answers
             says: "Firefox here is a Snap"
-          - title: Firefox Flatpak reaches the helper through the portal
+          # Flathub's Firefox does not use the portal by default, even where
+          # it exists: as installed, it cannot reach the helper ...
+          - title: Firefox Flatpak, as installed, does not use the portal
             kind: flatpak
             portal: true
+            expect: absent
+            says: "about:config"
+          # ... and with the one pref install.py tells the user to set, it does.
+          - title: Firefox Flatpak reaches the helper once told to use the portal
+            kind: flatpak
+            portal: true
+            pref: "1"
             expect: answers
-            says: "choose Allow"
+            says: "widget.use-xdg-desktop-portal.native-messaging = 1"
           # Most systems a Flatpak runs on have no WebExtensions portal. With
           # Ubuntu's switched off, Firefox finds none and falls back to what
           # it would do anywhere else.
@@ -160,6 +169,7 @@ jobs:
       - name: Drive Firefox to Settings and check what the Helper row says
         env:
           SANDBOX_LOG: ${{ runner.temp }}/firefox.log
+          PORTAL_PREF: ${{ matrix.pref }}
         run: node tests/sandbox/firefox.mjs "$KIND" "${{ matrix.expect }}" 1.0.0-rc.99
 
       - name: What the portal and Firefox said

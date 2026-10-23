@@ -118,10 +118,14 @@ finds.
   Firefox. The portal needs Ubuntu 22.04 or later; `install.py` says if yours
   lacks it. A weekly CI job installs the Snap and checks this end to end.
 - **Firefox as a Flatpak** works only where the same portal exists, which on
-  most distributions it does not yet; where it does (Ubuntu), it works as the
-  Snap does, and `install.py` prints the Flatpak's own "undo Don't allow"
-  command. Without it, Settings will say the helper is not installed. The
-  weekly job checks both. Use Firefox from your distribution or from Mozilla instead.
+  most distributions it does not yet — and even there, Flathub's Firefox does
+  not use it until told to. Where the portal exists (Ubuntu), open
+  `about:config`, set `widget.use-xdg-desktop-portal.native-messaging` to `1`,
+  restart Firefox, and choose **Allow** when asked; this opens nothing else in
+  Firefox's sandbox. `install.py` says so, with the Flatpak's own "undo Don't
+  allow" command. Without the portal, Settings will say the helper is not
+  installed. The weekly job checks all three: as installed, with the setting,
+  and with no portal. Use Firefox from your distribution or from Mozilla instead.
   There is a workaround — give the Flatpak permission to run programs on the
   host (`flatpak override --user --talk-name=org.freedesktop.Flatpak
   org.mozilla.firefox`) and point a manifest at a `flatpak-spawn --host`

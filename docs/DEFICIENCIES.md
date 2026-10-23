@@ -410,8 +410,15 @@ to answer through it, and with the portal switched off, as on most systems a
 Flatpak runs on, expecting Settings to say "Not installed" and link the
 README. Writing it found that the "undo Don't allow" command named the Snap
 alone; the portal keys the choice by app, so a Flatpak gets one naming
-`org.mozilla.firefox`, and install.py now tells a Flatpak user on a system
-with the portal to choose Allow, like a Snap user.
+`org.mozilla.firefox`. Its first run found more: Flathub's Firefox logs
+"NativeMessagingPortal will not be used" - it leaves
+`widget.use-xdg-desktop-portal.native-messaging` off, where Ubuntu's Snap
+turns it on - so even with the portal it could not reach the helper.
+install.py now tells a Flatpak user on a system with the portal to set it
+to 1 in about:config (which, unlike the flatpak-spawn workaround, opens
+nothing else), then choose Allow. The job runs the Flatpak as installed
+(expects "Not installed"), with that setting (expects the helper answering
+through the portal), and with no portal (expects "Not installed").
 
 ## Todo
 

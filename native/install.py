@@ -196,6 +196,10 @@ def portal_has_webextensions(run=None):
     return "org.freedesktop.portal.WebExtensions" in r.stdout
 
 
+# Whether Firefox asks the portal to start a helper: 0 never, 1 always,
+# 2 when it finds one. Ubuntu's Snap ships it on; Flathub's Firefox does not.
+PORTAL_PREF = "widget.use-xdg-desktop-portal.native-messaging"
+
 # How the portal names each sandboxed Firefox when it records a choice.
 PORTAL_APP = {"snap": "snap.firefox", "flatpak": "org.mozilla.firefox"}
 
@@ -229,10 +233,16 @@ def sandbox_advice(found, portal=None) -> str:
         elif (browser, kind) == ("firefox", "flatpak") and portal is True:
             # Where the portal exists - Ubuntu's - a Flatpak uses it as a Snap
             # does, and the choice it remembers is keyed to the Flatpak's id.
+            # But Flathub's Firefox does not use the portal unless told to:
+            # its default leaves the pref off, where Ubuntu's Snap turns it on.
             out.append("\n".join([
                 "Firefox here is a Flatpak, and this system's desktop portal can "
-                "start the helper for it: the first time the extension connects, "
-                "you are asked whether to allow it - choose Allow.",
+                "start the helper for it - but Flathub's Firefox does not use the "
+                "portal until you tell it to. In Firefox, open about:config, set",
+                f"    {PORTAL_PREF} = 1",
+                "  and restart Firefox. The first time the extension connects, you "
+                "are asked whether to allow it - choose Allow. This opens nothing "
+                "else in Firefox's sandbox.",
                 "  If you chose Don't allow, run this, then restart Firefox:",
                 "    " + allow_command("flatpak")]))
         elif (browser, kind) == ("firefox", "flatpak"):

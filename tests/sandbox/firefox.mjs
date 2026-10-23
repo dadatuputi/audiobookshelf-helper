@@ -32,6 +32,9 @@ import { connect, installTemporaryAddon, FIREFOX_PREFS } from "../real/firefox-a
 import { RdpClient, openExtensionPage } from "../real/firefox-rdp.mjs";
 
 const [kind, expect, want = ""] = process.argv.slice(2);
+// What a user can turn on: whether Firefox asks the portal (see install.py).
+// Unset, the package's own default stands.
+const PORTAL_PREF = process.env.PORTAL_PREF;
 if (!["snap", "flatpak"].includes(kind) || !["answers", "absent"].includes(expect)) {
   console.error("usage: node tests/sandbox/firefox.mjs <snap|flatpak> <answers|absent> [release]");
   process.exit(2);
@@ -68,7 +71,9 @@ const prefs = { ...FIREFOX_PREFS,
                 "toolkit.telemetry.reportingpolicy.firstRun": false,
                 "extensions.webextensions.uuids": JSON.stringify({ [GECKO_ID]: uuid }) };
 // widget.use-xdg-desktop-portal.native-messaging is left at the package's own
-// default: what is being tested is what a user gets.
+// default unless PORTAL_PREF says otherwise: what is tested is what a user
+// gets, or what install.py tells them to set.
+if (PORTAL_PREF) prefs["widget.use-xdg-desktop-portal.native-messaging"] = Number(PORTAL_PREF);
 writeFileSync(join(profile, "user.js"), Object.entries(prefs)
   .map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("\n") + "\n");
 
