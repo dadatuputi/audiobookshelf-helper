@@ -16,7 +16,7 @@
  *   node tests/snap/snap-firefox.mjs <expected helper release>
  */
 import { spawn } from "node:child_process";
-import { cpSync, mkdirSync, rmSync, writeFileSync, createWriteStream } from "node:fs";
+import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, createWriteStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -28,8 +28,7 @@ import { RdpClient, openExtensionPage } from "../real/firefox-rdp.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const want = process.argv[2] || "";
-const GECKO_ID = JSON.parse(
-  (await import("node:fs")).readFileSync(join(root, "extension/identity.json"), "utf8")).geckoId;
+const GECKO_ID = JSON.parse(readFileSync(join(root, "extension/identity.json"), "utf8")).geckoId;
 
 // The Snap reads and writes freely only in its own corner of home. The
 // profile and the add-on go there; the helper does not, and must not.
@@ -117,6 +116,14 @@ try {
     fail(`the helper that answered is not the one install.py installed ` +
          `(wanted ${want}, Settings says "${got.summary}")`);
   }
+  // And that it was the portal that started it: Firefox logs each call it
+  // makes to the portal (MOZ_LOG above). A helper reached any other way
+  // would leave none.
+  await new Promise((r) => log.end(r));
+  const portal = readFileSync(logPath, "utf8").split("\n")
+    .filter((l) => /NativeMessagingPortal/.test(l));
+  for (const l of portal.slice(0, 12)) console.log(`  ${l}`);
+  if (!portal.length) fail("the helper answered, but Firefox logged no call to the portal");
   console.log("OK: the Firefox Snap started the helper through the desktop portal");
 } catch (e) {
   fail(exited || String(e && e.stack || e));
