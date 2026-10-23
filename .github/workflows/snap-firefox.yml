@@ -67,13 +67,13 @@ jobs:
       - name: Build the add-on, and package the helper as a release
         run: |
           python extension/build.py --target firefox
-          python tools/package.py --tag v1.0.0-ci.1 --out "$RUNNER_TEMP/release"
+          python tools/package.py --tag v1.0.0-rc.99 --out "$RUNNER_TEMP/release"
 
       - name: Install the helper from the download, as a user does
         run: |
           dl="$RUNNER_TEMP/Downloads/app"
           python -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" \
-            "$RUNNER_TEMP/release/audiobookshelf-helper-app-1.0.0-ci.1.zip" "$dl"
+            "$RUNNER_TEMP/release/audiobookshelf-helper-app-1.0.0-rc.99.zip" "$dl"
           python "$dl/install.py" --browser firefox | tee "$RUNNER_TEMP/install.log"
           rm -rf "$RUNNER_TEMP/Downloads"
           grep -q "Firefox here is a Snap" "$RUNNER_TEMP/install.log" \
@@ -96,7 +96,7 @@ jobs:
       - name: Drive the Snap to Settings and check the helper answers
         env:
           SNAP_LOG: ${{ runner.temp }}/snap-firefox.log
-        run: node tests/snap/snap-firefox.mjs 1.0.0-ci.1
+        run: node tests/snap/snap-firefox.mjs 1.0.0-rc.99
 
       - name: What the portal and Firefox said
         if: failure()
