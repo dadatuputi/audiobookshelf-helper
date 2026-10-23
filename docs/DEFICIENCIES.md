@@ -368,6 +368,14 @@ again"), instead of "native helper disconnected" or Chrome's "Native host has
 exited.". Tests install an unpacked release into a scratch home, delete the
 download, and ping through the launcher. An existing install stays where it
 is until `install.py` is run again from a new download.
+Windows got the same guards in its `.bat`: `py -3` if the recorded Python is
+gone, and a line on stderr if the helper is. It is written as exact UTF-8
+bytes with `chcp 65001` first (written as text, every line ended `\r\r\n`,
+and a non-ASCII user name was garbled), and with labels rather than `( )`
+blocks, which a ")" in a path would close early. A reinstall that cannot
+rename the old folder - Windows refuses while a file in it is open - copies
+over it instead. `TestPlacedOnEveryOS` runs the copy and the launcher on the
+Windows, macOS and Linux runners alike, without touching the registry.
 
 ## Todo
 

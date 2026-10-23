@@ -6,6 +6,7 @@ never mentions nesting.
 """
 import importlib.util, json, os, shutil, sys, tempfile, unittest, zipfile
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("packager", ROOT / "tools" / "package.py")
@@ -198,7 +199,7 @@ class TestReleaseInstallsItself(PackageBase):
     def test_it_still_starts_after_the_download_is_deleted(self):
         dl = self.unzip()
         out = self.run_installer(dl).stdout
-        self.assertIn(f"You can delete {dl}", out)
+        self.assertIn(f"You can delete {dl.resolve()}", out)   # /var is /private/var on a Mac
         shutil.rmtree(dl.parent)
         launcher = self.manifest()["path"]
         self.assertNotIn("Downloads", Path(launcher).read_text())
@@ -230,6 +231,79 @@ class TestReleaseInstallsItself(PackageBase):
         p = subprocess.run([launcher], input=b"", capture_output=True, timeout=30)
         self.assertNotEqual(p.returncode, 0)
         self.assertIn(b"run install.py again", p.stderr)
+
+
+class TestPlacedOnEveryOS(PackageBase):
+    """The copy-and-launch half of installing, on whatever OS runs this -
+    Windows included, which TestReleaseInstallsItself skips because a full
+    install writes the registry. Here nothing outside a scratch folder is
+    touched: the installer's own place() and launcher writer are driven
+    directly, and the launcher is run exactly as a browser runs it."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.dl = self.tmp / "Downloads" / "app"
+        with zipfile.ZipFile(self.find("native")) as z:
+            z.extractall(self.dl)
+        spec = importlib.util.spec_from_file_location("placed_install", self.dl / "install.py")
+        self.inst = importlib.util.module_from_spec(spec)
+        # install.py imports the identity module beside it; one cached from an
+        # earlier test's (deleted) folder would be found instead.
+        saved = sys.modules.pop("identity", None)
+        self.addCleanup(lambda: sys.modules.__setitem__("identity", saved) if saved
+                        else sys.modules.pop("identity", None))
+        path = list(sys.path)
+        self.addCleanup(lambda: sys.path.__setitem__(slice(None), path))
+        spec.loader.exec_module(self.inst)
+        env = {"HOME": str(self.tmp / "home"), "USERPROFILE": str(self.tmp / "home"),
+               "LOCALAPPDATA": str(self.tmp / "local"),
+               "XDG_DATA_HOME": str(self.tmp / "share")}
+        patcher = mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def launcher_for(self, host):
+        if os.name == "nt":
+            return self.inst.write_windows_launcher(self.tmp / "absh_host.bat", host)
+        return self.inst.write_posix_launcher(self.tmp / "absh_host.sh", host)
+
+    def run_launcher(self, launcher, body=None):
+        import subprocess, struct
+        data = b"" if body is None else struct.pack("<I", len(body)) + body
+        return subprocess.run([str(launcher)], input=data, capture_output=True, timeout=60)
+
+    def test_placed_where_it_stays_and_runs_without_the_download(self):
+        host = self.inst.place(dry=False)
+        self.assertTrue(host.resolve().is_relative_to(self.tmp.resolve()), host)
+        self.assertNotIn("Downloads", str(host))
+        launcher = self.launcher_for(host)
+        shutil.rmtree(self.tmp / "Downloads", ignore_errors=True)
+        p = self.run_launcher(launcher, json.dumps({"cmd": "ping"}).encode())
+        self.assertEqual(p.returncode, 0, p.stderr.decode(errors="replace")[:400])
+        import struct
+        n = struct.unpack("<I", p.stdout[:4])[0]
+        self.assertTrue(json.loads(p.stdout[4:4 + n])["ok"])
+
+    def test_a_launcher_whose_helper_is_gone_says_so(self):
+        host = self.inst.place(dry=False)
+        launcher = self.launcher_for(host)
+        shutil.rmtree(host.parent)
+        p = self.run_launcher(launcher)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn(b"run install.py again", p.stderr)
+
+    def test_a_folder_that_cannot_be_renamed_is_copied_over_instead(self):
+        """Windows refuses to rename a folder with a file open in it."""
+        host = self.inst.place(dry=False)
+        stale = host.parent / "absh" / "stale_module.py"
+        stale.write_text("raise SystemExit")
+        with mock.patch.object(Path, "rename", side_effect=PermissionError("in use")):
+            again = self.inst.place(dry=False)
+        self.assertEqual(again, host)
+        self.assertFalse(stale.exists(), "the copy kept a file the release does not have")
+        self.assertTrue((host.parent / "absh" / "host.py").is_file())
+        self.assertFalse(host.parent.with_name(host.parent.name + ".new").exists())
 
 
 class TestManifest(PackageBase):

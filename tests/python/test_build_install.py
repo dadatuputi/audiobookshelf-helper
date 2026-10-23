@@ -275,6 +275,20 @@ class TestWindowsLauncher(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_launcher_is_crlf_exactly_and_utf8(self):
+        tmp = Path(tempfile.mkdtemp())
+        try:
+            raw = INSTALL.write_windows_launcher(
+                tmp / "l.bat", Path("C:/Users/Zoë (Work)/AppData/absh_host.py")).read_bytes()
+            self.assertNotIn(b"\r\r\n", raw)
+            self.assertEqual(raw.count(b"\n"), raw.count(b"\r\n"))
+            self.assertIn("Zoë".encode("utf-8"), raw)
+            self.assertIn(b"chcp 65001", raw.split(b"\r\n")[1])
+            # No ( ) blocks: the ")" in that path would end one early.
+            self.assertFalse([l for l in raw.split(b"\r\n") if l.rstrip().endswith(b"(")])
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_windows_install_writes_manifest_and_launcher(self):
         tmp = Path(tempfile.mkdtemp())
         try:
