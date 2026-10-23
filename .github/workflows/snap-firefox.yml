@@ -63,6 +63,13 @@ jobs:
             echo "XDG_CURRENT_DESKTOP=ubuntu:GNOME"
           } >> "$GITHUB_ENV"
           Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
+          # A desktop session hands its display to the user's services; here
+          # nothing does, and the portal's GTK backend then dies with "cannot
+          # open display", leaving every portal call to time out.
+          export XDG_RUNTIME_DIR="/run/user/$uid" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus"
+          export DISPLAY=:99 XDG_CURRENT_DESKTOP=ubuntu:GNOME
+          systemctl --user import-environment DISPLAY XDG_CURRENT_DESKTOP
+          dbus-update-activation-environment --systemd DISPLAY XDG_CURRENT_DESKTOP
 
       - name: Build the add-on, and package the helper as a release
         run: |
@@ -87,11 +94,12 @@ jobs:
       # prints - stands in for clicking Allow, which a runner cannot.
       - name: Allow the helper, with the command install.py prints
         run: |
+          gdbus introspect --session --dest org.freedesktop.portal.Desktop \
+            --object-path /org/freedesktop/portal/desktop | grep WebExtensions \
+            || { echo "::error::the desktop portal has no WebExtensions interface"; exit 1; }
           cmd=$(python -c "import importlib.util as u; s = u.spec_from_file_location('i', 'native/install.py'); m = u.module_from_spec(s); s.loader.exec_module(m); print(m.allow_command())")
           echo "$cmd"
           eval "$cmd"
-          gdbus introspect --session --dest org.freedesktop.portal.Desktop \
-            --object-path /org/freedesktop/portal/desktop | grep -c WebExtensions
 
       - name: Drive the Snap to Settings and check the helper answers
         env:
