@@ -63,11 +63,16 @@ const port = await new Promise((res, rej) => {
   s.listen(0, "127.0.0.1", () => { const { port } = s.address(); s.close(() => res(port)); });
 });
 
+// The tab the debugger picks out by its address. A file the Snap can read,
+// not a data: address: Firefox will not open a top-level data: address
+// handed to it on the command line.
 const marker = `absh-snap-${uuid.slice(0, 8)}`;
+const markerFile = join(work, `${marker}.html`);
+writeFileSync(markerFile, `<!doctype html><title>${marker}</title>${marker}`);
 const logPath = resolve(process.env.SNAP_LOG || "snap-firefox.log");
 const log = createWriteStream(logPath);
 const ff = spawn("snap", ["run", "firefox", "--headless", "--no-remote", "--profile", profile,
-                          "-start-debugger-server", String(port), `data:text/plain,${marker}`], {
+                          "-start-debugger-server", String(port), `file://${markerFile}`], {
   env: { ...process.env, MOZ_LOG: "NativeMessagingPortal:5,timestamp" },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -91,7 +96,10 @@ try {
   const id = installed.addon.uuid || uuid;
   rdp = await RdpClient.open(port);
   const tab = await openExtensionPage(rdp, { marker, url: `moz-extension://${id}/options.html`,
-                                             timeout: 60_000 });
+                                             timeout: 60_000 }).catch(async (e) => {
+    const { tabs } = await rdp.request("root", "listTabs").catch(() => ({ tabs: [] }));
+    throw new Error(`${e.message}; open tabs: ${JSON.stringify(tabs.map((t) => t.url))}`);
+  });
   // The Helper row settles once the ping has come back or failed. Through the
   // portal the first one starts the helper, so allow it time.
   await tab.waitFor("the Helper row to settle", () => {
