@@ -180,6 +180,8 @@ button.more:hover { color: var(--ink); background: var(--bg); }
 .prog.ok b { color: var(--ok); }
 .prog.bad { background: var(--err-soft); }
 .prog.bad b, .prog.bad .a { color: var(--err); }
+.prog.paused b { color: var(--muted); }
+#jobCancel { justify-self: start; min-height: 44px; margin-top: 4px; }
 
 /* --------------------------------------------------------------- footer */
 footer { display: flex; gap: 8px; }

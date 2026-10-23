@@ -420,6 +420,34 @@ nothing else), then choose Allow. The job runs the Flatpak as installed
 (expects "Not installed"), with that setting (expects the helper answering
 through the portal), and with no portal (expects "Not installed").
 
+### N16. Reported on alpha.10 (2026-10-23): copies count wrong, and do not survive an unplug
+1. **"Copying 1 of 34", then "1 of 33".** Each cover clicked queues a job
+   of one book; the footer counted only what was running and waiting, so a
+   finished book left the count. **Fixed:** the background keeps a run -
+   everything queued from idle until idle again - and counts and sums it up
+   as one. Also found: the helper reports books in library order and the
+   background matched them by position, so a book's progress could carry
+   another's title; matched by id or name now.
+2. **Unplugging mid-copy.** A file was written under its real name as it
+   went, so a cut-off copy stayed as half a book that the next copy skipped;
+   the helper made the player's missing folders again (on a Mac, a
+   /Volumes/<player> folder on the main disk); and every book left failed in
+   turn. **Fixed:** each file is written under a hidden `.absh-part-` name
+   and renamed into place, so one that exists is whole and a cut-off
+   multi-file book carries on at its next file; a vanished player stops the
+   run with what is left in `interrupted`, failing nothing, and nothing is
+   recreated. Chrome's folder mode does the same (its writes were already
+   whole). The background pauses ("Paused · <player> disconnected"),
+   resumes when the player answers again - on a device event, every 15s, or
+   when a page asks after the shelf - keeps the queue in storage so a
+   browser restart resumes it, and offers "Cancel the rest". A helper that
+   stops pauses the run the same way. Tests: unplugging during a download in
+   Python, folder mode and a real browser; a browser quit and relaunched on
+   the same profile mid-pause.
+3. **One click for a series or author.** **DECIDED** (maintainer): on
+   Audiobookshelf's own series, author, collection and playlist pages.
+   Mockup first.
+
 ## Todo
 
 ### T1. Consume ping's `release` and offer the update — DONE (`0138d94`)

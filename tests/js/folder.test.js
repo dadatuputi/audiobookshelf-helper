@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MemDir } from "./memfs.js";
+import { MemDir, unplug } from "./memfs.js";
 import "./parity-runner.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -227,5 +227,34 @@ describe("the commands, with a server and no browser", () => {
     const fakeFetch = async () => new Response("nope", { status: 401 });
     await expect(F.run("libraries", { absUrl: "http://abs.local", apiKey: "k" }, undefined, fakeFetch))
       .rejects.toThrow("Audiobookshelf /api/libraries responded 401 - check the API key. nope");
+  });
+});
+
+describe("the player unplugged mid-run", () => {
+  // absh/sync.py TestUnplugged: stop, say what is left, fail nothing.
+  const one = { contentType: "audio/mpeg", disposition: 'attachment; filename="x.mp3"',
+                blob: new Blob([Buffer.from("audio")]) };
+  const books = ["b1", "b2", "b3"].map((id) => ({ id, title: id, author: "Au" }));
+
+  it("stops, lists what was not copied, and fails none of it", async () => {
+    const dev = new MemDir();
+    const seen = [];
+    const c = { async download(id) {
+      seen.push(id);
+      if (id === "b2") unplug(dev);            // pulled out while this one downloads
+      return one;
+    } };
+    const rep = await F.pull(c, dev, books, { subdir: "AUDIOBOOKS" });
+    expect(rep.books).toBe(1);
+    expect(rep.interrupted).toEqual(["b2", "b3"]);
+    expect(rep.errors).toEqual([]);
+    expect(seen).not.toContain("b3");
+  });
+
+  it("a player already gone copies nothing and fails nothing", async () => {
+    const dev = new MemDir();
+    unplug(dev);
+    const rep = await F.pull({ async download() { return one; } }, dev, books, { subdir: "AUDIOBOOKS" });
+    expect([rep.books, rep.errors, rep.interrupted]).toEqual([0, [], ["b1", "b2", "b3"]]);
   });
 });

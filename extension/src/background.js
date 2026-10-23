@@ -439,10 +439,13 @@ async function route(msg, onProgress) {
     case "devices":   return { ok: true, data: (await call("devices")).devices };
     case "status":
       LAST_STATUS = await call("status", { libraryId: msg.libraryId, readTags: msg.readTags !== false });
+      // The player answered: a run waiting for it can carry on.
+      if (JOBS.paused && !RESUMING) setTimeout(tryResume, 0);
       return { ok: true, data: LAST_STATUS };
     case "lastStatus": return { ok: true, data: LAST_STATUS };
     case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player) };
     case "jobState":  return { ok: true, data: snapshot() };
+    case "jobCancel": return { ok: true, data: cancelPaused() };
     case "jobSeen":
       JOBS.seen = true;
       badge();
@@ -478,13 +481,14 @@ async function route(msg, onProgress) {
  *
  * Jobs run one at a time, in the order asked for; a new one asked for while
  * another runs waits its turn. */
-const JOBS = { current: null, queue: [], last: null, seq: 0, seen: true, batch: null };
+const JOBS = { current: null, queue: [], last: null, seq: 0, seen: true, batch: null,
+               paused: null };
 const POPUPS = new Set();                // open popups and settings pages
 let LAST_STATUS = null;                  // so a popup opened mid-copy has a shelf
 
 function snapshot() {
   return { current: JOBS.current, queue: JOBS.queue, last: JOBS.last, seen: JOBS.seen,
-           batch: JOBS.batch };
+           batch: JOBS.batch, paused: JOBS.paused };
 }
 
 let BROADCAST = null;
@@ -499,6 +503,7 @@ function changed() {
     }
     tellPages({ type: "job", job: snap });
     badge();
+    saveJobs();
   }, 250);
 }
 
@@ -510,9 +515,11 @@ function badge() {
   const j = JOBS.current;
   let text = "";
   let color = "#3443C9";
-  if (j) {
-    const all = [j, ...JOBS.queue].flatMap((x) => x.items);
+  if (j || JOBS.paused) {
+    const run = (JOBS.batch && JOBS.batch.finished) || [];
+    const all = [...run, ...[j, ...JOBS.queue].filter(Boolean).flatMap((x) => x.items)];
     text = `${all.filter((i) => i.state === "done").length}/${all.length}`;
+    if (JOBS.paused) color = "#6B7280";          // waiting, not working
   } else if (JOBS.last && !JOBS.seen) {
     const failed = JOBS.last.error || JOBS.last.items.some((i) => i.state === "failed");
     text = failed ? "!" : "✓";
@@ -548,7 +555,9 @@ function addJob(op, items, player) {
   // A run is everything queued from idle until idle again - ten covers
   // clicked one after another are one run of ten, whatever the jobs. Counted
   // as a run, so a finished book is "2 of 10", not gone from "1 of 9".
-  if (!JOBS.current && !JOBS.queue.length) JOBS.batch = { startedAt: Date.now(), finished: [] };
+  if (!JOBS.current && !JOBS.queue.length && !JOBS.paused) {
+    JOBS.batch = { startedAt: Date.now(), finished: [] };
+  }
   const job = {
     id: ++JOBS.seq, op, player: player || "",
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
@@ -563,11 +572,11 @@ function addJob(op, items, player) {
 }
 
 async function runJobs() {
-  if (JOBS.current) return;
-  while (JOBS.queue.length) {
+  if (JOBS.current || JOBS.paused) return;
+  while (JOBS.queue.length && !JOBS.paused) {
     const job = JOBS.queue.shift();
     JOBS.current = job;
-    job.startedAt = Date.now();
+    job.startedAt = job.startedAt || Date.now();
     changed();
     // The helper reports each item as it starts - in library order, not the
     // order asked for, so matched by what it names (a pull's id, an upload's
@@ -588,32 +597,168 @@ async function runJobs() {
       }
       changed();
     };
-    const refs = job.items.map((i) => i.ref);
+    const todo = job.items.filter((i) => i.state !== "done");
+    const refs = todo.map((i) => i.ref);
     const msg = job.op === "pull" ? { type: "pull", ids: refs } : { type: job.op, names: refs };
+    let left = new Set();
     try {
       const r = await route(msg, onProgress);
       if (!r || !r.ok) throw new Error((r && r.error) || "no response");
       job.result = r.data || {};
+      // The player went away partway: those were not tried, and wait for it.
+      left = new Set(job.result.interrupted || []);
+      if (left.size) JOBS.paused = { why: "player", player: job.player, since: Date.now() };
       // An error line reads "<title>: why"; those items failed, the rest are done.
       const errs = (job.result.errors || []).map(String);
-      for (const it of job.items) {
+      for (const it of todo) {
+        if (left.has(it.ref)) { it.state = "waiting"; continue; }
         const bad = errs.find((e) => e.startsWith(`${it.title}:`));
         it.state = bad ? "failed" : "done";
         if (bad) it.error = bad.slice(it.title.length + 1).trim();
       }
     } catch (e) {
-      job.error = String((e && e.message) || e);
-      for (const it of job.items) if (it.state !== "done") it.state = "failed";
+      // Did the job fail, or did what it needed go away - the player, or the
+      // helper itself? Ask: if the player answers, the failure is real.
+      const why = String((e && e.message) || e);
+      const st = await route({ type: "status", readTags: false }).catch(() => null);
+      if (st && st.ok) {
+        job.error = why;
+        for (const it of todo) if (it.state !== "done") it.state = "failed";
+      } else {
+        const helper = /helper|native|quit as soon|disconnect|exited|answer/i.test(why);
+        JOBS.paused = { why: helper ? "helper" : "player", player: job.player,
+                        since: Date.now(), error: why };
+        for (const it of todo) if (it.state !== "done") { it.state = "waiting"; left.add(it.ref); }
+      }
+    }
+    if (left.size) {
+      // What was copied stays copied; the rest waits at the front of the queue.
+      const rest = { ...job, id: ++JOBS.seq, result: null, error: "",
+                     items: job.items.filter((i) => left.has(i.ref))
+                       .map((i) => ({ ...i, state: "waiting", done: 0, total: 0 })) };
+      job.items = job.items.filter((i) => !left.has(i.ref));
+      JOBS.queue.unshift(rest);
     }
     job.finishedAt = Date.now();
     if (JOBS.batch) JOBS.batch.finished.push(...job.items);
-    JOBS.last = job;
     JOBS.current = null;
+    if (!JOBS.paused) JOBS.last = job;
     changed();
-    notify(job);
     // What is on the player changed: refresh the shelf everyone shows.
     refreshStatus();
   }
+  if (JOBS.paused) {
+    notifyPaused();
+    watchForReturn();
+  } else if (JOBS.batch) {
+    notify(runSummary());
+  }
+}
+
+/* The whole run as one job, for the notification at its end. */
+function runSummary() {
+  const last = JOBS.last || {};
+  return { ...last, id: `run-${JOBS.batch.startedAt}`, items: JOBS.batch.finished,
+           startedAt: JOBS.batch.startedAt, finishedAt: Date.now() };
+}
+
+/* ------------------------------------------------ waiting for the player
+ *
+ * A run whose player went away waits for it rather than failing what is
+ * left. It carries on when the player answers again: told by the helper's
+ * device events where there are any, and otherwise asked every 15 seconds
+ * and whenever a page asks after the shelf. */
+let RESUMING = false;
+let WATCHING = null;
+
+async function tryResume() {
+  if (!JOBS.paused || JOBS.current || RESUMING) return;
+  RESUMING = true;
+  try {
+    const r = await route({ type: "status", readTags: false });
+    if (r && r.ok && JOBS.paused) {
+      JOBS.paused = null;
+      changed();
+      runJobs();
+    }
+  } catch { /* still away */ } finally {
+    RESUMING = false;
+  }
+}
+
+function watchForReturn() {
+  if (WATCHING) return;
+  WATCHING = setInterval(() => {
+    if (!JOBS.paused) { clearInterval(WATCHING); WATCHING = null; return; }
+    tryResume();
+  }, 15_000);
+}
+
+function notifyPaused() {
+  if (POPUPS.size || !browser.notifications || !browser.notifications.create) return;
+  const p = JOBS.paused;
+  const n = JOBS.queue.reduce((k, j) => k + j.items.length, 0);
+  Promise.resolve(browser.notifications.create("absh-paused", {
+    type: "basic", iconUrl: browser.runtime.getURL("icons/icon-96.png"),
+    title: p.why === "helper" ? "Copying paused: the helper stopped"
+                              : `Copying paused: ${p.player || "the player"} disconnected`,
+    message: `${n} ${n === 1 ? "book is" : "books are"} waiting. ` +
+             (p.why === "helper" ? "It carries on when the helper is back."
+                                 : "Plug it back in to carry on."),
+  })).catch(() => {});
+}
+
+/* ----------------------------------------------- surviving a restart
+ *
+ * What is queued is kept in storage, so quitting the browser - or Chrome
+ * stopping the service worker - mid-run does not lose it. On the way back
+ * it carries on; books already on the player are skipped by the helper. */
+let SAVING = null;
+function saveJobs() {
+  if (SAVING) return;
+  SAVING = setTimeout(() => {
+    SAVING = null;
+    const busy = JOBS.current || JOBS.queue.length || JOBS.paused;
+    const cur = JOBS.current;
+    const queue = [
+      ...(cur ? [{ ...cur, items: cur.items.filter((i) => i.state !== "done")
+                     .map((i) => ({ ...i, state: "waiting", done: 0, total: 0 })) }] : []),
+      ...JOBS.queue,
+    ].filter((j) => j.items.length);
+    const batch = JOBS.batch && { ...JOBS.batch,
+      finished: [...JOBS.batch.finished, ...(cur ? cur.items.filter((i) => i.state === "done") : [])] };
+    Promise.resolve(browser.storage.local.set({
+      jobsSaved: busy ? { queue, batch, paused: JOBS.paused } : null,
+    })).catch(() => {});
+  }, 1000);
+}
+
+const RESTORED = Promise.resolve(browser.storage.local.get({ jobsSaved: null }))
+  .then(({ jobsSaved: s }) => {
+    if (!s || !Array.isArray(s.queue) || !s.queue.length) return;
+    JOBS.queue = [...s.queue, ...JOBS.queue];
+    JOBS.batch = JOBS.batch || s.batch || { startedAt: Date.now(), finished: [] };
+    JOBS.paused = s.paused || null;
+    // Nobody has seen how this run ends yet; whoever opens a popup next should.
+    JOBS.seen = false;
+    changed();
+    if (JOBS.paused) { tryResume(); watchForReturn(); } else runJobs();
+  })
+  .catch(() => {});
+
+/* A paused run can be let go: what is copied stays, what waits is dropped. */
+function cancelPaused() {
+  if (!JOBS.paused || JOBS.current) return snapshot();
+  const dropped = JOBS.queue.reduce((k, j) => k + j.items.length, 0);
+  const last = JOBS.queue[0] || JOBS.last || {};
+  JOBS.last = { ...last, id: ++JOBS.seq, items: JOBS.batch ? JOBS.batch.finished : [],
+                startedAt: JOBS.batch ? JOBS.batch.startedAt : Date.now(),
+                finishedAt: Date.now(), cancelled: dropped, error: "" };
+  JOBS.queue = [];
+  JOBS.paused = null;
+  JOBS.seen = true;
+  changed();
+  return snapshot();
 }
 
 async function refreshStatus() {
@@ -648,6 +793,7 @@ async function tellPages(msg) {
  * has a content script listening, and telling every tab would mean asking for
  * every tab. */
 async function onHostEvent(msg) {
+  if (msg.event === "devices-changed") tryResume();
   const { registeredPattern } = await browser.storage.local.get(
     { registeredPattern: "" });
   if (!registeredPattern) return;

@@ -913,6 +913,7 @@
      "copied": 2,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1059,6 +1060,7 @@
      "copied": 3,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1239,6 +1241,7 @@
      "copied": 3,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1343,6 +1346,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1430,6 +1434,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1515,6 +1520,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1596,6 +1602,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1679,6 +1686,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1760,6 +1768,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1841,6 +1850,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -1962,6 +1972,7 @@
      "copied": 4,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2083,6 +2094,7 @@
      "copied": 4,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2182,6 +2194,7 @@
      "copied": 2,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2289,6 +2302,7 @@
      "copied": 3,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2397,6 +2411,7 @@
      "copied": 3,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2459,6 +2474,7 @@
       "The Hobbit: download contained no audio files"
      ],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2555,6 +2571,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 1,
      "uploaded": 0
@@ -2642,6 +2659,7 @@
      "copied": 0,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 1,
      "uploaded": 0
@@ -2726,6 +2744,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0
@@ -2822,6 +2841,7 @@
      "copied": 1,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 1,
      "uploaded": 0
@@ -2877,6 +2897,7 @@
      "copied": 0,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 1
@@ -2929,6 +2950,7 @@
      "copied": 0,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 1
@@ -2981,6 +3003,7 @@
      "copied": 0,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 1
@@ -3045,6 +3068,7 @@
      "copied": 0,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 1
@@ -3108,6 +3132,7 @@
      "copied": 0,
      "errors": [],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 1
@@ -3163,6 +3188,7 @@
      "copied": 0,
      "errors": [],
      "freed": 65,
+     "interrupted": [],
      "removed": [
       "A - One.m4a",
       "B - Two"
@@ -3226,6 +3252,7 @@
       "missing.m4a: not on the device"
      ],
      "freed": 7,
+     "interrupted": [],
      "removed": [
       "keep.mp3"
      ],
@@ -3280,6 +3307,7 @@
       "anything: not on the device"
      ],
      "freed": 0,
+     "interrupted": [],
      "removed": [],
      "skipped": 0,
      "uploaded": 0

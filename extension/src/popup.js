@@ -195,15 +195,18 @@ let SHOW_LAST = false;                  // the last job finished while we could 
 
 function renderJob() {
   const box = $("#jobBox");
-  const j = JOB.current || (SHOW_LAST ? JOB.last : null);
+  // Waiting for the player (or the helper) to come back: the run is not over.
+  const paused = !JOB.current && JOB.paused && JOB.queue.length ? JOB.paused : null;
+  const live = !!(JOB.current || paused);
+  const j = JOB.current || (paused ? JOB.queue[0] : null) || (SHOW_LAST ? JOB.last : null);
   box.classList.toggle("hidden", !j);
   if (!j) return;
   const where = j.op === "push" ? (LIB || "the library") : (j.player || playerLabel());
   // The whole run: what finished earlier in it, what is running, what waits.
   // Once it is over, the run is what is summed up, not just its last job.
   const run = (JOB.batch && JOB.batch.finished) || [];
-  const items = JOB.current
-    ? [...run, ...[j, ...JOB.queue].flatMap((x) => x.items)]
+  const items = live
+    ? [...run, ...[JOB.current, ...JOB.queue].filter(Boolean).flatMap((x) => x.items)]
     : run.length ? run : j.items;
   const startedAt = (JOB.batch && JOB.batch.startedAt) || j.startedAt;
   const done = items.filter((i) => i.state === "done");
@@ -214,27 +217,39 @@ function renderJob() {
   // flight. Nothing finer is reported, so nothing finer is claimed.
   const moved = done.reduce((n, i) => n + i.bytes, 0) +
     (cur && cur.total ? cur.bytes * cur.done / cur.total : 0);
-  box.classList.toggle("ok", !JOB.current && !failed.length && !j.error);
-  box.classList.toggle("bad", !JOB.current && (failed.length > 0 || !!j.error));
-  const head = JOB.current
+  box.classList.toggle("ok", !live && !failed.length && !j.error && !j.cancelled);
+  box.classList.toggle("bad", !live && (failed.length > 0 || !!j.error));
+  box.classList.toggle("paused", !!paused);
+  $("#jobCancel").classList.toggle("hidden", !paused);
+  const left = items.length - done.length - failed.length;
+  const head = paused
+    ? (paused.why === "helper" ? "Paused · the helper stopped"
+                               : `Paused · ${paused.player || where} disconnected`)
+    : JOB.current
     ? `${DOING[j.op]} ${Math.min(done.length + 1, items.length)} of ${items.length} ` +
       `${j.op === "remove" ? "from" : "to"} ${where}`
+    : j.cancelled
+      ? `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}; ${j.cancelled} cancelled`
     : failed.length || j.error
       ? `${DID[j.op]} ${done.length} of ${items.length}; ${failed.length || items.length - done.length} failed`
       : `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}`;
   $("#jobHead").textContent = head;
-  $("#jobSize").textContent = total ? (JOB.current ? `${size(moved)} of ${size(total)}` : size(total)) : "";
+  $("#jobSize").textContent = total ? (live ? `${size(moved)} of ${size(total)}` : size(total)) : "";
   const bar = $("#jobBar");
-  bar.classList.toggle("hidden", !JOB.current);
+  bar.classList.toggle("hidden", !live);
   bar.firstElementChild.style.width = total ? `${Math.round(100 * moved / total)}%` : "0%";
   let sub = "";
-  if (JOB.current && done.length && startedAt) {
+  if (paused) {
+    const n = `${left} ${left === 1 ? "book" : "books"} waiting`;
+    sub = paused.why === "helper" ? `Carries on when the helper is back · ${n}`
+                                  : `Plug it back in to carry on · ${n}`;
+  } else if (JOB.current && done.length && startedAt) {
     const rate = (moved || 1) / (Date.now() - startedAt);
     const left = Math.round((total - moved) / rate / 60000);
     sub = left >= 1 ? `About ${left} ${left === 1 ? "minute" : "minutes"} left` : "Under a minute left";
   } else if (JOB.current && cur) {
     sub = cur.title;
-  } else if (!JOB.current) {
+  } else if (!live) {
     const mins = Math.max(1, Math.round((j.finishedAt - startedAt) / 60000));
     sub = j.error || (failed.length ? failed.map((i) => `${i.title}: ${i.error || "failed"}`).join("\n")
                                     : `${mins} min`);
@@ -243,7 +258,10 @@ function renderJob() {
 }
 
 function onJob(job, first = false) {
-  const wasRunning = !!JOB.current;
+  // A run waiting for its player is still under way: when it carries on and
+  // ends inside one update, the popup sees paused, then done - and that end
+  // is to be shown, as if it had watched it run.
+  const wasRunning = !!(JOB.current || (JOB.paused && JOB.queue && JOB.queue.length));
   JOB = job;
   if ((first && JOB.last && !JOB.seen) || (wasRunning && !JOB.current)) SHOW_LAST = true;
   // Shown here, so seen: the check mark on the toolbar icon can go.
@@ -846,6 +864,16 @@ for (const b of TABS) {
     next.focus();
   });
 }
+// A run waiting for its player can be let go: what is copied stays.
+$("#jobCancel").addEventListener("click", async () => {
+  try {
+    SHOW_LAST = true;
+    onJob(await send({ type: "jobCancel" }));
+  } catch (e) {
+    status(String(e.message || e), "err");
+  }
+});
+
 $("#act").addEventListener("click", async () => {
   const rows = visible().filter((r) => SEL.has(r.key));
   if (!rows.length) return;

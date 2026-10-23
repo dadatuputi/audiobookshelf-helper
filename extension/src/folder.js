@@ -910,7 +910,8 @@
    * not stop because one book is odd. */
 
   function report() {
-    const r = { copied: 0, skipped: 0, uploaded: 0, removed: [], freed: 0, errors: [], books: 0 };
+    const r = { copied: 0, skipped: 0, uploaded: 0, removed: [], freed: 0, errors: [], books: 0,
+                interrupted: [] };
     Object.defineProperty(r, "fail", { value: (title, why) => r.errors.push(`${title}: ${why}`) });
     return r;
   }
@@ -996,6 +997,9 @@
         got = { written: [[root, dstName]], entry: dstName, kind: "file", srcExt };
       }
     } catch (e) {
+      // Written whole or not at all (createWritable), so all a vanished
+      // player costs is this book's place in the run.
+      if (!(await present(dev))) throw new DeviceGone();
       rep.fail(title, `download failed - ${explain(e)}`);
       return null;
     }
@@ -1045,14 +1049,37 @@
     return { written, entry: name, kind: "dir", srcExt };
   }
 
+  /* absh/sync.py DeviceGone: the player went away. Not a failure of the
+   * book; the run stops, and what is left is reported to carry on with. */
+  class DeviceGone extends Error {}
+
+  /** Whether the player's folder is still there to write to. Once the drive
+   *  is unplugged, every handle into it throws NotFoundError. */
+  async function present(dev) {
+    try {
+      for await (const _ of dev.keys()) break;   // eslint-disable-line no-unused-vars
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function pull(c, dev, items, opts, emit = () => {}) {
     const rep = report();
     for (let n = 0; n < items.length; n++) {
       const item = items[n];
+      if (!(await present(dev))) {
+        rep.interrupted = items.slice(n).map((i) => i.id);
+        break;
+      }
       emit({ event: "item", id: item.id, title: item.title, index: n + 1, count: items.length, op: "pull" });
       try {
         await pullBook(c, dev, item, opts, rep, emit);
       } catch (e) {
+        if (e instanceof DeviceGone) {
+          rep.interrupted = items.slice(n).map((i) => i.id);
+          break;
+        }
         rep.fail(item.title || "?", explain(e));
       }
     }

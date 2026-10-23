@@ -26,7 +26,7 @@ from absh import config as config_mod          # noqa: E402
 from absh import device as device_mod          # noqa: E402
 from absh import index as index_mod            # noqa: E402
 from absh import devices as devices_mod        # noqa: E402
-from absh import naming, sync, tags            # noqa: E402
+from absh import cli, naming, sync, tags       # noqa: E402
 from absh.abs_api import (AbsError, Client, _encode_multipart,   # noqa: E402
                           normalize_item)
 from absh.tui import build_rows, filter_rows, summarise, _key    # noqa: E402
@@ -431,6 +431,75 @@ class TestPullAndMatch(DeviceBase):
         entry = device_mod.scan(str(self.dev), "AUDIOBOOKS")[0]
         self.assertEqual(entry["title"], "Big Book")
         self.assertEqual(entry["files"], 2)
+
+
+class TestUnplugged(DeviceBase):
+    """A player unplugged mid-copy: nothing half-written under a real name,
+    the rest of the run reported rather than failed, and a cut-off book
+    carried on from where it stopped."""
+
+    def zipped(self, *names):
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            for n in names:
+                z.writestr(n, b"audio " + n.encode())
+        return buf.getvalue()
+
+    def test_a_copy_cut_off_leaves_nothing_under_the_books_name(self):
+        real = shutil.copyfileobj
+        dev = str(self.dev)
+        def half_then_fail(src, out, *a):
+            if not str(getattr(out, "name", "")).startswith(dev):
+                return real(src, out, *a)              # the download to a temp file
+            out.write(src.read(3))                     # the player, cut off
+            raise OSError(5, "Input/output error")
+        with mock.patch.object(sync.shutil, "copyfileobj", side_effect=half_then_fail):
+            rep = sync.pull(self.client, [ITEMS[0]], self.opts)
+        books = self.dev / "AUDIOBOOKS"
+        self.assertEqual([p.name for p in books.iterdir()], [],
+                         "a half-written file under any name")
+        self.assertEqual(len(rep["errors"]), 1)
+        self.assertEqual(rep["interrupted"], [])
+        self.assertIs(shutil.copyfileobj, real)
+
+    def test_the_player_going_away_stops_the_run_and_says_what_is_left(self):
+        dev = self.dev
+        class Unplugs(FakeClient):
+            def open_download(self, item_id, timeout=None):
+                if item_id == "li_2":
+                    shutil.rmtree(dev)            # pulled out while this one downloads
+                return super().open_download(item_id, timeout)
+        client = Unplugs(self.client.bodies)
+        third = {**ITEMS[0], "id": "li_3", "title": "Mossflower"}
+        client.bodies["li_3"] = client.bodies["li_1"]
+        rep = sync.pull(client, [ITEMS[0], ITEMS[1], third], self.opts)
+        self.assertEqual(rep["books"], 1)
+        self.assertEqual(rep["interrupted"], ["li_2", "li_3"])
+        self.assertEqual(rep["errors"], [], "the books not copied did not fail")
+        self.assertFalse(dev.exists(), "the player's folders were made again on this disk")
+        self.assertNotIn("li_3", client.downloads, "downloaded with nowhere to put it")
+
+    def test_a_cut_off_multi_file_book_carries_on_where_it_stopped(self):
+        out = self.dev / "AUDIOBOOKS" / "Brian Jacques - Redwall"
+        out.mkdir()
+        (out / "001 - a.m4a").write_bytes(b"audio a.m4b")       # finished before the unplug
+        (out / ".absh-part-002 - b.m4a").write_bytes(b"aud")    # cut off
+        client = FakeClient({"li_1": (self.zipped("a.m4b", "b.m4b", "c.m4b"),
+                                      "book.zip", "application/zip")})
+        rep = sync.pull(client, [ITEMS[0]], self.opts)
+        self.assertEqual(sorted(p.name for p in out.iterdir()),
+                         ["001 - a.m4a", "002 - b.m4a", "003 - c.m4a"],
+                         "same folder, no (2), no leftover")
+        self.assertEqual((rep["skipped"], rep["copied"]), (1, 2))
+        self.assertEqual((out / "002 - b.m4a").read_bytes(), b"audio b.m4b")
+        self.assertTrue(sync.already_on_device(self.opts, ITEMS[0]))
+
+    def test_the_cli_says_so_and_fails(self):
+        rep = sync.Report()
+        rep["interrupted"] = ["li_2"]
+        with mock.patch("builtins.print") as p:
+            self.assertEqual(cli.show_report(rep, "pull"), 1)
+        self.assertIn("player went away", " ".join(str(c) for c in p.call_args_list))
 
 
 class TestMultiFileDownload(DeviceBase):

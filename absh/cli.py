@@ -132,9 +132,13 @@ def show_report(rep, verb):
         bits.append(f"freed {human(rep['freed'])}")
     print(paint(verb + ": " + (", ".join(bits) or "nothing to do"),
                 GREEN if not rep.get("errors") else YELLOW))
+    if rep.get("interrupted"):
+        n = len(rep["interrupted"])
+        print(paint(f"The player went away: {n} book(s) not copied. Plug it back in and "
+                    "run the same command again - what is there is skipped.", YELLOW))
     for e in rep.get("errors", []):
         print(paint("  ! " + e, RED))
-    return 1 if rep.get("errors") else 0
+    return 1 if rep.get("errors") or rep.get("interrupted") else 0
 
 
 # ------------------------------------------------------------- commands

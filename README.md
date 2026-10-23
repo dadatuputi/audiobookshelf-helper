@@ -288,6 +288,12 @@ narrator and length, which is what tells two versions of a book apart; the
 chevron opens the rest. While a filter is on, each tab counts "7 of 345".
 A copy belongs to the extension, not the popup: close it and reopen it and the
 copy is still there, row by row, with the overall progress under the shelf.
+Books queued one after another - cover after cover - count as one run.
+Unplug the player mid-run and it pauses ("Paused · SANSA disconnected"),
+leaving no half-written book behind; plug it back in and it carries on, with
+a book cut off partway picking up from its next file. Quitting the browser
+mid-run loses nothing either: the queue is kept and resumes next time. A
+paused run can be let go with **Cancel the rest**.
 While copying, the toolbar icon carries a count, then a check when it is done,
 and a notification says so if the popup is closed.
 Click the **Player** card to change player: the one that looks most like yours

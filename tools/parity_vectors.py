@@ -270,7 +270,7 @@ class FakeClient:
 
 def report_view(rep):
     return {k: rep[k] for k in ("copied", "skipped", "uploaded", "removed", "freed",
-                                "errors", "books")}
+                                "errors", "books", "interrupted")}
 
 
 # ------------------------------------------------------------ naming.json

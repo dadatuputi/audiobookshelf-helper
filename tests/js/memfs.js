@@ -44,10 +44,12 @@ export class MemFile {
   }
 
   async getFile() {
+    if (this.gone) throw notFound(this.name);
     return new File([this.blob], this.name);
   }
 
   async createWritable() {
+    if (this.gone) throw notFound(this.name);
     return new MemWritable(this);
   }
 
@@ -62,15 +64,18 @@ export class MemDir {
   }
 
   async *entries() {
+    if (this.gone) throw notFound(this.name);
     // A snapshot, so removing while iterating behaves.
     for (const [k, v] of [...this.kids]) yield [k, v];
   }
 
   async *keys() {
+    if (this.gone) throw notFound(this.name);
     for (const k of [...this.kids.keys()]) yield k;
   }
 
   async getDirectoryHandle(name, { create = false } = {}) {
+    if (this.gone) throw notFound(this.name);
     if (invalid(name)) throw new TypeError(`Name is not allowed: ${name}`);
     const got = this.kids.get(name);
     if (got) {
@@ -84,6 +89,7 @@ export class MemDir {
   }
 
   async getFileHandle(name, { create = false } = {}) {
+    if (this.gone) throw notFound(this.name);
     if (invalid(name)) throw new TypeError(`Name is not allowed: ${name}`);
     const got = this.kids.get(name);
     if (got) {
@@ -97,6 +103,7 @@ export class MemDir {
   }
 
   async removeEntry(name, { recursive = false } = {}) {
+    if (this.gone) throw notFound(this.name);
     if (invalid(name)) throw new TypeError(`Name is not allowed: ${name}`);
     const got = this.kids.get(name);
     if (!got) throw notFound(name);
@@ -107,6 +114,13 @@ export class MemDir {
   }
 
   async queryPermission() { return "granted"; }
+}
+
+/** Pull the player out: every handle into it now fails as Chrome's do once
+ *  the drive is gone - NotFoundError, whatever is asked. */
+export function unplug(dir) {
+  dir.gone = true;
+  if (dir.kids) for (const k of dir.kids.values()) unplug(k);
 }
 
 /** Lay a parity fixture's tree out: {"a/b.mp3": base64 | null (a folder)}. */

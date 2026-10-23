@@ -58,6 +58,8 @@ const BOOKS = [
 /** A stand-in Audiobookshelf. The helper now talks to this directly - the
  *  same client the CLI uses - so it needs the real endpoint surface. */
 const UPLOADS = [];
+/** Milliseconds to hold a book's download, by id. */
+const DOWNLOAD_DELAY = {};
 /** What the stub says it is on /status, which needs no sign-in. */
 let ABS_VERSION = "2.37.1";
 
@@ -100,12 +102,16 @@ function startAbs() {
         if (!book) { rep.writeHead(404); return rep.end("no"); }
         const tagged = m4aWithTags(book.title, book.author);
         const body = Buffer.concat([tagged, Buffer.alloc(2048 - tagged.length, 7)]);
-        rep.writeHead(200, {
-          "Content-Type": "audio/mp4",
-          "Content-Disposition": `attachment; filename="${book.title}.m4b"`,
-          "Content-Length": String(body.length),
-        });
-        return rep.end(body);
+        const go = () => {
+          rep.writeHead(200, {
+            "Content-Type": "audio/mp4",
+            "Content-Disposition": `attachment; filename="${book.title}.m4b"`,
+            "Content-Length": String(body.length),
+          });
+          rep.end(body);
+        };
+        // A slow download, for a test to pull the player out during.
+        return DOWNLOAD_DELAY[id] ? setTimeout(go, DOWNLOAD_DELAY[id]) : go();
       }
       // What the real library page fetches. Returns a bare ARRAY of shelves,
       // each {id,label,type,entities,total} - not {results}. Verified against
@@ -299,8 +305,9 @@ test.describe("full loop in a real browser", () => {
     // volume to consider. Chromium inherits this and passes it to the native
     // host it spawns.
     process.env.ABSH_DEVICE_ROOTS = dev;
-    const ctx = await launch(makeProfile(`${absUrl}/*`));
-    env = { ctx, srv, lib, dev, absUrl };
+    const profile = makeProfile(`${absUrl}/*`);
+    const ctx = await launch(profile);
+    env = { ctx, srv, lib, dev, absUrl, profile };
     const page = await configure(ctx, env);
     await page.close();
   });
@@ -627,6 +634,92 @@ test.describe("full loop in a real browser", () => {
     // Seen now, so the check mark goes.
     await expect.poll(badge, { timeout: 10_000 }).toBe("");
     await again.close();
+  });
+
+  test("unplugging mid-run pauses it, and plugging back in carries on", async () => {
+    // Before: every book left failed, one after another, and a book cut off
+    // mid-write stayed on the player under its real name.
+    for (const f of deviceFiles(env.dev)) rmSync(join(env.dev, "AUDIOBOOKS", f), { recursive: true });
+    const [first, second] = BOOKS;
+    DOWNLOAD_DELAY[second.id] = 4000;
+    try {
+      const page = await env.ctx.newPage();
+      await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+      await page.evaluate(async (books) => {
+        await chrome.runtime.sendMessage({ type: "jobAdd", op: "pull", player: "test",
+          items: books.map((b) => ({ key: b.id, ref: b.id, title: b.title, bytes: 2048 })) });
+      }, [first, second]);
+      await page.close();
+
+      // The first lands; pull the player out while the second downloads.
+      await expect.poll(() => deviceFiles(env.dev).length, { timeout: 30_000 }).toBe(1);
+      rmSync(env.dev, { recursive: true, force: true });
+
+      const pop = await env.ctx.newPage();
+      await pop.goto(`chrome-extension://${EXT_ID}/popup.html`);
+      await expect(pop.locator("#jobHead")).toHaveText("Paused · test disconnected", { timeout: 30_000 });
+      await expect(pop.locator("#jobSub")).toContainText("1 book waiting");
+      await expect(pop.locator("#jobCancel")).toBeVisible();
+      expect(existsSync(env.dev), "the player's folders were made again on this disk").toBe(false);
+      await pop.close();
+
+      // Plug it back in. Asking after the shelf finds it, and the run carries on.
+      DOWNLOAD_DELAY[second.id] = 0;
+      mkdirSync(join(env.dev, "AUDIOBOOKS"), { recursive: true });
+      const back = await env.ctx.newPage();
+      await back.goto(`chrome-extension://${EXT_ID}/popup.html`);
+      await expect(back.locator("#jobBox")).toContainText("Copied 2 to", { timeout: 40_000 });
+      expect(deviceFiles(env.dev)).toEqual([`${second.author} - ${second.title}.m4a`]);
+      await back.close();
+    } finally {
+      delete DOWNLOAD_DELAY[second.id];
+      mkdirSync(join(env.dev, "AUDIOBOOKS"), { recursive: true });
+    }
+  });
+
+  test("a paused run survives the extension restarting, and carries on after", async () => {
+    // Quitting the browser, or Chrome stopping the service worker, used to
+    // lose whatever was still queued. Reloading the extension loses all it
+    // held in memory, which is the same thing.
+    for (const f of deviceFiles(env.dev)) rmSync(join(env.dev, "AUDIOBOOKS", f), { recursive: true });
+    const [first, second] = BOOKS;
+    DOWNLOAD_DELAY[second.id] = 4000;
+    try {
+      const page = await env.ctx.newPage();
+      await page.goto(`chrome-extension://${EXT_ID}/options.html`);
+      await page.evaluate(async (books) => {
+        await chrome.runtime.sendMessage({ type: "jobAdd", op: "pull", player: "test",
+          items: books.map((b) => ({ key: b.id, ref: b.id, title: b.title, bytes: 2048 })) });
+      }, [first, second]);
+      await expect.poll(() => deviceFiles(env.dev).length, { timeout: 30_000 }).toBe(1);
+      rmSync(env.dev, { recursive: true, force: true });
+      await expect.poll(() => page.evaluate(() => chrome.runtime.sendMessage({ type: "jobState" })
+        .then((r) => !!(r.data && r.data.paused))), { timeout: 30_000 }).toBe(true);
+      await page.waitForTimeout(1500);              // saved a second after it changes
+
+      await page.close();
+
+      // Quit the browser, and start it again on the same profile.
+      await env.ctx.close();
+      env.ctx = await launch(env.profile);
+      const fresh = await env.ctx.newPage();
+      await fresh.goto(`chrome-extension://${EXT_ID}/options.html`);
+      // The new browser's extension still knows the run, and that it waits.
+      await expect.poll(() => fresh.evaluate(() => chrome.runtime.sendMessage({ type: "jobState" })
+        .then((r) => !!(r && r.data && r.data.paused))), { timeout: 30_000 }).toBe(true);
+      await fresh.close();
+
+      DOWNLOAD_DELAY[second.id] = 0;
+      mkdirSync(join(env.dev, "AUDIOBOOKS"), { recursive: true });
+      const back = await env.ctx.newPage();
+      await back.goto(`chrome-extension://${EXT_ID}/popup.html`);
+      await expect(back.locator("#jobBox")).toContainText("Copied 2 to", { timeout: 40_000 });
+      expect(deviceFiles(env.dev)).toEqual([`${second.author} - ${second.title}.m4a`]);
+      await back.close();
+    } finally {
+      delete DOWNLOAD_DELAY[second.id];
+      mkdirSync(join(env.dev, "AUDIOBOOKS"), { recursive: true });
+    }
   });
 
   test("books queued one at a time are counted as one run, not each as 1 of N", async () => {

@@ -12,6 +12,7 @@ pull   server -> device   (download)
 push   device -> server   (upload, undoing the .m4a rename on the way)
 remove device            (delete, with hard containment checks)
 """
+import os
 import re
 import shutil
 import tempfile
@@ -29,12 +30,62 @@ def _noop(_ev):
     pass
 
 
+# A file being written to the player has this in front of its name until it is
+# whole. The listings skip dot-names, so it is never taken for a book, and one
+# left by an unplugged player is swept away by the next copy.
+PART = ".absh-part-"
+
+
+class DeviceGone(Exception):
+    """The player went away. Not a failure of the book: the run stops there,
+    and what was left is reported so it can carry on when the player is back."""
+
+
+def device_present(device_path):
+    return Path(device_path).is_dir()
+
+
+def _write_whole(dst, fill):
+    """Fill `dst` under a hidden name beside it, then rename it into place.
+
+    Copying straight to the real name left half a book there when the player
+    was unplugged, and a file that exists is a file that is skipped next
+    time - so a book stayed a chapter short for good. A rename on the same
+    drive is all or nothing; the hidden file, if any, goes.
+    """
+    part = dst.with_name(PART + dst.name)
+    try:
+        with open(part, "wb") as out:
+            fill(out)
+        os.replace(part, dst)
+    except BaseException:
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _sweep_parts(device_path, root):
+    """Remove what an interrupted copy left half-written."""
+    if not device_present(device_path):
+        return
+    try:
+        for p in list(root.glob(PART + "*")) + list(root.glob("*/" + PART + "*")):
+            try:
+                p.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
 class Report(dict):
     """Accumulates what happened, in a shape both the CLI and the host render."""
 
     def __init__(self):
         super().__init__(copied=0, skipped=0, uploaded=0, removed=[],
-                         freed=0, errors=[], books=0)
+                         freed=0, errors=[], books=0, interrupted=[])
 
     def fail(self, title, why):
         self["errors"].append(f"{title}: {why}")
@@ -97,7 +148,7 @@ def pull_book(client, item, opts, report, emit=_noop):
     except ValueError as e:
         report.fail(title, str(e))
         return None
-    got = _download(client, item, root, name, rename, report, step)
+    got = _download(client, item, root, name, rename, report, step, opts["devicePath"])
     if got is None:
         return None
     written, entry_name, kind, src_ext = got
@@ -109,8 +160,12 @@ def pull_book(client, item, opts, report, emit=_noop):
     return entry_name
 
 
-def _download(client, item, root, name, rename, report, step):
-    """Fetch over the API. One file, or a zip for a multi-file book."""
+def _download(client, item, root, name, rename, report, step, device_path):
+    """Fetch over the API. One file, or a zip for a multi-file book.
+
+    Raises DeviceGone if the player is not there to write to, rather than
+    making its folders again: on a Mac that would put /Volumes/<player> on
+    the main disk."""
     title = item.get("title") or name
     tmp = None
     try:
@@ -124,6 +179,8 @@ def _download(client, item, root, name, rename, report, step):
                 shutil.copyfileobj(r, fh)
                 tmp = Path(fh.name)
 
+        if not device_present(device_path):
+            raise DeviceGone()
         if "zip" in ctype or srcname.lower().endswith(".zip"):
             target = root / name
             target.mkdir(parents=True, exist_ok=True)
@@ -141,11 +198,13 @@ def _download(client, item, root, name, rename, report, step):
                     # archive, so a crafted zip cannot escape the target dir.
                     dst = target / f"{i:03d} - {clean(Path(member).stem)}{ext}"
                     step(i, len(members), dst.name)
+                    # Written whole or not at all, so one that exists is
+                    # complete: a book cut off at file 20 carries on at 21.
                     if dst.exists():
                         report["skipped"] += 1
                     else:
-                        with z.open(member) as src, open(dst, "wb") as out:
-                            shutil.copyfileobj(src, out)
+                        with z.open(member) as src:
+                            _write_whole(dst, lambda out: shutil.copyfileobj(src, out))
                         report["copied"] += 1
                     written.append(dst)
             return written, name, "dir", src_ext
@@ -158,12 +217,21 @@ def _download(client, item, root, name, rename, report, step):
         if dst.exists() and dst.stat().st_size == tmp.stat().st_size:
             report["skipped"] += 1
         else:
-            shutil.move(str(tmp), dst)
-            tmp = None
+            # A move across drives is a copy, and a copy cut off midway would
+            # leave half a book under the real name.
+            with open(tmp, "rb") as src:
+                _write_whole(dst, lambda out: shutil.copyfileobj(src, out))
             report["copied"] += 1
         return [dst], dst.name, "file", src_ext
 
-    except (AbsError, OSError, zipfile.BadZipFile) as e:
+    except DeviceGone:
+        raise
+    except OSError as e:
+        if not device_present(device_path):
+            raise DeviceGone() from e
+        report.fail(title, f"download failed - {e}")
+        return None
+    except (AbsError, zipfile.BadZipFile) as e:
         report.fail(title, f"download failed - {e}")
         return None
     finally:
@@ -175,12 +243,22 @@ def _download(client, item, root, name, rename, report, step):
 
 
 def pull(client, items, opts, emit=_noop):
+    """Copy `items` to the player. If it goes away partway, stop and list
+    what was not copied in report["interrupted"], rather than failing each
+    remaining book in turn - the caller carries on when it is back."""
     report = Report()
+    _sweep_parts(opts["devicePath"], device_root(opts["devicePath"], opts.get("subdir")))
     for n, item in enumerate(items, 1):
+        if not device_present(opts["devicePath"]):
+            report["interrupted"] = [i.get("id") for i in items[n - 1:]]
+            break
         emit({"event": "item", "id": item.get("id"), "title": item.get("title"),
               "index": n, "count": len(items), "op": "pull"})
         try:
             pull_book(client, item, opts, report, emit)
+        except DeviceGone:
+            report["interrupted"] = [i.get("id") for i in items[n - 1:]]
+            break
         except Exception as e:                      # one bad book, not the batch
             report.fail(item.get("title", "?"), str(e))
     return report
