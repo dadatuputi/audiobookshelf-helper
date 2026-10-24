@@ -1,5 +1,5 @@
 {
   "_comment": "The Audiobookshelf releases this extension supports, oldest to newest, and the two the real-server suite runs against on every push. oldest moves only by decision, with the reason in its commit: it is v2.26.0 because that release added API keys, which is how this extension connects. newest is moved by .github/workflows/upstream.yml when a new release passes the full suite.",
   "oldest": "v2.26.0",
-  "newest": "v2.37.1"
+  "newest": "v2.37.2"
 }
