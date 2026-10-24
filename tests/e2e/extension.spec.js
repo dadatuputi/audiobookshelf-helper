@@ -62,6 +62,8 @@ const UPLOADS = [];
 const DOWNLOAD_DELAY = {};
 /** What the stub says it is on /status, which needs no sign-in. */
 let ABS_VERSION = "2.37.1";
+/** A size the stub reports for a book, by id, instead of its real 2048. */
+const REPORTED_SIZE = {};
 
 /* Audiobookshelf behind a reverse proxy at a subpath - the deployment that
  * broke the in-page UI. Everything the stub serves lives under it. */
@@ -131,7 +133,7 @@ function startAbs() {
       if (req.url.includes("/items")) {
         return send({
           results: BOOKS.map((b) => ({
-            id: b.id, relPath: b.relPath, size: 2048,
+            id: b.id, relPath: b.relPath, size: REPORTED_SIZE[b.id] || 2048,
             media: { numTracks: 1, duration: b.duration || 0,
                      metadata: { title: b.title, authorName: b.author,
                                  narratorName: b.narrator || "" } }
@@ -144,6 +146,16 @@ function startAbs() {
       }
       if (req.url.startsWith("/api/libraries")) {
         return send({ libraries: [{ id: "lib1", name: "Audiobooks", mediaType: "book" }] });
+      }
+      // A collection of both books, and its page: the heading row the app
+      // draws, which is where the one button goes.
+      if (req.url.startsWith("/api/collections/")) {
+        return send({ id: "col1", books: BOOKS.map((b) => ({ id: b.id })) });
+      }
+      if (req.url.startsWith("/collection/")) {
+        rep.writeHead(200, { "Content-Type": "text/html" });
+        return rep.end('<!doctype html><html><body><div id="page-wrapper"><div class="row">' +
+                       '<h1>Both</h1><button>Play All</button></div></div></body></html>');
       }
       if (req.url.startsWith("/library/")) {
         rep.writeHead(200, { "Content-Type": "text/html" });
@@ -585,6 +597,36 @@ test.describe("full loop in a real browser", () => {
     await expect(lib.locator("button.absh-badge.absh-copy")).toHaveCount(1);
     await expect(lib.locator("button.absh-badge.absh-copy")).toHaveText("Copy to player");
     await lib.close();
+  });
+
+  test("a collection too big for the player says so, and offers it once it fits", async () => {
+    // Redwall is on the player; Holes is not. Told Holes is a petabyte, the
+    // page refuses to start a copy that cannot land, in figures: what it
+    // needs against what the player has. The free space is the real disk's,
+    // read through the helper, so only its shape is pinned.
+    REPORTED_SIZE.bk2 = 2 ** 50;
+    const before = deviceFiles(env.dev);
+    const page = await env.ctx.newPage();
+    try {
+      await page.goto(`${env.absUrl}/collection/col1`);
+      const box = page.locator("#absh-group");
+      await expect(box).toContainText(
+        new RegExp(`Needs 1048576GB; ${basename(env.dev)} has \\S+ free`), { timeout: 20_000 });
+      await expect(box.locator("button")).toBeDisabled();
+      expect(deviceFiles(env.dev), "something was copied anyway").toEqual(before);
+
+      // At its real size, the one not there yet is offered - 1 left, not 2.
+      delete REPORTED_SIZE.bk2;
+      await page.reload();
+      const go = box.locator("button", { hasText: "Copy collection to" });
+      await expect(go).toHaveText(`Copy collection to ${basename(env.dev)} · 1 left, 2.0KB`,
+                                  { timeout: 20_000 });
+      await expect(go).toBeEnabled();
+      await expect(box).toContainText(`1 already on ${basename(env.dev)}`);
+    } finally {
+      delete REPORTED_SIZE.bk2;
+      await page.close();
+    }
   });
 
   test("removing deletes from the device but never from the library", async () => {

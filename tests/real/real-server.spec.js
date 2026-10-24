@@ -17,7 +17,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { cardFor, deviceFiles, until, stripPlacement, underPlay } from "./shared.mjs";
+import { cardFor, deviceFiles, until, stripPlacement, underPlay,
+         oneClickGroups, unplugMidRun, emptyDevice } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -329,72 +330,17 @@ test.describe("against a real Audiobookshelf", () => {
     await page.close();
   });
 
-  test("a series, an author and a collection each copy everything they list in one click",
+  test("a series, an author, a playlist and a collection each copy what they list in one click",
     async () => {
-    // Its own player's worth: the test before this one leaves it empty.
-    expect(deviceFiles(state.device), "device should start empty").toEqual([]);
-    const api = async (path, method = "GET", body) => {
-      const r = await fetch(`${state.absUrl}${path}`, { method,
-        headers: { Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" },
-        body: body === undefined ? undefined : JSON.stringify(body) });
-      if (!r.ok) throw new Error(`${method} ${path}: HTTP ${r.status}`);
-      return r.status === 200 ? r.json().catch(() => ({})) : {};
-    };
-    const lib = state.libraryId;
-    const items = (await api(`/api/libraries/${lib}/items?limit=0&minified=1`)).results;
-    const byTitle = (t) => items.find((i) => i.media.metadata.title === t);
-    const [first, second] = state.titles.map(byTitle);
+    const page = await libraryPage();
+    await oneClickGroups(page, state, expect);
+    await page.close();
+  });
 
-    // A series of one, an author of one, a collection of both.
-    await api(`/api/items/${first.id}/media`, "PATCH",
-              { metadata: { series: [{ name: "One-Click Series", sequence: "1" }] } });
-    const series = (await api(`/api/libraries/${lib}/series?limit=50`)).results
-      .find((x) => x.name === "One-Click Series");
-    const author = (await api(`/api/libraries/${lib}/authors`)).authors
-      .find((a) => a.name === second.media.metadata.authorName);
-    const col = await api("/api/collections", "POST",
-                          { libraryId: lib, name: "One-Click Collection",
-                            books: [first.id, second.id] });
-    const player = state.device.split(/[\\/]/).pop();
-    const box = (page) => page.locator("#absh-group");
-
-    try {
-      const page = await libraryPage();
-      const go = (path) => page.evaluate((p) => window.$nuxt.$router.push(p), path);
-
-      // A series: the button sits in the shelf's own toolbar.
-      await go(`/library/${lib}/series/${series.id}`);
-      const s = box(page).locator("button", { hasText: "Copy series to" });
-      await expect(s).toHaveText(new RegExp(`^Copy series to ${player} · 1 book, `),
-                                 { timeout: 30_000 });
-      expect(await box(page).evaluate((el) => el.closest("#toolbar") !== null)).toBe(true);
-      await s.click();
-      await expect(box(page)).toContainText(`✓ All 1 on ${player}`, { timeout: 45_000 });
-      expect(deviceFiles(state.device).join(" ")).toContain(first.media.metadata.title);
-
-      // An author: beside the name.
-      await go(`/author/${author.id}`);
-      const a = box(page).locator("button", { hasText: "Copy author's books to" });
-      await expect(a).toHaveText(new RegExp(`· 1 book, `), { timeout: 30_000 });
-      expect(await box(page).evaluate(
-        (el) => !!el.parentElement.querySelector(":scope > h1"))).toBe(true);
-      await a.click();
-      await expect(box(page)).toContainText(`✓ All 1 on ${player}`, { timeout: 45_000 });
-
-      // A collection of both, now both on it: nothing left to copy.
-      await go(`/collection/${col.id}`);
-      await expect(box(page)).toContainText(`✓ All 2 on ${player}`, { timeout: 30_000 });
-      expect(deviceFiles(state.device)).toHaveLength(2);
-      await page.close();
-    } finally {
-      // As it was: no series, no collection, an empty player.
-      await api(`/api/items/${first.id}/media`, "PATCH", { metadata: { series: [] } })
-        .catch(() => {});
-      await api(`/api/collections/${col.id}`, "DELETE").catch(() => {});
-      for (const f of deviceFiles(state.device)) {
-        rmSync(dirname(join(state.device, "AUDIOBOOKS", f)), { recursive: true, force: true });
-      }
-    }
+  test("unplugging the player mid-run pauses it, and plugging it back in finishes", async () => {
+    const page = await libraryPage();
+    await unplugMidRun(page, state, expect);
+    await page.close();
   });
 
   test("the covers have their strips when the library is reached from the home page", async () => {
@@ -485,7 +431,8 @@ test.describe("against a real Audiobookshelf", () => {
     // A collection and a series, each offering its books in one button.
     const auth = { Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" };
     const ids = (await (await fetch(`${state.absUrl}/api/libraries/${state.libraryId}/items` +
-      "?limit=0&minified=1", { headers: auth })).json()).results.map((i) => i.id);
+      "?limit=0&minified=1", { headers: auth })).json()).results
+      .filter((i) => state.titles.slice(0, 2).includes(i.media.metadata.title)).map((i) => i.id);
     const col = await (await fetch(`${state.absUrl}/api/collections`, { method: "POST",
       headers: auth, body: JSON.stringify({ libraryId: state.libraryId,
                                             name: "Shelf of two", books: ids }) })).json();
@@ -496,9 +443,7 @@ test.describe("against a real Audiobookshelf", () => {
     await expect(page.locator("#absh-group")).toContainText("✓ All 2", { timeout: 45_000 });
     await page.screenshot({ path: join(dir, "collection-done.png") });
     await fetch(`${state.absUrl}/api/collections/${col.id}`, { method: "DELETE", headers: auth });
-    for (const f of deviceFiles(state.device)) {
-      rmSync(dirname(join(state.device, "AUDIOBOOKS", f)), { recursive: true, force: true });
-    }
+    emptyDevice(state);
     await page.close();
   });
 

@@ -140,6 +140,14 @@ function startAbs() {
         return send([{ id: "recent", label: "Recent", type: "book", entities: BOOKS.map(entity), total: 3 }]);
       }
       if (url.includes("/items")) return send({ results: BOOKS.map(entity) });
+      // A collection of every book, and the page that shows it: the heading
+      // row the app draws, which is where the one button goes.
+      if (url.startsWith("/api/collections/")) return send({ id: "col1", books: BOOKS.map(entity) });
+      if (url.startsWith("/collection/")) {
+        rep.writeHead(200, { "Content-Type": "text/html" });
+        return rep.end('<!doctype html><html><body><div id="page-wrapper"><div class="row">' +
+                       '<h1>Everything</h1><button>Play All</button></div></div></body></html>');
+      }
       if (url.startsWith("/api/libraries/")) {
         return send({ library: { id: "lib1", folders: [{ id: "fol1", fullPath: "/audiobooks" }] } });
       }
@@ -479,6 +487,31 @@ test.describe("without the helper, the folder backend does what the helper does"
     expect(ref.ok).toBe(true);
     expect(mine.files).toEqual(dirState(helperDev).files);
     expect(entriesOf(mine.index)).toEqual(entriesOf(dirState(helperDev).index));
+    await opts.close();
+  });
+
+  test("a collection page copies what the folder lacks, with no helper", async () => {
+    // The Hobbit has just been removed; the other two are there. The button
+    // offers the one, and the folder backend answers the page's question of
+    // what the collection holds, as the helper would.
+    const page = await folderCtx.newPage();
+    await page.goto(`${absUrl}/collection/col1`);
+    const box = page.locator("#absh-group");
+    const go = box.locator("button", { hasText: "Copy collection to" });
+    await expect(go).toHaveText(/^Copy collection to .+ · 1 left, /, { timeout: 20_000 });
+    await expect(box).toContainText(/^.*2 already on /);
+    await go.click();
+    await expect(box).toContainText("✓ All 3 on ", { timeout: 30_000 });
+    await page.close();
+
+    const opts = await optionsPage(folderCtx);
+    const mine = await opfsState(opts, "player");
+    expect(Object.keys(mine.files).filter((f) => f.includes("Hobbit")).sort()).toEqual([
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - An Unexpected Party.m4a",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/002 - 02 - Roast Mutton.m4a",
+      "AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/003 - 10 - A Warm Welcome.m4a",
+    ]);
+    expect(Object.keys(mine.index.entries)).toContain("J.R.R. Tolkien - The Hobbit");
     await opts.close();
   });
 

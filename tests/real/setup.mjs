@@ -95,6 +95,21 @@ const book = (dir, title, author) => {
 book("Brian Jacques/Redwall", "Redwall", "Brian Jacques");
 book("Louis Sachar/Holes", "Holes", "Louis Sachar");
 
+// A series of more than ten, so a series page's one button has to ask once
+// more before copying - the state a two-book library can never reach. Named
+// to sort after everything else: the tests that copy "the first book" keep
+// copying Holes. Audiobookshelf reads the series from the folder name,
+// "<author>/<series>/<n> - <title>".
+const SERIES = { name: "Zebra Chronicles", author: "Zed Zane", count: 11 };
+const seriesTitles = [];
+for (let n = 1; n <= SERIES.count; n++) {
+  const title = `Zebra Chronicles ${String(n).padStart(2, "0")}`;
+  seriesTitles.push(title);
+  const dir = `${SERIES.author}/${SERIES.name}/${n} - ${title}`;
+  mkdirSync(join(data, "books", dir), { recursive: true });
+  book(dir, title, SERIES.author);
+}
+
 // A third book the library never sees. The upload test copies it onto the
 // device so there is genuinely something present on the device and absent from
 // the server - the only state in which the Upload button appears.
@@ -181,14 +196,20 @@ if (!libs.length) {
 const libraryId = libs[0].id;
 
 await api(`/api/libraries/${libraryId}/scan`, { method: "POST", headers: auth });
+// Every book seeded above, not merely some: a re-run against an existing
+// library saw the old books at once and stopped before the new had scanned.
+const expected = 2 + SERIES.count;
 let items = [];
-for (let i = 0; i < 30; i++) {
+for (let i = 0; i < 60; i++) {
   const r = await api(`/api/libraries/${libraryId}/items?limit=0&minified=1`, { headers: auth });
   items = r.body.results || [];
-  if (items.length) break;
+  if (items.length >= expected) break;
   await sleep(1000);
 }
-if (!items.length) { server.kill(); throw new Error("scan produced no items"); }
+if (items.length < expected) {
+  server.kill();
+  throw new Error(`scan produced ${items.length} items, not the ${expected} seeded`);
+}
 
 // What a user pastes into Settings: an API key from Settings -> API Keys,
 // not the session token the browser holds. The extension, the helper and
@@ -212,6 +233,7 @@ const state = {
                 file: `${ONLY.title}.m4a` },
   username: USER, password: PASS, serverVersion: status.serverVersion,
   titles: items.map((i) => i.media?.metadata?.title).filter(Boolean).sort(),
+  series: { ...SERIES, titles: seriesTitles },
 };
 writeFileSync(join(here, "state.json"), JSON.stringify(state, null, 2) + "\n");
 console.log(`> ready: ${abs} (v${status.serverVersion}), ${items.length} items, pid ${server.pid}`);

@@ -7,8 +7,8 @@
  * engine, the Audiobookshelf API - and then checks the file that landed on
  * disk. That is the claim worth making.
  */
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /** Every file the device holds, relative to the books folder.
  *
@@ -81,4 +81,141 @@ export function underPlay(page) {
       .getBoundingClientRect();
     return box.top >= play.bottom && Math.abs(box.left - play.left) < 2;
   });
+}
+
+/* ------------------------------------------------- whole-group copies */
+/* The same bodies in Chromium and Firefox: the page code is one file, and
+ * the bug that reaches only one browser is the one worth a second run. */
+
+/** Audiobookshelf's API as the tests use it, with the test's own key. */
+export function absApi(state) {
+  return async (path, method = "GET", body) => {
+    const r = await fetch(`${state.absUrl}${path}`, { method,
+      headers: { Authorization: `Bearer ${state.token}`, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body) });
+    if (!r.ok) throw new Error(`${method} ${path}: HTTP ${r.status}`);
+    return r.status === 200 ? r.json().catch(() => ({})) : {};
+  };
+}
+
+/** Navigate inside the app, as people do: no page load. */
+export const inApp = (page, path) => page.evaluate((p) => window.$nuxt.$router.push(p), path);
+
+/** Clear the player, folder by folder. */
+export function emptyDevice(state) {
+  for (const f of deviceFiles(state.device)) {
+    rmSync(dirname(join(state.device, "AUDIOBOOKS", f)), { recursive: true, force: true });
+  }
+}
+
+/** One button on a series, an author, a playlist and a collection page,
+ *  each copying what it lists - the series of eleven asking once more first.
+ *  Leaves the server as it found it and the player empty. */
+export async function oneClickGroups(page, state, expect) {
+  expect(deviceFiles(state.device), "device should start empty").toEqual([]);
+  const api = absApi(state);
+  const lib = state.libraryId;
+  const items = (await api(`/api/libraries/${lib}/items?limit=0&minified=1`)).results;
+  const byTitle = (t) => items.find((i) => i.media.metadata.title === t);
+  const [first, second] = state.titles.map(byTitle);        // Holes, Redwall
+  const series = (await api(`/api/libraries/${lib}/series?limit=50`)).results
+    .find((x) => x.name === state.series.name);
+  const author = (await api(`/api/libraries/${lib}/authors`)).authors
+    .find((a) => a.name === first.media.metadata.authorName);
+  const zebra = byTitle(state.series.titles[0]);
+  const playlist = await api("/api/playlists", "POST", { libraryId: lib, name: "One-Click Playlist",
+    items: [{ libraryItemId: second.id }, { libraryItemId: zebra.id }] });
+  const col = await api("/api/collections", "POST",
+                        { libraryId: lib, name: "One-Click Collection", books: [first.id, second.id] });
+  const player = state.device.split(/[\\/]/).pop();
+  const box = page.locator("#absh-group");
+  const n = state.series.count;
+
+  try {
+    // A series of eleven: the button sits in the shelf's own toolbar, and
+    // asks once more before copying that many. No leaves it alone.
+    await inApp(page, `/library/${lib}/series/${series.id}`);
+    const s = box.locator("button", { hasText: "Copy series to" });
+    await expect(s).toHaveText(new RegExp(`^Copy series to ${player} · ${n} books, `),
+                               { timeout: 30_000 });
+    expect(await box.evaluate((el) => el.closest("#toolbar") !== null)).toBe(true);
+    await s.click();
+    await expect(box.locator(".absh-item-line"))
+      .toHaveText(new RegExp(`^Copy ${n} books, \\S+ to ${player}\\?$`));
+    await box.locator("button", { hasText: "No" }).click();
+    await expect(s).toBeVisible();
+    expect(deviceFiles(state.device), "No copied anyway").toEqual([]);
+    await s.click();
+    await box.locator("button", { hasText: `Yes, copy ${n} books` }).click();
+    await expect(box).toContainText(`✓ All ${n} on ${player}`, { timeout: 90_000 });
+    const files = deviceFiles(state.device);
+    expect(files).toHaveLength(n);
+    for (const t of state.series.titles) expect(files.join(" ")).toContain(t);
+
+    // An author: beside the name.
+    await inApp(page, `/author/${author.id}`);
+    const a = box.locator("button", { hasText: "Copy author's books to" });
+    await expect(a).toHaveText(new RegExp(`^Copy author's books to ${player} · 1 book, `),
+                               { timeout: 30_000 });
+    expect(await box.evaluate(
+      (el) => !!el.parentElement.querySelector(":scope > h1"))).toBe(true);
+    await a.click();
+    await expect(box).toContainText(`✓ All 1 on ${player}`, { timeout: 45_000 });
+    expect(deviceFiles(state.device).join(" ")).toContain(first.media.metadata.title);
+
+    // A playlist, one of its two already there: only the other is offered.
+    await inApp(page, `/playlist/${playlist.id}`);
+    const p = box.locator("button", { hasText: "Copy playlist to" });
+    await expect(p).toHaveText(new RegExp(`^Copy playlist to ${player} · 1 left, `),
+                               { timeout: 30_000 });
+    await expect(box).toContainText(`1 already on ${player}`);
+    await p.click();
+    await expect(box).toContainText(`✓ All 2 on ${player}`, { timeout: 45_000 });
+    expect(deviceFiles(state.device).join(" ")).toContain(second.media.metadata.title);
+
+    // A collection of two, both on it by now: nothing to offer, and it says so.
+    await inApp(page, `/collection/${col.id}`);
+    await expect(box).toContainText(`✓ All 2 on ${player}`, { timeout: 30_000 });
+    await expect(box.locator("button")).toHaveCount(0);
+    expect(deviceFiles(state.device)).toHaveLength(n + 2);
+  } finally {
+    await api(`/api/collections/${col.id}`, "DELETE").catch(() => {});
+    await api(`/api/playlists/${playlist.id}`, "DELETE").catch(() => {});
+    emptyDevice(state);
+  }
+}
+
+/** The player pulled out while a run is on: the page says it waits, nothing
+ *  is made again on this disk, and plugging it back in finishes the run.
+ *  Starts and ends with an empty player. */
+export async function unplugMidRun(page, state, expect) {
+  expect(deviceFiles(state.device), "device should start empty").toEqual([]);
+  const api = absApi(state);
+  const lib = state.libraryId;
+  const series = (await api(`/api/libraries/${lib}/series?limit=50`)).results
+    .find((x) => x.name === state.series.name);
+  const player = state.device.split(/[\\/]/).pop();
+  const box = page.locator("#absh-group");
+  const n = state.series.count;
+  try {
+    await inApp(page, `/library/${lib}/series/${series.id}`);
+    const s = box.locator("button", { hasText: "Copy series to" });
+    await expect(s).toBeVisible({ timeout: 30_000 });
+    await s.click();
+    await box.locator("button", { hasText: `Yes, copy ${n} books` }).click();
+    // Out it comes, as the run starts.
+    rmSync(state.device, { recursive: true, force: true });
+
+    await expect(box).toContainText(`Paused · plug ${player} back in`, { timeout: 45_000 });
+    expect(existsSync(state.device), "the player's folders were made again on this disk")
+      .toBe(false);
+
+    // Back in. The background looks for it every few seconds.
+    mkdirSync(join(state.device, "AUDIOBOOKS"), { recursive: true });
+    await expect(box).toContainText(`✓ All ${n} on ${player}`, { timeout: 90_000 });
+    expect(deviceFiles(state.device)).toHaveLength(n);
+  } finally {
+    mkdirSync(join(state.device, "AUDIOBOOKS"), { recursive: true });
+    emptyDevice(state);
+  }
 }

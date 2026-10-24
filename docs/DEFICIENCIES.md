@@ -443,7 +443,11 @@ through the portal), and with no portal (expects "Not installed").
    browser restart resumes it, and offers "Cancel the rest". A helper that
    stops pauses the run the same way. Tests: unplugging during a download in
    Python, folder mode and a real browser; a browser quit and relaunched on
-   the same profile mid-pause.
+   the same profile mid-pause; and, against a real Audiobookshelf in both
+   Chromium and Firefox, the player pulled out as an eleven-book run starts
+   and put back - the page says it waits, nothing is made again on this
+   disk, and all eleven land. Folder mode's unplug is unit-tested only: a
+   headless browser has no removable folder to pull out.
 3. **One click for a series or author.** **DECIDED** (maintainer): on
    Audiobookshelf's own series, author, collection and playlist pages,
    in the page's own button row (mockup option A). **Done:** the helper's
@@ -454,9 +458,14 @@ through the portal), and with no portal (expects "Not installed").
    copies what is not on the player yet, asks again in place above ten
    books, and says "Needs X; <player> has Y free" rather than starting a
    copy that cannot fit. Tests: the endpoints in Python and folder mode;
-   the confirm and too-big states on a stub page; a real Audiobookshelf
-   with a series, an author and a collection, checked against the files
-   that land on the player. The endpoints are in the API contract.
+   the confirm and too-big states on a stub page; the too-big state with
+   the real extension and helper; a collection page in folder mode, with
+   no helper; and a real Audiobookshelf - the test seed now has an
+   eleven-book series - where a series (asked once more first), an
+   author, a playlist and a collection are each copied from their page
+   and checked against the files on the player, in Chromium and Firefox,
+   at both ends of the supported range. The endpoints are in the API
+   contract.
 
 ## Todo
 

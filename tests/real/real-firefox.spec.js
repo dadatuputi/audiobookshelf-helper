@@ -20,7 +20,8 @@ import net from "node:net";
 import { installTemporaryAddon, seedLocalStorage,
          readLocalStorage, grantInStore, writeProbeAddon,
          withDeclaredHostPermission, FIREFOX_PREFS } from "./firefox-addon.mjs";
-import { cardFor, deviceFiles, until, stripPlacement, underPlay } from "./shared.mjs";
+import { cardFor, deviceFiles, until, stripPlacement, underPlay,
+         oneClickGroups, unplugMidRun } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -393,6 +394,19 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     // The page offers to copy it again, beside Play.
     await expect(page.locator("#absh-item button", { hasText: "Copy to" }))
       .toBeVisible({ timeout: 45_000 });
+    await page.close();
+  });
+
+  test("a series, an author, a playlist and a collection each copy what they list in one click",
+    async () => {
+    const page = await libraryPage();
+    await oneClickGroups(page, state, expect);
+    await page.close();
+  });
+
+  test("unplugging the player mid-run pauses it, and plugging it back in finishes", async () => {
+    const page = await libraryPage();
+    await unplugMidRun(page, state, expect);
     await page.close();
   });
 
