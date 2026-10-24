@@ -52,6 +52,32 @@
     },
     {
       "method": "GET",
+      "path": "/api/libraries/{id}/items?limit=0&filter=series.{base64 id}",
+      "used_for": "one click copying everything a series page lists",
+      "fields": ["results[].id",
+                 "the filter value is encodeURIComponent(base64(series id)), as the app's $encode makes it"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/authors/{id}?include=items",
+      "used_for": "one click copying everything an author page lists",
+      "fields": ["libraryItems[].id"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/collections/{id}",
+      "used_for": "one click copying everything a collection page lists",
+      "fields": ["books[].id"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/playlists/{id}",
+      "used_for": "one click copying the books a playlist page lists",
+      "fields": ["items[].libraryItemId",
+                 "items[].episodeId, set only for podcast episodes, which are left out"]
+    },
+    {
+      "method": "GET",
       "path": "/api/items/{id}/download",
       "used_for": "fetching a book to copy to the player",
       "fields": [
@@ -101,6 +127,11 @@
       "what": "The library's own requests",
       "relies_on": "/api/libraries/{id}/personalized returning a bare array of shelves with entities[]",
       "used_for": "learning titles and ids from what the page already fetched"
+    },
+    {
+      "what": "Series, author, collection and playlist pages",
+      "relies_on": "/library/<lib>/series/<id> with #toolbar; /author/<id>, /collection/<id> and /playlist/<id> with an h1 in #page-wrapper whose parent is the row holding the page's own buttons",
+      "used_for": "one button copying everything the page lists"
     }
   ]
 }

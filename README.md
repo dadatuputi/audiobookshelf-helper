@@ -271,9 +271,13 @@ Every cover gets a strip along its foot: **✓ On <player>**, **Copying…** wit
 bar, **Waiting to copy**, or **Copy to player**, where the whole strip is the
 button. A book's own page gets **Copy to <player>** under Play, or **Remove
 from <player>** when it is already there, with a line saying how it stands;
-Remove asks once more, in place, before it deletes anything. The button in
-Audiobookshelf's toolbar says which player is connected and how much of the
-library is on it ("SANSA · 3 of 28 on it"), and opens the book picker.
+Remove asks once more, in place, before it deletes anything. A series,
+author, collection or playlist page gets one button beside the page's own,
+**Copy series to <player> · 4 books, 2.1GB**, which copies everything that
+page lists that the player lacks - asking once more, in place, when that is
+more than ten books, and saying so instead when they would not fit. The
+button in Audiobookshelf's toolbar says which player is connected and how much
+of the library is on it ("SANSA · 3 of 28 on it"), and opens the book picker.
 Copies started here run in the extension's background, so the popup shows them
 too. Books on the device but *not* in your library appear in a panel with an
 **Upload** button.

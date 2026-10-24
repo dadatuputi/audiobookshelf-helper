@@ -47,6 +47,13 @@ button.absh-badge::after { content: ""; position: absolute; inset: -4px; }
 .absh-item-line { font-size: 13px; color: #9A9A9A; }
 .absh-item-line:empty { display: none; }
 .absh-bad-line { color: #F08A7E; }
+/* A series, author, collection or playlist page: one button in the page's
+   own row, and what stands in its way beside it - the series toolbar is one
+   line high, so nothing goes under it. */
+#absh-group { display: flex; align-items: center; align-self: center; gap: 8px; margin-left: 8px; flex-wrap: wrap; min-width: 0; }
+#absh-group .absh-ok-line { color: #8FE0B0; }
+#absh-group .absh-item-line { white-space: nowrap; }
+.absh-btn.absh-big:disabled { opacity: .55; cursor: default; }
 .absh-mini {
   min-width: 20px; height: 20px; padding: 0 5px;
   background: rgba(255, 255, 255, .12); color: #e5e7eb;

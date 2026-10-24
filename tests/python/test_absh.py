@@ -252,6 +252,44 @@ class TestClient(unittest.TestCase):
         self.assertIn("check the API key", str(cm.exception))
 
 
+class TestGroups(unittest.TestCase):
+    """What a series, author, collection or playlist page lists - asked as
+    the page itself asks, so one click copies exactly what is on screen."""
+
+    def client(self, body):
+        self.urls = []
+        def opener(req, timeout=None):
+            self.urls.append(req.full_url)
+            return FakeResponse(json.dumps(body).encode())
+        return Client("http://abs/audiobookshelf", "k", opener=opener)
+
+    def test_a_series_filters_the_library_by_its_base64_id(self):
+        c = self.client({"results": [{"id": "li_2"}, {"id": "li_1"}]})
+        self.assertEqual(c.group_ids("series", "ser_x+/=", "lib1"), ["li_2", "li_1"])
+        # $encode: encodeURIComponent(base64(id)) - "+", "/" and "=" escaped.
+        self.assertEqual(self.urls, ["http://abs/audiobookshelf/api/libraries/lib1/items"
+                                     "?limit=0&minified=1&filter=series.c2VyX3grLz0%3D"])
+
+    def test_an_author_lists_their_books_in_any_library(self):
+        c = self.client({"libraryItems": [{"id": "li_9"}]})
+        self.assertEqual(c.group_ids("authors", "aut_1", "lib1"), ["li_9"])
+        self.assertTrue(self.urls[0].endswith("/api/authors/aut_1?include=items"))
+
+    def test_a_collection_lists_its_books(self):
+        c = self.client({"books": [{"id": "li_3"}, {"id": "li_4"}]})
+        self.assertEqual(c.group_ids("collection", "col_1"), ["li_3", "li_4"])
+        self.assertTrue(self.urls[0].endswith("/api/collections/col_1"))
+
+    def test_a_playlist_leaves_out_podcast_episodes(self):
+        c = self.client({"items": [{"libraryItemId": "li_5"},
+                                   {"libraryItemId": "pod_1", "episodeId": "ep_1"}]})
+        self.assertEqual(c.group_ids("playlist", "pl_1"), ["li_5"])
+
+    def test_anything_else_is_refused(self):
+        with self.assertRaises(AbsError):
+            self.client({}).group_ids("narrators", "x", "lib1")
+
+
 class TestContract(unittest.TestCase):
     """The Audiobookshelf response shapes this tool depends on.
 

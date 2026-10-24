@@ -884,6 +884,30 @@
         const d = await json(`/api/libraries/${q(id)}/items?limit=0&minified=1`);
         return (d.results || []).map(normalizeItem);
       },
+      /** absh/abs_api.py group_ids: what a series, author, collection or
+       *  playlist page lists, asked as that page asks. */
+      async groupIds(kind, id, libraryId) {
+        if (kind === "authors") {
+          const d = await json(`/api/authors/${q(id)}?include=items`);
+          return (d.libraryItems || []).map((i) => i.id).filter(Boolean);
+        }
+        if (kind === "series") {
+          const enc = q(btoa(String.fromCharCode(...new TextEncoder().encode(String(id)))));
+          const d = await json(`/api/libraries/${q(libraryId)}/items?limit=0&minified=1` +
+                               `&filter=series.${enc}`);
+          return (d.results || []).map((i) => i.id).filter(Boolean);
+        }
+        if (kind === "collection") {
+          const d = await json(`/api/collections/${q(id)}`);
+          return (d.books || []).map((b) => b.id).filter(Boolean);
+        }
+        if (kind === "playlist") {
+          const d = await json(`/api/playlists/${q(id)}`);
+          return (d.items || []).filter((i) => i.libraryItemId && !i.episodeId)
+            .map((i) => i.libraryItemId);
+        }
+        throw new AbsError(`unknown kind of group: ${kind}`);
+      },
       async download(id) {
         const r = await request(`/api/items/${q(id)}/download`);
         return { contentType: r.headers.get("Content-Type") || "",
@@ -1325,6 +1349,10 @@
       case "folders": {
         const c = await clientFor(cfg, fetchImpl);
         return { folders: await c.libraryFolders(await libraryId(c, cfg, msg)) };
+      }
+      case "group": {
+        const c = await clientFor(cfg, fetchImpl);
+        return { ids: await c.groupIds(msg.kind, msg.id, await libraryId(c, cfg, msg)) };
       }
       case "status": {
         const dev = await openDevice();

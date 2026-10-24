@@ -78,6 +78,67 @@ test.describe("content script behaviour", () => {
     await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
     await expect(page.locator("#absh-sync-btn")).toHaveCount(0);
   });
+
+  /* A collection page: the heading row the app draws, and a helper that
+   * answers the few messages the page asks. 12 books of 1GB, none on it. */
+  const GB = 1024 ** 3;
+  const groupPage = async (page, free) => {
+    await page.route("**/collection/**", (r) => r.fulfill({ status: 200, contentType: "text/html",
+      body: `<!doctype html><html><body><div id="page-wrapper"><div class="row">
+               <h1>Twelve</h1><button>Play All</button></div></div></body></html>` }));
+    await page.addInitScript(({ GB, free }) => {
+      const ids = Array.from({ length: 12 }, (_, i) => `li_${i}`);
+      window.SENT = [];
+      const answer = (m) => {
+        if (m.type === "status") {
+          return { backend: "native", both: [], deviceOnly: [], free: { free },
+                   serverOnly: ids.map((id) => ({ id, title: id, size: GB })) };
+        }
+        if (m.type === "group") return ids;
+        if (m.type === "jobAdd") return { current: null, queue: [], last: null };
+        return null;
+      };
+      window.browser = { runtime: {
+        sendMessage: (m) => { window.SENT.push(m); return Promise.resolve({ ok: true, data: answer(m) }); },
+        onMessage: { addListener() {} },
+      } };
+    }, { GB, free });
+    await page.goto("https://abs.test/collection/col_1");
+    await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
+  };
+
+  test("a collection's books copy in one click, asked once more when there are many",
+    async ({ page }) => {
+    await groupPage(page, 40 * GB);
+    const box = page.locator("#absh-group");
+    const go = box.locator("button", { hasText: "Copy collection to" });
+    await expect(go).toHaveText("Copy collection to the player · 12 books, 12GB");
+    // In the heading's own row, beside the page's buttons.
+    expect(await box.evaluate((el) => el.parentElement.querySelector(":scope > h1") !== null))
+      .toBe(true);
+    expect(await page.evaluate(() => SENT.find((m) => m.type === "group")))
+      .toMatchObject({ kind: "collection", id: "col_1" });
+
+    // More than ten: asked in place, and No leaves it alone.
+    await go.click();
+    await expect(box).toContainText("Copy 12 books, 12GB to the player?");
+    await box.locator("button", { hasText: "No" }).click();
+    await expect(go).toBeVisible();
+    expect(await page.evaluate(() => SENT.some((m) => m.type === "jobAdd"))).toBe(false);
+
+    await go.click();
+    await box.locator("button", { hasText: "Yes, copy 12 books" }).click();
+    const add = await page.evaluate(() => SENT.find((m) => m.type === "jobAdd"));
+    expect(add.op).toBe("pull");
+    expect(add.items.map((i) => i.ref)).toEqual(Array.from({ length: 12 }, (_, i) => `li_${i}`));
+  });
+
+  test("a collection too big for the player says so instead of starting", async ({ page }) => {
+    await groupPage(page, 5 * GB);
+    const box = page.locator("#absh-group");
+    await expect(box).toContainText("Needs 12GB; the player has 5.0GB free");
+    await expect(box.locator("button")).toBeDisabled();
+  });
 });
 
 test.describe("built artefacts", () => {

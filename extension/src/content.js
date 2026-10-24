@@ -3,8 +3,10 @@
  * Each cover gets a strip saying whether that book is on the player, being
  * copied, or not there yet - and then the strip is the button that copies it.
  * A book's own page gets "Copy to <player>" beside Play, with the player's
- * state under it. Books on the player that the library does not have appear
- * in a panel of their own, with an upload button.
+ * state under it. A series, author, collection or playlist page gets one
+ * button that copies everything it lists. Books on the player that the
+ * library does not have appear in a panel of their own, with an upload
+ * button.
  *
  * Registered for the whole server (see background.js syncContentScript):
  * Audiobookshelf changes pages without loading them, so this decides what is
@@ -419,6 +421,160 @@
     return b;
   }
 
+  /* ------------------------------------- a series, author or collection */
+  /* One button for everything the page lists, in the page's own button row:
+     "Copy series to <player> · 4 books, 2.1GB". Which books comes from the
+     server, asked as the page asks, so it is exactly what is on screen and
+     not only the covers drawn so far. More than CONFIRM_MANY asks again in
+     place first. */
+  const GROUP_BOX = "absh-group";
+  const CONFIRM_MANY = 10;
+  const GROUP_PAGES = [
+    { re: /\/library\/([^/]+)\/series\/([^/?#]+)/, kind: "series", noun: "series" },
+    { re: /\/author\/([^/?#]+)/, kind: "authors", noun: "author's books" },
+    { re: /\/collection\/([^/?#]+)/, kind: "collection", noun: "collection" },
+    { re: /\/playlist\/([^/?#]+)/, kind: "playlist", noun: "playlist" },
+  ];
+  /* The page's books: {key, ids} once the server answers, or {key, error}. */
+  let GROUP = null;
+  let GCONFIRM = null;
+
+  function groupHere() {
+    for (const g of GROUP_PAGES) {
+      const m = g.re.exec(location.pathname);
+      if (!m) continue;
+      const lib = m.length > 2 ? decodeURIComponent(m[1]) : null;
+      const id = decodeURIComponent(m[m.length - 1]);
+      return { ...g, id, lib, key: `${g.kind}:${id}` };
+    }
+    return null;
+  }
+
+  /* Where the page keeps its own buttons: a series page has the shelf's
+     toolbar, the others a row with the heading in it. */
+  function groupRow(g) {
+    if (g.kind === "series") return document.getElementById("toolbar");
+    const h = document.querySelector("#page-wrapper h1");
+    return h && h.parentElement;
+  }
+
+  function ungroupConfirm(redraw = true) {
+    if (GCONFIRM) clearTimeout(GCONFIRM.timer);
+    GCONFIRM = null;
+    if (redraw) groupPage();
+  }
+
+  function copyMany(ids) {
+    const items = ids.map((id) => {
+      const i = serverItem(id);
+      return { key: id, ref: id, title: i.title || "", bytes: i.size || 0 };
+    });
+    return send({ type: "jobAdd", op: "pull", player: PLAYER, items })
+      .then((job) => setJob(job))
+      .catch((e) => note(String(e.message || e), true));
+  }
+
+  function groupPage() {
+    const g = groupHere();
+    let box = document.getElementById(GROUP_BOX);
+    if (!g) {
+      if (box) box.remove();
+      GROUP = null;
+      if (GCONFIRM) ungroupConfirm(false);
+      return;
+    }
+    if (!GROUP || GROUP.key !== g.key) {
+      if (GCONFIRM) ungroupConfirm(false);
+      const want = g.key;
+      GROUP = { key: want };
+      send({ type: "group", kind: g.kind, id: g.id, libraryId: g.lib || undefined })
+        .then((ids) => { if (GROUP && GROUP.key === want) GROUP.ids = ids || []; })
+        .catch((e) => { if (GROUP && GROUP.key === want) GROUP.error = String(e.message || e); })
+        .finally(scheduleRender);
+    }
+    const row = groupRow(g);
+    if (!row) return;                       // not rendered yet
+    if (!box || box.parentElement !== row) {
+      if (box) box.remove();
+      box = document.createElement("div");
+      box.id = GROUP_BOX;
+      box.addEventListener("keydown", (e) => { if (e.key === "Escape" && GCONFIRM) ungroupConfirm(); });
+      // Before the helper's own toolbar button, so the page's actions stay
+      // together and the player's standing stays at the end.
+      const mine = row.querySelector("#" + BTN_ID);
+      if (mine) row.insertBefore(box, mine); else row.appendChild(box);
+    }
+
+    const ids = GROUP.ids;
+    const down = !STATUS || STATUS.error;
+    const on = [], active = [], left = [];
+    for (const id of ids || []) {
+      if (!down && onDevice(id)) { on.push(id); continue; }
+      const st = standing(id);
+      if (st && st.it.state !== "failed") active.push(id); else left.push(id);
+    }
+    const need = left.reduce((n, id) => n + (Number(serverItem(id).size) || 0), 0);
+    const free = !down && STATUS.free && STATUS.free.free;
+    const asking = !!(GCONFIRM && GCONFIRM.key === g.key);
+    const sig = JSON.stringify([g.key, PLAYER, ids && ids.length, GROUP.error, !!down,
+      on.length, active.length, left.length, need, free, asking, !!JOB.paused]);
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig;
+    box.textContent = "";
+
+    // Nothing to offer yet, or nothing on the page to copy.
+    if (!ids || !ids.length) {
+      if (GROUP.error) box.append(line(`Audiobookshelf Helper: ${GROUP.error}`, true));
+      return;
+    }
+    const books = (n) => `${n} book${n === 1 ? "" : "s"}`;
+    if (down) {
+      box.append(bigButton(`Copy ${g.noun} to player`, "", () => {}), line("Player not connected", true));
+      box.firstChild.disabled = true;
+      return;
+    }
+    if (active.length) {
+      const b = bigButton(`Copying to ${PLAYER}…`, "absh-ghost", () => {});
+      b.disabled = true;
+      box.append(b, line(JOB.paused
+        ? `Paused · plug ${PLAYER} back in · ${active.length} waiting`
+        : `${on.length} of ${ids.length} on ${PLAYER}`));
+      return;
+    }
+    if (!left.length) {
+      const done = line(`✓ All ${ids.length} on ${PLAYER}`);
+      done.classList.add("absh-ok-line");
+      box.append(done);
+      return;
+    }
+    const size = need ? `, ${sizeOf(need)}` : "";
+    if (free && need > free) {
+      const b = bigButton(`Copy ${g.noun} to ${PLAYER}`, "", () => {});
+      b.disabled = true;
+      box.append(b, line(`Needs ${sizeOf(need)}; ${PLAYER} has ${sizeOf(free)} free`, true));
+      return;
+    }
+    if (asking) {
+      const no = bigButton("No", "absh-ghost", () => ungroupConfirm());
+      box.append(
+        bigButton(`Yes, copy ${books(left.length)}`, "", () => {
+          ungroupConfirm(false);
+          copyMany(left);
+        }),
+        no,
+        line(`Copy ${books(left.length)}${size} to ${PLAYER}?`));
+      no.focus({ preventScroll: true });
+      return;
+    }
+    const count = on.length ? `${left.length} left` : books(left.length);
+    box.append(bigButton(`Copy ${g.noun} to ${PLAYER} · ${count}${size}`, "", () => {
+      if (left.length <= CONFIRM_MANY) return copyMany(left);
+      GCONFIRM = { key: g.key, timer: setTimeout(() => ungroupConfirm(), CONFIRM_SECONDS * 1000) };
+      groupPage();
+    }));
+    if (on.length) box.append(line(`${on.length} already on ${PLAYER}`));
+  }
+
   /* ---------------------------------------------------- device-only panel */
   function renderPanel() {
     const only = (STATUS && STATUS.deviceOnly) || [];
@@ -552,6 +708,7 @@
   function render() {
     toolbarButton();
     itemPage();
+    groupPage();
     for (const card of document.querySelectorAll('[id^="book-card-"], [id^="item-card-"]')) {
       try {
         decorate(card);
@@ -566,7 +723,7 @@
      half of all page loads never learned the cards had appeared and sat with
      no badges at all. Judge each record instead. */
   function ownMutation(rec) {
-    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note, #${RESTORE_ID}, #${ITEM_ID}`;
+    const own = `.${BADGE}, #${PANEL_ID}, #${BTN_ID}, #absh-note, #${RESTORE_ID}, #${ITEM_ID}, #${GROUP_BOX}`;
     const el = rec.target && rec.target.nodeType === 1
       ? rec.target : rec.target && rec.target.parentElement;
     if (el && el.closest && el.closest(own)) return true;

@@ -445,8 +445,18 @@ through the portal), and with no portal (expects "Not installed").
    Python, folder mode and a real browser; a browser quit and relaunched on
    the same profile mid-pause.
 3. **One click for a series or author.** **DECIDED** (maintainer): on
-   Audiobookshelf's own series, author, collection and playlist pages.
-   Mockup first.
+   Audiobookshelf's own series, author, collection and playlist pages,
+   in the page's own button row (mockup option A). **Done:** the helper's
+   new `group` command lists what the page lists, asked as the page asks
+   (a series filters its library by base64 id; an author comes with their
+   books; a collection and a playlist list theirs, playlist podcast
+   episodes left out), and Chrome's folder mode asks the same. The button
+   copies what is not on the player yet, asks again in place above ten
+   books, and says "Needs X; <player> has Y free" rather than starting a
+   copy that cannot fit. Tests: the endpoints in Python and folder mode;
+   the confirm and too-big states on a stub page; a real Audiobookshelf
+   with a series, an author and a collection, checked against the files
+   that land on the player. The endpoints are in the API contract.
 
 ## Todo
 

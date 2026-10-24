@@ -387,6 +387,7 @@ const FOLDER_ARGS = {
   remove: (m) => ({ names: m.names }),
   libraries: () => ({}),
   folders: (m) => ({ libraryId: m.libraryId }),
+  group: (m) => ({ kind: m.kind, id: m.id, libraryId: m.libraryId }),
 };
 
 async function viaFolder(type, msg, onProgress) {
@@ -401,6 +402,7 @@ async function viaFolder(type, msg, onProgress) {
                                onProgress || undefined);
     if (type === "libraries") return r.libraries;
     if (type === "folders") return r.folders;
+    if (type === "group") return r.ids;
     return r;
   } finally {
     clearInterval(keepAlive);
@@ -437,6 +439,8 @@ async function route(msg, onProgress) {
     case "libraries": return { ok: true, data: (await call("libraries")).libraries };
     case "folders":   return { ok: true, data: (await call("folders", { libraryId: msg.libraryId })).folders };
     case "devices":   return { ok: true, data: (await call("devices")).devices };
+    case "group":     return { ok: true, data: (await call("group", { kind: msg.kind, id: msg.id,
+                                                                     libraryId: msg.libraryId })).ids };
     case "status":
       LAST_STATUS = await call("status", { libraryId: msg.libraryId, readTags: msg.readTags !== false });
       // The player answered: a run waiting for it can carry on.

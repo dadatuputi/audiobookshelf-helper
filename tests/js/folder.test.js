@@ -223,6 +223,30 @@ describe("the commands, with a server and no browser", () => {
     expect(seen[0][1]).toBe("Bearer k");
   });
 
+  it("asks for a series, author, collection or playlist as abs_api.py does", async () => {
+    const seen = [];
+    const fakeFetch = async (url) => {
+      seen.push(url.replace("http://abs.local", ""));
+      const body = url.includes("/api/authors/") ? { libraryItems: [{ id: "li_9" }] }
+        : url.includes("/api/collections/") ? { books: [{ id: "li_3" }, { id: "li_4" }] }
+        : url.includes("/api/playlists/") ? { items: [{ libraryItemId: "li_5" },
+                                                      { libraryItemId: "pod", episodeId: "ep" }] }
+        : { results: [{ id: "li_2" }, { id: "li_1" }] };
+      return new Response(JSON.stringify(body));
+    };
+    const group = (kind, id) => F.run("group", { absUrl: "http://abs.local", apiKey: "k",
+                                                 kind, id, libraryId: "lib1" }, undefined, fakeFetch);
+    expect(await group("series", "ser_x+/=")).toEqual({ ids: ["li_2", "li_1"] });
+    expect(await group("authors", "aut_1")).toEqual({ ids: ["li_9"] });
+    expect(await group("collection", "col_1")).toEqual({ ids: ["li_3", "li_4"] });
+    expect(await group("playlist", "pl_1")).toEqual({ ids: ["li_5"] });
+    // The same addresses tests/python TestGroups pins for the helper.
+    expect(seen).toEqual([
+      "/api/libraries/lib1/items?limit=0&minified=1&filter=series.c2VyX3grLz0%3D",
+      "/api/authors/aut_1?include=items", "/api/collections/col_1", "/api/playlists/pl_1"]);
+    await expect(group("narrators", "x")).rejects.toThrow("unknown kind of group");
+  });
+
   it("explains a refused request in the helper's words", async () => {
     const fakeFetch = async () => new Response("nope", { status: 401 });
     await expect(F.run("libraries", { absUrl: "http://abs.local", apiKey: "k" }, undefined, fakeFetch))

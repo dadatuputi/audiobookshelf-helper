@@ -164,6 +164,19 @@ def cmd_folders(msg, emit):
     return {"ok": True, "folders": client.library_folders(msg.get("libraryId") or library_id(client, cfg))}
 
 
+def cmd_group(msg, emit):
+    """The books a series, author, collection or playlist page lists, so the
+    page can offer to copy the lot. Only the ids: the page already has the
+    shelf, which says which are on the player and how big they are."""
+    kind = msg.get("kind")
+    if kind not in Client.GROUPS or not msg.get("id"):
+        raise ValueError("group needs a kind (series, authors, collection, playlist) and an id")
+    cfg = settings(msg)
+    client = client_for(cfg)
+    lib = msg.get("libraryId") or library_id(client, cfg)
+    return {"ok": True, "ids": client.group_ids(kind, msg["id"], lib)}
+
+
 def cmd_devices(msg, emit):
     """What is plugged in, so the options page can offer a choice."""
     cfg = settings(msg)
@@ -333,7 +346,7 @@ def cmd_update(msg, emit):
 
 COMMANDS = {
     "ping": cmd_ping, "config": cmd_config, "libraries": cmd_libraries,
-    "devices": cmd_devices,
+    "devices": cmd_devices, "group": cmd_group,
     "folders": cmd_folders, "status": cmd_status, "pull": cmd_pull,
     "push": cmd_push, "remove": cmd_remove, "watch": cmd_watch,
     "update-check": cmd_update_check, "update": cmd_update,
@@ -351,7 +364,7 @@ COMMANDS = {
 # and a popup opened mid-copy had no shelf until the copy ended. Mid-copy, the
 # book being written may read as partly there; the shelf is read again when the
 # copy finishes.
-CONCURRENT = {"update-check", "ping", "devices", "status"}
+CONCURRENT = {"update-check", "ping", "devices", "status", "group"}
 
 
 def handle(msg, emit=None):

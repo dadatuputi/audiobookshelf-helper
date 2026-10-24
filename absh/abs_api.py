@@ -9,6 +9,7 @@ The endpoints and fields used here are pinned in tests/fixtures/abs/contract.jso
 and asserted by the contract tests, so an upstream change fails a build rather
 than silently emptying the book list.
 """
+import base64
 import json
 import mimetypes
 import os
@@ -154,6 +155,33 @@ class Client:
                 f"/items?limit=0&minified=1")
         d = self._json(path)
         return [normalize_item(it) for it in (d.get("results") or [])]
+
+    # What each kind of Audiobookshelf page lists, asked the way that page
+    # asks. A series page filters its library; the filter value is base64 of
+    # the id, as the app's own $encode makes it. An author page asks for the
+    # author with their books, which also finds them in whichever library.
+    GROUPS = ("series", "authors", "collection", "playlist")
+
+    def group_ids(self, kind, group_id, library_id=None):
+        """The library item ids a series, author, collection or playlist page
+        shows, in its order. Podcast episodes in a playlist are left out."""
+        q = urllib.parse.quote
+        if kind == "authors":
+            d = self._json(f"/api/authors/{q(str(group_id))}?include=items")
+            return [it.get("id") for it in (d.get("libraryItems") or []) if it.get("id")]
+        if kind == "series":
+            enc = base64.b64encode(str(group_id).encode("utf-8")).decode("ascii")
+            d = self._json(f"/api/libraries/{q(str(library_id))}/items?limit=0&minified=1"
+                           f"&filter={kind}.{q(enc, safe='')}")
+            return [it.get("id") for it in (d.get("results") or []) if it.get("id")]
+        if kind == "collection":
+            d = self._json(f"/api/collections/{q(str(group_id))}")
+            return [b.get("id") for b in (d.get("books") or []) if b.get("id")]
+        if kind == "playlist":
+            d = self._json(f"/api/playlists/{q(str(group_id))}")
+            return [i.get("libraryItemId") for i in (d.get("items") or [])
+                    if i.get("libraryItemId") and not i.get("episodeId")]
+        raise AbsError(f"unknown kind of group: {kind}")
 
     def open_download(self, item_id, timeout=DOWNLOAD_TIMEOUT):
         """Open the download stream for an item. Caller closes it."""
