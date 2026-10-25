@@ -13,6 +13,11 @@ AUDIO_EXT = {".m4b", ".m4a", ".mp3", ".flac", ".wav", ".ogg", ".opus"}
 # The device is usually FAT32 and the player's firmware is usually fussy.
 _RESERVED = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
+# Rockbox opens nothing whose full path passes 260 characters, and neither does
+# Windows Explorer; a book's folder and the part inside it once came to 268.
+# Two names this long leave the books folder ample room under that.
+MAX_NAME = 80
+
 
 def clean(s):
     """ASCII-ish, filesystem-safe. Simple player firmware dislikes exotic
@@ -20,6 +25,17 @@ def clean(s):
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
     s = _RESERVED.sub("", s)
     return re.sub(r"\s+", " ", s).strip() or "Untitled"
+
+
+def fit(s, n=MAX_NAME):
+    """`s` cut to at most `n` characters, at a space if there is one near the end."""
+    if len(s) <= n:
+        return s
+    cut = s[:n]
+    space = cut.rfind(" ")
+    if space >= n // 2:
+        cut = cut[:space]
+    return cut.rstrip(" -,.") or s[:n]
 
 
 def human(n):
@@ -67,7 +83,7 @@ def target_name(book, folder_template="{author} - {title}"):
     name = (folder_template or "{author} - {title}")
     for key in ("author", "title", "series", "narrator"):
         name = name.replace("{%s}" % key, str(book.get(key) or ""))
-    return clean(name).strip(" -") or "Untitled"
+    return fit(clean(name).strip(" -") or "Untitled")
 
 
 def free_name(name, item, taken):
@@ -93,10 +109,12 @@ def free_name(name, item, taken):
     narrator = clean(item.get("narrator")) if item.get("narrator") else ""
     if narrator == "Untitled":
         narrator = ""
+    # The name is cut to leave room for what tells it apart, so that stays.
+    with_tail = lambda tail: fit(name, MAX_NAME - len(tail)) + tail   # noqa: E731
     tries = []
     if narrator and narrator.lower() not in name.lower():
-        tries.append(f"{name} ({narrator})")
-    tries += [f"{name} ({n})" for n in range(2, 1000)]
+        tries.append(with_tail(f" ({fit(narrator, 30)})"))
+    tries += [with_tail(f" ({n})") for n in range(2, 1000)]
     for t in (clean(t) for t in tries):
         if taken.get(t.lower(), me) == me:
             return t

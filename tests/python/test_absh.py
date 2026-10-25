@@ -112,6 +112,22 @@ class TestNaming(unittest.TestCase):
         self.assertEqual(naming.source_ext("Book.m4a"), ".m4b")
         self.assertEqual(naming.out_ext("Book.mp3", True), ".mp3")
 
+    def test_a_long_name_is_cut_at_a_word(self):
+        """Rockbox opens no path over 260 characters; one book's came to 268."""
+        name = naming.target_name(
+            {"author": "Caroline Carlson",
+             "title": "The Very Nearly Honorable League of Pirates The Terror of the Southlands",
+             "series": "The Very Nearly Honorable League of Pirates #2"},
+            "{author} - {title} - {series}")
+        self.assertLessEqual(len(name), naming.MAX_NAME)
+        self.assertEqual(name, "Caroline Carlson - The Very Nearly Honorable League of Pirates The Terror of")
+
+    def test_a_second_edition_keeps_its_narrator_when_the_name_is_cut(self):
+        long = naming.target_name({"author": "A", "title": "Word " * 30})
+        got = naming.free_name(long, {"id": "2", "narrator": "Jim Dale"}, {long: "1"})
+        self.assertLessEqual(len(got), naming.MAX_NAME)
+        self.assertTrue(got.endswith(" (Jim Dale)"))
+
     def test_subdir_cannot_escape(self):
         self.assertEqual(naming.safe_subdir("../../etc"), Path("etc"))
         self.assertEqual(naming.safe_subdir("../.."), Path("AUDIOBOOKS"))
@@ -560,6 +576,19 @@ class TestMultiFileDownload(DeviceBase):
         self.assertEqual(sorted(p.suffix for p in out.iterdir()), [".m4a", ".m4a"])
         self.assertTrue(all(p.name[:3].isdigit() for p in out.iterdir()),
                         "parts must sort in order on the player")
+
+    def test_long_names_leave_room_under_rockboxs_path_limit(self):
+        item = dict(ITEMS[0], title="A Title That Goes On " * 8)
+        long_part = "Chapter of a book with a name that keeps going " * 4
+        client = FakeClient({"li_1": (self.zipped(long_part + "1.m4b", long_part + "2.m4b"),
+                                      "book.zip", "application/zip")})
+        sync.pull(client, [item], self.opts)
+        parts = list((self.dev / "AUDIOBOOKS").glob("*/*.m4a"))
+        self.assertEqual(len(parts), 2)
+        for p in parts:
+            # As Rockbox sees it: /<microSD1>/AUDIOBOOKS/<book>/<part>
+            self.assertLess(len("/<microSD1>/" + str(p.relative_to(self.dev))), 200)
+            self.assertLessEqual(len(p.name), naming.MAX_NAME)
 
     def test_the_cover_is_not_treated_as_a_track(self):
         client = FakeClient({"li_1": (self.zipped("one.m4b"), "book.zip", "application/zip")})

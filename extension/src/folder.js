@@ -59,6 +59,21 @@
     return pyStrip(s.replace(PY_WS_RUN, " ")) || "Untitled";
   }
 
+  /* naming.MAX_NAME: Rockbox and Windows Explorer open nothing whose full path
+   * passes 260 characters. */
+  const MAX_NAME = 80;
+
+  /** naming.fit: cut to at most `n` characters, at a space near the end. */
+  function fit(s, n = MAX_NAME) {
+    if (s.length <= n) return s;
+    let cut = s.slice(0, n);
+    const space = cut.lastIndexOf(" ");
+    if (space >= Math.floor(n / 2)) cut = cut.slice(0, space);
+    let end = cut.length;
+    while (end > 0 && " -,.".includes(cut[end - 1])) end--;
+    return cut.slice(0, end) || s.slice(0, n);
+  }
+
   /* pathlib, POSIX flavour: the name is the last part once empty and "."
    * parts are gone; the suffix needs a dot that is neither first nor last. */
   function pathName(p) {
@@ -105,7 +120,7 @@
       const v = book[key];
       name = name.split(`{${key}}`).join(v ? String(v) : "");
     }
-    return pyStrip(clean(name), " -") || "Untitled";
+    return fit(pyStrip(clean(name), " -") || "Untitled");
   }
 
   /** naming.free_name: `name`, unless another book already holds it - two
@@ -118,11 +133,13 @@
     if (owner === me || owner === null) return name;
     let narrator = item.narrator ? clean(item.narrator) : "";
     if (narrator === "Untitled") narrator = "";        // nothing survived clean()
+    // The name is cut to leave room for what tells it apart, so that stays.
+    const withTail = (tail) => fit(name, MAX_NAME - tail.length) + tail;
     const tries = [];
     if (narrator && !name.toLowerCase().includes(narrator.toLowerCase())) {
-      tries.push(`${name} (${narrator})`);
+      tries.push(withTail(` (${fit(narrator, 30)})`));
     }
-    for (let n = 2; n < 1000; n++) tries.push(`${name} (${n})`);
+    for (let n = 2; n < 1000; n++) tries.push(withTail(` (${n})`));
     for (const t of tries.map(clean)) {
       const k = t.toLowerCase();
       if (!held.has(k) || held.get(k) === me) return t;
@@ -1057,7 +1074,8 @@
       srcExt = srcExt || suffix(member).toLowerCase();
       // Names are rebuilt, never taken from the archive, so a crafted zip
       // cannot reach outside the book's folder.
-      const dst = `${String(i + 1).padStart(3, "0")} - ${clean(stem(member))}${outExt(member, rename)}`;
+      const ext = outExt(member, rename);
+      const dst = `${String(i + 1).padStart(3, "0")} - ${fit(clean(stem(member)), MAX_NAME - 6 - ext.length)}${ext}`;
       step(i + 1, members.length, dst);
       if (await child(target, dst)) {
         rep.skipped += 1;
@@ -1403,7 +1421,7 @@
 
   const api = {
     // naming
-    AUDIO_EXT, clean, pathName, suffix, stem, outExt, sourceExt, safeSubdir, targetName, freeName,
+    AUDIO_EXT, MAX_NAME, clean, fit, pathName, suffix, stem, outExt, sourceExt, safeSubdir, targetName, freeName,
     normKey, normalizeItem, pyStrip, cmpCodePoints, cmpParts,
     // tags and zip
     readTags, readBook, zipEntries, zipMemberStream,

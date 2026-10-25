@@ -23,7 +23,7 @@ from . import index as index_mod
 from . import tags as tags_mod
 from .abs_api import AbsError
 from .device import device_root
-from .naming import AUDIO_EXT, clean, free_name, out_ext, source_ext, target_name
+from .naming import AUDIO_EXT, MAX_NAME, clean, fit, free_name, out_ext, source_ext, target_name
 
 
 def _noop(_ev):
@@ -196,7 +196,8 @@ def _download(client, item, root, name, rename, report, step, device_path):
                     ext = out_ext(member, rename)
                     # Names are rebuilt from the index, never taken from the
                     # archive, so a crafted zip cannot escape the target dir.
-                    dst = target / f"{i:03d} - {clean(Path(member).stem)}{ext}"
+                    part = fit(clean(Path(member).stem), MAX_NAME - 6 - len(ext))
+                    dst = target / f"{i:03d} - {part}{ext}"
                     step(i, len(members), dst.name)
                     # Written whole or not at all, so one that exists is
                     # complete: a book cut off at file 20 carries on at 21.

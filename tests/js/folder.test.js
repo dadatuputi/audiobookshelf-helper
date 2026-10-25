@@ -39,6 +39,9 @@ describe("naming matches absh/naming.py", () => {
       expect(F.freeName(c.name, c.item, new Map(Object.entries(c.taken)))).toBe(c.out);
     });
 
+  it.each(NAMING.fit.map((c) => [label([c.in, c.n]), c]))("fit %s", (_, c) => {
+    expect(F.fit(c.in, c.n)).toBe(c.out);
+  });
   it.each(NAMING.targetName.map((c) => [label(c.book), c]))("target name %s", (_, c) => {
     expect(F.targetName(c.book, c.template)).toBe(c.out);
   });

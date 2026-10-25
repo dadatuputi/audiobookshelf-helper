@@ -307,6 +307,15 @@ BOOKS = [
     ({"author": "_", "title": "_Under_."}, None),
     ({"author": "", "title": "-.-"}, "{author}--{title}--"),
     ({"author": "'", "title": "(Brackets)"}, "{author}{title}"),
+    # Past naming.MAX_NAME: cut at a space, so a path stays under Rockbox's 260.
+    ({"author": "Caroline Carlson", "series": "The Very Nearly Honorable League of Pirates #2",
+      "title": "The Very Nearly Honorable League of Pirates The Terror of the Southlands Unabr"},
+     "{author} - {title} - {series}"),
+    ({"author": "George Selden, Garth Williams, Stacey Lee - editor, Stacey Lee - introduction",
+      "title": "The Cricket in Times Square"}, None),
+    ({"author": "A", "title": "x" * 200}, None),
+    ({"author": "A", "title": "Words " * 20}, None),
+    ({"author": "A", "title": "word " * 15 + "-, " + "y" * 30}, None),
 ]
 
 SUBDIRS = ["AUDIOBOOKS", "", None, "../../etc", "../..", "/etc/passwd", "Music\\Books",
@@ -364,13 +373,24 @@ FREE = [
      {"Rowling - Stone (Jim Dale)": "1"}),
     ("A - B", {"id": "2", "narrator": "Fülł: Cäst?"}, {"A - B": "1"}),
     ("A - B", {"id": "2", "narrator": "日本語"}, {"A - B": "1"}),
+    # A name already at naming.MAX_NAME is cut to make room for what tells it apart.
+    ("Long " * 16, {"id": "2", "narrator": "Full Cast"}, {"Long " * 16: "1"}),
+    ("L" * 80, {"id": "2", "narrator": "N" * 50}, {"L" * 80: "1"}),
+    ("L" * 80, {"id": "3"}, {"L" * 80: "1"}),
 ]
+
+# naming.fit: (text, limit)
+FIT = [("short", 80), ("x" * 80, 80), ("x" * 81, 80), ("ab cd ef", 5), ("abcdef gh", 8),
+       ("a bcdefgh", 8), ("one two. - three", 10), ("....", 2), ("Ends with a dash -", 17),
+       ("", 80)]
 
 
 def pull_cases():
     hobbit = {"id": "bk_h", "title": "The Hobbit", "author": "J.R.R. Tolkien", "series": ""}
     redwall = {"id": "bk_r", "title": "Redwall", "author": "Brian Jacques", "series": "Redwall"}
     odd = {"id": "bk_o", "title": 'Who? Me: "Yes" <No>', "author": "Pema Chödrön", "series": ""}
+    long_book = {"id": "bk_long", "author": "Someone With A Very Long Name Indeed",
+                 "title": "A Title That Goes On And On Well Past What Any Player Shows", "series": ""}
     one = audio(300)
     disc = [("The Hobbit/Disc 1/01 - Chapter One.m4b", audio(120, 2)),
             ("The Hobbit/Disc 1/02 - Chapter Two.M4B", audio(130, 3)),
@@ -456,6 +476,10 @@ def pull_cases():
         {"name": "same name, different size, replaced", "items": [redwall], "opts": {},
          "tree": {"AUDIOBOOKS/Brian Jacques - Redwall.m4a": B64(b"short")},
          "downloads": {"bk_r": single(one, "Redwall.m4b")}},
+        {"name": "long names are cut to fit", "items": [long_book], "opts": {},
+         "downloads": {"bk_long": {"contentType": "application/zip", "disposition": None,
+                                   "body": B64(zipped([("Part " * 30 + "1.m4b", audio(40)),
+                                                       ("Part " * 30 + "2.m4b", audio(41))]))}}},
         {"name": "zip into a folder that has some parts", "items": [hobbit], "opts": {},
          "tree": {"AUDIOBOOKS/J.R.R. Tolkien - The Hobbit/001 - 01 - Chapter One.m4a":
                   B64(b"partial")},
@@ -608,6 +632,7 @@ def naming_vectors(committed=None):
         "normalizeItem": [{"in": it, "out": normalize_item(it)} for it in ITEMS],
         "freeName": [{"name": n, "item": i, "taken": t, "out": naming.free_name(n, i, t)}
                      for n, i, t in FREE],
+        "fit": [{"in": s, "n": n, "out": naming.fit(s, n)} for s, n in FIT],
         "pull": [{**c, "expect": run_pull(c)} for c in pulls],
         "push": [{**c, "expect": run_push(c)} for c in push_cases()],
         "remove": [{**c, "expect": run_remove(c)} for c in remove_cases()],
