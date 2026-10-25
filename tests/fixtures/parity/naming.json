@@ -155,6 +155,56 @@
    "in": "",
    "n": 80,
    "out": ""
+  },
+  {
+   "in": "Author Name - Title - Series that is long",
+   "n": 30,
+   "out": "Author Name - Title"
+  },
+  {
+   "in": "Author - Title - Series that is long",
+   "n": 30,
+   "out": "Author - Title - Series that"
+  },
+  {
+   "in": "A long name with words (and an aside that runs on",
+   "n": 40,
+   "out": "A long name with words"
+  },
+  {
+   "in": "(An aside that opens the name and runs on and on",
+   "n": 30,
+   "out": "(An aside that opens the name"
+  },
+  {
+   "in": "J.K. Rowling - Harry Potter and the Philosopher's Stone - Harry Potter (Full Cast)",
+   "n": 80,
+   "out": "J.K. Rowling - Harry Potter and the Philosopher's Stone (Full Cast)"
+  },
+  {
+   "in": "Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name (A tag far too long to keep)",
+   "n": 80,
+   "out": "Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name"
+  },
+  {
+   "in": "abc def ghi (Full Cast)",
+   "n": 12,
+   "out": "abc def ghi"
+  },
+  {
+   "in": "one two three four (tag)",
+   "n": 20,
+   "out": "one two three four"
+  },
+  {
+   "in": "one two three (tag)\n",
+   "n": 12,
+   "out": "one two"
+  },
+  {
+   "in": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (Full Cast)",
+   "n": 80,
+   "out": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (Full Cast)"
   }
  ],
  "freeName": [
@@ -3827,7 +3877,7 @@
     "author": "George Selden, Garth Williams, Stacey Lee - editor, Stacey Lee - introduction",
     "title": "The Cricket in Times Square"
    },
-   "out": "George Selden, Garth Williams, Stacey Lee - editor, Stacey Lee - introduction",
+   "out": "George Selden - The Cricket in Times Square",
    "template": null
   },
   {
@@ -3853,6 +3903,48 @@
    },
    "out": "A - word word word word word word word word word word word word word word word",
    "template": null
+  },
+  {
+   "book": {
+    "author": "J.K. Rowling",
+    "series": "Harry Potter (Full Cast)",
+    "title": "Harry Potter and the Chamber of Secrets, Book 2"
+   },
+   "out": "J.K. Rowling - Harry Potter and the Chamber of Secrets, Book 2 (Full Cast)",
+   "template": "{author} - {title} - {series}"
+  },
+  {
+   "book": {
+    "author": "J.K. Rowling",
+    "series": "Harry Potter #2, Wizarding World #2",
+    "title": "Harry Potter and the Chamber of Secrets, Book 2"
+   },
+   "out": "J.K. Rowling - Harry Potter and the Chamber of Secrets, Book 2",
+   "template": "{author} - {title} - {series}"
+  },
+  {
+   "book": {
+    "author": "Ann, Bob",
+    "title": "Short"
+   },
+   "out": "Ann, Bob - Short",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "Ann, Bob",
+    "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "out": "Ann - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "Ann, Bob",
+    "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+   },
+   "out": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT Ann",
+   "template": "{title} {author}"
   }
  ]
 }

@@ -18,6 +18,9 @@ _RESERVED = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 # Two names this long leave the books folder ample room under that.
 MAX_NAME = 80
 
+# "(Full Cast)" at the end of a name is often all that tells two editions apart.
+_TAG = re.compile(r" \([^()]{1,18}\)\Z")
+
 
 def clean(s):
     """ASCII-ish, filesystem-safe. Simple player firmware dislikes exotic
@@ -28,13 +31,25 @@ def clean(s):
 
 
 def fit(s, n=MAX_NAME):
-    """`s` cut to at most `n` characters, at a space if there is one near the end."""
+    """`s` cut to at most `n` characters.
+
+    The cut falls at a " - " near the end if there is one, else at a space,
+    and never leaves a "(" open. A short tag closing the name, such as
+    "(Full Cast)", is kept: the cut is made before it instead.
+    """
     if len(s) <= n:
         return s
+    tag = _TAG.search(s)
+    if tag and len(tag.group()) <= n // 4:
+        return fit(s[:tag.start()], n - len(tag.group())) + tag.group()
     cut = s[:n]
-    space = cut.rfind(" ")
-    if space >= n // 2:
-        cut = cut[:space]
+    for sep in (" - ", " "):
+        at = cut.rfind(sep)
+        if at >= n // 2:
+            cut = cut[:at]
+            break
+    if cut.count("(") > cut.count(")") and cut.rfind("(") >= n // 2:
+        cut = cut[:cut.rfind("(")]
     return cut.rstrip(" -,.") or s[:n]
 
 
@@ -80,10 +95,19 @@ def target_name(book, folder_template="{author} - {title}"):
     `book` is anything with title/author/series/narrator keys - a server item
     or a device entry, so a round trip lands on the same name.
     """
-    name = (folder_template or "{author} - {title}")
-    for key in ("author", "title", "series", "narrator"):
-        name = name.replace("{%s}" % key, str(book.get(key) or ""))
-    return fit(clean(name).strip(" -") or "Untitled")
+    def render(author):
+        name = (folder_template or "{author} - {title}")
+        for key in ("author", "title", "series", "narrator"):
+            name = name.replace("{%s}" % key, str((author if key == "author" else book.get(key)) or ""))
+        return clean(name).strip(" -") or "Untitled"
+
+    author = str(book.get("author") or "")
+    name = render(author)
+    # Co-authors, editors and illustrators can fill a name on their own, and
+    # the cut would then take the title: a name too long keeps the first author.
+    if len(name) > MAX_NAME and "," in author:
+        name = render(author.split(",")[0])
+    return fit(name)
 
 
 def free_name(name, item, taken):

@@ -63,12 +63,31 @@
    * passes 260 characters. */
   const MAX_NAME = 80;
 
-  /** naming.fit: cut to at most `n` characters, at a space near the end. */
+  /* naming._TAG: "(Full Cast)" at the end of a name is often all that tells
+   * two editions apart. */
+  const TAG = / \([^()]{1,18}\)$/;
+
+  /** naming.fit: cut to at most `n` characters, at a " - " or a space near
+   *  the end, never leaving a "(" open, and keeping a short closing tag. */
   function fit(s, n = MAX_NAME) {
     if (s.length <= n) return s;
+    const half = Math.floor(n / 2);
+    const tag = s.match(TAG);
+    if (tag && tag[0].length <= Math.floor(n / 4)) {
+      return fit(s.slice(0, tag.index), n - tag[0].length) + tag[0];
+    }
     let cut = s.slice(0, n);
-    const space = cut.lastIndexOf(" ");
-    if (space >= Math.floor(n / 2)) cut = cut.slice(0, space);
+    for (const sep of [" - ", " "]) {
+      const at = cut.lastIndexOf(sep);
+      if (at >= half) {
+        cut = cut.slice(0, at);
+        break;
+      }
+    }
+    const count = (c) => cut.split(c).length - 1;
+    if (count("(") > count(")") && cut.lastIndexOf("(") >= half) {
+      cut = cut.slice(0, cut.lastIndexOf("("));
+    }
     let end = cut.length;
     while (end > 0 && " -,.".includes(cut[end - 1])) end--;
     return cut.slice(0, end) || s.slice(0, n);
@@ -113,14 +132,21 @@
   }
 
   function targetName(book, template) {
-    let name = template || "{author} - {title}";
-    // In order, like str.replace in a loop: a placeholder that arrives inside
-    // a value is itself replaced by the next pass.
-    for (const key of ["author", "title", "series", "narrator"]) {
-      const v = book[key];
-      name = name.split(`{${key}}`).join(v ? String(v) : "");
-    }
-    return fit(pyStrip(clean(name), " -") || "Untitled");
+    const render = (author) => {
+      let name = template || "{author} - {title}";
+      // In order, like str.replace in a loop: a placeholder that arrives inside
+      // a value is itself replaced by the next pass.
+      for (const key of ["author", "title", "series", "narrator"]) {
+        const v = key === "author" ? author : book[key];
+        name = name.split(`{${key}}`).join(v ? String(v) : "");
+      }
+      return pyStrip(clean(name), " -") || "Untitled";
+    };
+    const author = book.author ? String(book.author) : "";
+    let name = render(author);
+    // naming.target_name: a name too long keeps the first author.
+    if (name.length > MAX_NAME && author.includes(",")) name = render(author.split(",")[0]);
+    return fit(name);
   }
 
   /** naming.free_name: `name`, unless another book already holds it - two

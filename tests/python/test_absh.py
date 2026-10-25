@@ -122,6 +122,20 @@ class TestNaming(unittest.TestCase):
         self.assertLessEqual(len(name), naming.MAX_NAME)
         self.assertEqual(name, "Caroline Carlson - The Very Nearly Honorable League of Pirates The Terror of")
 
+    def test_a_cut_keeps_what_tells_two_editions_apart(self):
+        book = {"author": "J.K. Rowling", "title": "Harry Potter and the Chamber of Secrets, Book 2"}
+        t = "{author} - {title} - {series}"
+        full = naming.target_name(dict(book, series="Harry Potter (Full Cast)"), t)
+        read = naming.target_name(dict(book, series="Harry Potter #2, Wizarding World #2"), t)
+        self.assertEqual(full, "J.K. Rowling - Harry Potter and the Chamber of Secrets, Book 2 (Full Cast)")
+        self.assertEqual(read, "J.K. Rowling - Harry Potter and the Chamber of Secrets, Book 2")
+
+    def test_a_long_list_of_authors_does_not_push_out_the_title(self):
+        name = naming.target_name(
+            {"author": "George Selden, Garth Williams, Stacey Lee - editor, Stacey Lee - introduction",
+             "title": "The Cricket in Times Square"})
+        self.assertEqual(name, "George Selden - The Cricket in Times Square")
+
     def test_a_second_edition_keeps_its_narrator_when_the_name_is_cut(self):
         long = naming.target_name({"author": "A", "title": "Word " * 30})
         got = naming.free_name(long, {"id": "2", "narrator": "Jim Dale"}, {long: "1"})

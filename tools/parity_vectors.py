@@ -316,6 +316,15 @@ BOOKS = [
     ({"author": "A", "title": "x" * 200}, None),
     ({"author": "A", "title": "Words " * 20}, None),
     ({"author": "A", "title": "word " * 15 + "-, " + "y" * 30}, None),
+    # Two editions told apart only by a closing tag: the cut keeps it.
+    ({"author": "J.K. Rowling", "title": "Harry Potter and the Chamber of Secrets, Book 2",
+      "series": "Harry Potter (Full Cast)"}, "{author} - {title} - {series}"),
+    ({"author": "J.K. Rowling", "title": "Harry Potter and the Chamber of Secrets, Book 2",
+      "series": "Harry Potter #2, Wizarding World #2"}, "{author} - {title} - {series}"),
+    # Several authors keep only the first, and only when the name is too long.
+    ({"author": "Ann, Bob", "title": "Short"}, None),
+    ({"author": "Ann, Bob", "title": "x" * 100}, None),
+    ({"author": "Ann, Bob", "title": "T" * 76}, "{title} {author}"),
 ]
 
 SUBDIRS = ["AUDIOBOOKS", "", None, "../../etc", "../..", "/etc/passwd", "Music\\Books",
@@ -382,7 +391,19 @@ FREE = [
 # naming.fit: (text, limit)
 FIT = [("short", 80), ("x" * 80, 80), ("x" * 81, 80), ("ab cd ef", 5), ("abcdef gh", 8),
        ("a bcdefgh", 8), ("one two. - three", 10), ("....", 2), ("Ends with a dash -", 17),
-       ("", 80)]
+       ("", 80),
+       # At a " - " near the end before a space; never a "(" left open.
+       ("Author Name - Title - Series that is long", 30),
+       ("Author - Title - Series that is long", 30),
+       ("A long name with words (and an aside that runs on", 40),
+       ("(An aside that opens the name and runs on and on", 30),
+       # A short closing tag stays; a long one, or one with no room, does not.
+       ("J.K. Rowling - Harry Potter and the Philosopher's Stone - Harry Potter (Full Cast)", 80),
+       ("Name " * 20 + "(A tag far too long to keep)", 80),
+       ("abc def ghi (Full Cast)", 12),
+       ("one two three four (tag)", 20),
+       ("one two three (tag)\n", 12),
+       ("x" * 90 + " (Full Cast)", 80)]
 
 
 def pull_cases():
