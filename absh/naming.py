@@ -13,6 +13,14 @@ AUDIO_EXT = {".m4b", ".m4a", ".mp3", ".flac", ".wav", ".ogg", ".opus"}
 # The device is usually FAT32 and the player's firmware is usually fussy.
 _RESERVED = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
+# Rockbox opens nothing whose full path passes 260 characters, and neither does
+# Windows Explorer; a book's folder and the part inside it once came to 268.
+# Two names this long leave the books folder ample room under that.
+MAX_NAME = 80
+
+# "(Full Cast)" at the end of a name is often all that tells two editions apart.
+_TAG = re.compile(r" \([^()]{1,18}\)\Z")
+
 
 def clean(s):
     """ASCII-ish, filesystem-safe. Simple player firmware dislikes exotic
@@ -20,6 +28,29 @@ def clean(s):
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
     s = _RESERVED.sub("", s)
     return re.sub(r"\s+", " ", s).strip() or "Untitled"
+
+
+def fit(s, n=MAX_NAME):
+    """`s` cut to at most `n` characters.
+
+    The cut falls at a " - " near the end if there is one, else at a space,
+    and never leaves a "(" open. A short tag closing the name, such as
+    "(Full Cast)", is kept: the cut is made before it instead.
+    """
+    if len(s) <= n:
+        return s
+    tag = _TAG.search(s)
+    if tag and len(tag.group()) <= n // 4:
+        return fit(s[:tag.start()], n - len(tag.group())) + tag.group()
+    cut = s[:n]
+    for sep in (" - ", " "):
+        at = cut.rfind(sep)
+        if at >= n // 2:
+            cut = cut[:at]
+            break
+    if cut.count("(") > cut.count(")") and cut.rfind("(") >= n // 2:
+        cut = cut[:cut.rfind("(")]
+    return cut.rstrip(" -,.") or s[:n]
 
 
 def human(n):
@@ -64,10 +95,19 @@ def target_name(book, folder_template="{author} - {title}"):
     `book` is anything with title/author/series/narrator keys - a server item
     or a device entry, so a round trip lands on the same name.
     """
-    name = (folder_template or "{author} - {title}")
-    for key in ("author", "title", "series", "narrator"):
-        name = name.replace("{%s}" % key, str(book.get(key) or ""))
-    return clean(name).strip(" -") or "Untitled"
+    def render(author):
+        name = (folder_template or "{author} - {title}")
+        for key in ("author", "title", "series", "narrator"):
+            name = name.replace("{%s}" % key, str((author if key == "author" else book.get(key)) or ""))
+        return clean(name).strip(" -") or "Untitled"
+
+    author = str(book.get("author") or "")
+    name = render(author)
+    # Co-authors, editors and illustrators can fill a name on their own, and
+    # the cut would then take the title: a name too long keeps the first author.
+    if len(name) > MAX_NAME and "," in author:
+        name = render(author.split(",")[0])
+    return fit(name)
 
 
 def free_name(name, item, taken):
@@ -93,10 +133,12 @@ def free_name(name, item, taken):
     narrator = clean(item.get("narrator")) if item.get("narrator") else ""
     if narrator == "Untitled":
         narrator = ""
+    # The name is cut to leave room for what tells it apart, so that stays.
+    with_tail = lambda tail: fit(name, MAX_NAME - len(tail)) + tail   # noqa: E731
     tries = []
     if narrator and narrator.lower() not in name.lower():
-        tries.append(f"{name} ({narrator})")
-    tries += [f"{name} ({n})" for n in range(2, 1000)]
+        tries.append(with_tail(f" ({fit(narrator, 30)})"))
+    tries += [with_tail(f" ({n})") for n in range(2, 1000)]
     for t in (clean(t) for t in tries):
         if taken.get(t.lower(), me) == me:
             return t

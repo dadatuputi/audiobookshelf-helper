@@ -59,6 +59,40 @@
     return pyStrip(s.replace(PY_WS_RUN, " ")) || "Untitled";
   }
 
+  /* naming.MAX_NAME: Rockbox and Windows Explorer open nothing whose full path
+   * passes 260 characters. */
+  const MAX_NAME = 80;
+
+  /* naming._TAG: "(Full Cast)" at the end of a name is often all that tells
+   * two editions apart. */
+  const TAG = / \([^()]{1,18}\)$/;
+
+  /** naming.fit: cut to at most `n` characters, at a " - " or a space near
+   *  the end, never leaving a "(" open, and keeping a short closing tag. */
+  function fit(s, n = MAX_NAME) {
+    if (s.length <= n) return s;
+    const half = Math.floor(n / 2);
+    const tag = s.match(TAG);
+    if (tag && tag[0].length <= Math.floor(n / 4)) {
+      return fit(s.slice(0, tag.index), n - tag[0].length) + tag[0];
+    }
+    let cut = s.slice(0, n);
+    for (const sep of [" - ", " "]) {
+      const at = cut.lastIndexOf(sep);
+      if (at >= half) {
+        cut = cut.slice(0, at);
+        break;
+      }
+    }
+    const count = (c) => cut.split(c).length - 1;
+    if (count("(") > count(")") && cut.lastIndexOf("(") >= half) {
+      cut = cut.slice(0, cut.lastIndexOf("("));
+    }
+    let end = cut.length;
+    while (end > 0 && " -,.".includes(cut[end - 1])) end--;
+    return cut.slice(0, end) || s.slice(0, n);
+  }
+
   /* pathlib, POSIX flavour: the name is the last part once empty and "."
    * parts are gone; the suffix needs a dot that is neither first nor last. */
   function pathName(p) {
@@ -98,14 +132,21 @@
   }
 
   function targetName(book, template) {
-    let name = template || "{author} - {title}";
-    // In order, like str.replace in a loop: a placeholder that arrives inside
-    // a value is itself replaced by the next pass.
-    for (const key of ["author", "title", "series", "narrator"]) {
-      const v = book[key];
-      name = name.split(`{${key}}`).join(v ? String(v) : "");
-    }
-    return pyStrip(clean(name), " -") || "Untitled";
+    const render = (author) => {
+      let name = template || "{author} - {title}";
+      // In order, like str.replace in a loop: a placeholder that arrives inside
+      // a value is itself replaced by the next pass.
+      for (const key of ["author", "title", "series", "narrator"]) {
+        const v = key === "author" ? author : book[key];
+        name = name.split(`{${key}}`).join(v ? String(v) : "");
+      }
+      return pyStrip(clean(name), " -") || "Untitled";
+    };
+    const author = book.author ? String(book.author) : "";
+    let name = render(author);
+    // naming.target_name: a name too long keeps the first author.
+    if (name.length > MAX_NAME && author.includes(",")) name = render(author.split(",")[0]);
+    return fit(name);
   }
 
   /** naming.free_name: `name`, unless another book already holds it - two
@@ -118,11 +159,13 @@
     if (owner === me || owner === null) return name;
     let narrator = item.narrator ? clean(item.narrator) : "";
     if (narrator === "Untitled") narrator = "";        // nothing survived clean()
+    // The name is cut to leave room for what tells it apart, so that stays.
+    const withTail = (tail) => fit(name, MAX_NAME - tail.length) + tail;
     const tries = [];
     if (narrator && !name.toLowerCase().includes(narrator.toLowerCase())) {
-      tries.push(`${name} (${narrator})`);
+      tries.push(withTail(` (${fit(narrator, 30)})`));
     }
-    for (let n = 2; n < 1000; n++) tries.push(`${name} (${n})`);
+    for (let n = 2; n < 1000; n++) tries.push(withTail(` (${n})`));
     for (const t of tries.map(clean)) {
       const k = t.toLowerCase();
       if (!held.has(k) || held.get(k) === me) return t;
@@ -1057,7 +1100,8 @@
       srcExt = srcExt || suffix(member).toLowerCase();
       // Names are rebuilt, never taken from the archive, so a crafted zip
       // cannot reach outside the book's folder.
-      const dst = `${String(i + 1).padStart(3, "0")} - ${clean(stem(member))}${outExt(member, rename)}`;
+      const ext = outExt(member, rename);
+      const dst = `${String(i + 1).padStart(3, "0")} - ${fit(clean(stem(member)), MAX_NAME - 6 - ext.length)}${ext}`;
       step(i + 1, members.length, dst);
       if (await child(target, dst)) {
         rep.skipped += 1;
@@ -1403,7 +1447,7 @@
 
   const api = {
     // naming
-    AUDIO_EXT, clean, pathName, suffix, stem, outExt, sourceExt, safeSubdir, targetName, freeName,
+    AUDIO_EXT, MAX_NAME, clean, fit, pathName, suffix, stem, outExt, sourceExt, safeSubdir, targetName, freeName,
     normKey, normalizeItem, pyStrip, cmpCodePoints, cmpParts,
     // tags and zip
     readTags, readBook, zipEntries, zipMemberStream,

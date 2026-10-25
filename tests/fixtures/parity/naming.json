@@ -105,6 +105,108 @@
    "out": "ff"
   }
  ],
+ "fit": [
+  {
+   "in": "short",
+   "n": 80,
+   "out": "short"
+  },
+  {
+   "in": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "n": 80,
+   "out": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  {
+   "in": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "n": 80,
+   "out": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  {
+   "in": "ab cd ef",
+   "n": 5,
+   "out": "ab"
+  },
+  {
+   "in": "abcdef gh",
+   "n": 8,
+   "out": "abcdef"
+  },
+  {
+   "in": "a bcdefgh",
+   "n": 8,
+   "out": "a bcdefg"
+  },
+  {
+   "in": "one two. - three",
+   "n": 10,
+   "out": "one two"
+  },
+  {
+   "in": "....",
+   "n": 2,
+   "out": ".."
+  },
+  {
+   "in": "Ends with a dash -",
+   "n": 17,
+   "out": "Ends with a dash"
+  },
+  {
+   "in": "",
+   "n": 80,
+   "out": ""
+  },
+  {
+   "in": "Author Name - Title - Series that is long",
+   "n": 30,
+   "out": "Author Name - Title"
+  },
+  {
+   "in": "Author - Title - Series that is long",
+   "n": 30,
+   "out": "Author - Title - Series that"
+  },
+  {
+   "in": "A long name with words (and an aside that runs on",
+   "n": 40,
+   "out": "A long name with words"
+  },
+  {
+   "in": "(An aside that opens the name and runs on and on",
+   "n": 30,
+   "out": "(An aside that opens the name"
+  },
+  {
+   "in": "J.K. Rowling - Harry Potter and the Philosopher's Stone - Harry Potter (Full Cast)",
+   "n": 80,
+   "out": "J.K. Rowling - Harry Potter and the Philosopher's Stone (Full Cast)"
+  },
+  {
+   "in": "Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name (A tag far too long to keep)",
+   "n": 80,
+   "out": "Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name Name"
+  },
+  {
+   "in": "abc def ghi (Full Cast)",
+   "n": 12,
+   "out": "abc def ghi"
+  },
+  {
+   "in": "one two three four (tag)",
+   "n": 20,
+   "out": "one two three four"
+  },
+  {
+   "in": "one two three (tag)\n",
+   "n": 12,
+   "out": "one two"
+  },
+  {
+   "in": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (Full Cast)",
+   "n": 80,
+   "out": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (Full Cast)"
+  }
+ ],
  "freeName": [
   {
    "item": {
@@ -235,6 +337,38 @@
    "out": "A - B (2)",
    "taken": {
     "A - B": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "Full Cast"
+   },
+   "name": "Long Long Long Long Long Long Long Long Long Long Long Long Long Long Long Long ",
+   "out": "Long Long Long Long Long Long Long Long Long Long Long Long Long (Full Cast)",
+   "taken": {
+    "Long Long Long Long Long Long Long Long Long Long Long Long Long Long Long Long ": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "2",
+    "narrator": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
+   },
+   "name": "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL",
+   "out": "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL (NNNNNNNNNNNNNNNNNNNNNNNNNNNNNN)",
+   "taken": {
+    "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL": "1"
+   }
+  },
+  {
+   "item": {
+    "id": "3"
+   },
+   "name": "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL",
+   "out": "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL (2)",
+   "taken": {
+    "LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL": "1"
    }
   }
  ],
@@ -2774,6 +2908,102 @@
   },
   {
    "downloads": {
+    "bk_long": {
+     "body": "UEsDBBQAAAAAAAAAIVD48uC6KAAAACgAAACbAAAAUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgMS5tNGIfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41UEsDBBQAAAAAAAAAIVDWCbFOKQAAACkAAACbAAAAUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgMi5tNGIfJi00O0JJUFdeZWxzeoGIj5adpKuyucDHztXc4+rx+AQLEhkgJy41PFBLAQIUAxQAAAAAAAAAIVD48uC6KAAAACgAAACbAAAAAAAAAAAAAACAAQAAAABQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCAxLm00YlBLAQIUAxQAAAAAAAAAIVDWCbFOKQAAACkAAACbAAAAAAAAAAAAAACAAeEAAABQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCBQYXJ0IFBhcnQgUGFydCAyLm00YlBLBQYAAAAAAgACAJIBAADDAQAAAAA=",
+     "contentType": "application/zip",
+     "disposition": null
+    }
+   },
+   "expect": {
+    "events": [
+     {
+      "count": 1,
+      "event": "item",
+      "id": "bk_long",
+      "index": 1,
+      "op": "pull",
+      "title": "A Title That Goes On And On Well Past What Any Player Shows"
+     },
+     {
+      "done": 0,
+      "event": "progress",
+      "file": "downloading",
+      "id": "bk_long",
+      "title": "A Title That Goes On And On Well Past What Any Player Shows",
+      "total": 1
+     },
+     {
+      "done": 1,
+      "event": "progress",
+      "file": "001 - Part Part Part Part Part Part Part Part Part Part Part Part Part Part.m4a",
+      "id": "bk_long",
+      "title": "A Title That Goes On And On Well Past What Any Player Shows",
+      "total": 2
+     },
+     {
+      "done": 2,
+      "event": "progress",
+      "file": "002 - Part Part Part Part Part Part Part Part Part Part Part Part Part Part.m4a",
+      "id": "bk_long",
+      "title": "A Title That Goes On And On Well Past What Any Player Shows",
+      "total": 2
+     }
+    ],
+    "index": {
+     "Someone With A Very Long Name Indeed - A Title That Goes On And On Well Past": {
+      "author": "Someone With A Very Long Name Indeed",
+      "bytes": 81,
+      "files": [
+       {
+        "name": "001 - Part Part Part Part Part Part Part Part Part Part Part Part Part Part.m4a",
+        "size": 40
+       },
+       {
+        "name": "002 - Part Part Part Part Part Part Part Part Part Part Part Part Part Part.m4a",
+        "size": 41
+       }
+      ],
+      "itemId": "bk_long",
+      "kind": "dir",
+      "series": "",
+      "sourceExt": ".m4b",
+      "title": "A Title That Goes On And On Well Past What Any Player Shows"
+     }
+    },
+    "report": {
+     "books": 1,
+     "copied": 2,
+     "errors": [],
+     "freed": 0,
+     "interrupted": [],
+     "removed": [],
+     "skipped": 0,
+     "uploaded": 0
+    },
+    "tree": {
+     "dirs": [
+      "AUDIOBOOKS",
+      "AUDIOBOOKS/Someone With A Very Long Name Indeed - A Title That Goes On And On Well Past"
+     ],
+     "files": {
+      "AUDIOBOOKS/Someone With A Very Long Name Indeed - A Title That Goes On And On Well Past/001 - Part Part Part Part Part Part Part Part Part Part Part Part Part Part.m4a": 40,
+      "AUDIOBOOKS/Someone With A Very Long Name Indeed - A Title That Goes On And On Well Past/002 - Part Part Part Part Part Part Part Part Part Part Part Part Part Part.m4a": 41
+     }
+    }
+   },
+   "items": [
+    {
+     "author": "Someone With A Very Long Name Indeed",
+     "id": "bk_long",
+     "series": "",
+     "title": "A Title That Goes On And On Well Past What Any Player Shows"
+    }
+   ],
+   "name": "long names are cut to fit",
+   "opts": {}
+  },
+  {
+   "downloads": {
     "bk_h": {
      "body": "UEsDBBQAAAAAAAAAIVBijmKCeAAAAHgAAAAmAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGI+RUxTWmFob3Z9hIuSmaCnrrW8w8rR2N/m7fQABw4VHCMqMTg/Rk1UW2JpcHd+hYyTmqGor7a9xMvS2eDn7vUBCA8WHSQrMjlAR05VXGNqcXh/ho2Um6KpsLe+xczT2uHo7/YCCRAXHiUsMzpBSE9WXWRrcnmAh45QSwMEFAAAAAAAAAAhUG/8wSiCAAAAggAAACYAAABUaGUgSG9iYml0L0Rpc2MgMS8wMiAtIENoYXB0ZXIgVHdvLk00Ql1ka3J5gIeOlZyjqrG4v8bN1Nvi6fD3AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dzj6vH4BAsSGSAnLjU8Q0pRWF9mbXR7gomQl56lrLO6wcjP1t3k6/L5BQwTGiEoLzY9REtSWWBnbnV8g4qRmJ+mrbS7wsnQ197l7PNQSwECFAMUAAAAAAAAACFQYo5igngAAAB4AAAAJgAAAAAAAAAAAAAAgAEAAAAAVGhlIEhvYmJpdC9EaXNjIDEvMDEgLSBDaGFwdGVyIE9uZS5tNGJQSwECFAMUAAAAAAAAACFQb/zBKIIAAACCAAAAJgAAAAAAAAAAAAAAgAG8AAAAVGhlIEhvYmJpdC9EaXNjIDEvMDIgLSBDaGFwdGVyIFR3by5NNEJQSwUGAAAAAAIAAgCoAAAAggEAAAAA",
      "contentType": "application/zip",
@@ -3632,6 +3862,89 @@
    },
    "out": "'(Brackets)",
    "template": "{author}{title}"
+  },
+  {
+   "book": {
+    "author": "Caroline Carlson",
+    "series": "The Very Nearly Honorable League of Pirates #2",
+    "title": "The Very Nearly Honorable League of Pirates The Terror of the Southlands Unabr"
+   },
+   "out": "Caroline Carlson - The Very Nearly Honorable League of Pirates The Terror of",
+   "template": "{author} - {title} - {series}"
+  },
+  {
+   "book": {
+    "author": "George Selden, Garth Williams, Stacey Lee - editor, Stacey Lee - introduction",
+    "title": "The Cricket in Times Square"
+   },
+   "out": "George Selden - The Cricket in Times Square",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "A",
+    "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "out": "A - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "A",
+    "title": "Words Words Words Words Words Words Words Words Words Words Words Words Words Words Words Words Words Words Words Words "
+   },
+   "out": "A - Words Words Words Words Words Words Words Words Words Words Words Words",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "A",
+    "title": "word word word word word word word word word word word word word word word -, yyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+   },
+   "out": "A - word word word word word word word word word word word word word word word",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "J.K. Rowling",
+    "series": "Harry Potter (Full Cast)",
+    "title": "Harry Potter and the Chamber of Secrets, Book 2"
+   },
+   "out": "J.K. Rowling - Harry Potter and the Chamber of Secrets, Book 2 (Full Cast)",
+   "template": "{author} - {title} - {series}"
+  },
+  {
+   "book": {
+    "author": "J.K. Rowling",
+    "series": "Harry Potter #2, Wizarding World #2",
+    "title": "Harry Potter and the Chamber of Secrets, Book 2"
+   },
+   "out": "J.K. Rowling - Harry Potter and the Chamber of Secrets, Book 2",
+   "template": "{author} - {title} - {series}"
+  },
+  {
+   "book": {
+    "author": "Ann, Bob",
+    "title": "Short"
+   },
+   "out": "Ann, Bob - Short",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "Ann, Bob",
+    "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   },
+   "out": "Ann - xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "template": null
+  },
+  {
+   "book": {
+    "author": "Ann, Bob",
+    "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+   },
+   "out": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT Ann",
+   "template": "{title} {author}"
   }
  ]
 }
