@@ -301,6 +301,51 @@ class TestPullByBytes(unittest.TestCase):
         self.assertEqual(rep["skipped"], 1)
         self.assertEqual(self.rec()["files"][0]["ino"], "111")
 
+    def legacy_folder(self, inner):
+        """A one-file book as older versions copied it: Audiobookshelf's
+        download is a zip when the book's folder holds a cover too, so the
+        book went into a folder of its own."""
+        folder = self.dev / "AUDIOBOOKS" / "Brian Jacques - Mossflower"
+        folder.mkdir()
+        bad = bytearray(book_file())
+        bad[-100] ^= 0xFF
+        (folder / inner).write_bytes(bytes(bad))
+        index_mod.record(str(self.dev), folder.name, ITEM,
+                         [{"name": inner, "size": len(bad)}], "dir", ".m4b")
+        return folder
+
+    def test_copy_again_puts_right_a_one_file_book_kept_in_a_folder(self):
+        s = Server({"111": book_file()})
+        folder = self.legacy_folder("001 - Mossflower.m4b")
+        rep = self.pull(s, force=True, writeTags=False)
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["001 - Mossflower.m4b"])
+        self.assertEqual((folder / "001 - Mossflower.m4b").read_bytes(), book_file())
+        self.assertEqual(rep["written"], sync.SECTOR)
+        self.assertFalse(self.book().exists())
+        rec = index_mod.load(str(self.dev))["entries"][folder.name]
+        self.assertEqual((rec["kind"], rec["files"][0]["ino"]), ("dir", "111"))
+
+    def test_copy_again_keeps_a_name_changed_on_the_player(self):
+        s = Server({"111": book_file()})
+        folder = self.legacy_folder("Mossflower, cut short.m4b")
+        self.pull(s, force=True, writeTags=False)
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["Mossflower, cut short.m4b"])
+        self.assertEqual((folder / "Mossflower, cut short.m4b").read_bytes(), book_file())
+
+    def test_a_book_in_parts_renamed_on_the_player_is_written_over(self):
+        s = Server({"1": book_file(), "2": book_file(AUDIO[::-1])})
+        self.pull(s, writeTags=False)
+        folder = self.dev / "AUDIOBOOKS" / "Brian Jacques - Mossflower"
+        data = index_mod.load(str(self.dev))
+        for n, r in enumerate(data["entries"][folder.name]["files"], 1):
+            (folder / r["name"]).rename(folder / f"Part {n}.m4b")
+            r["name"] = f"Part {n}.m4b"
+        index_mod.save(str(self.dev), data)
+        (folder / "Part 2.m4b").write_bytes(book_file())
+        self.pull(s, force=True, writeTags=False)
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ["Part 1.m4b", "Part 2.m4b"])
+        self.assertEqual((folder / "Part 2.m4b").read_bytes(), book_file(AUDIO[::-1]))
+
     def test_a_player_pulled_out_mid_download_is_not_made_again(self):
         s = Server({"111": book_file(), "222": book_file()})
         dev = self.dev

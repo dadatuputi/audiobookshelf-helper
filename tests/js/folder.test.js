@@ -202,6 +202,26 @@ describe("where the browser differs on purpose", () => {
     expect(await textOf(dev, "AUDIOBOOKS", "Au - Book", "001 - a.mp3")).toBe("jello");
   });
 
+  it("copy again writes over a part renamed on the player, not beside it", async () => {
+    const dev = new MemDir();
+    await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), 0x3610a686)), dev, [book], opts);
+    // Renamed by hand, as a script that shortens names for the player would.
+    const folder = await (await dev.getDirectoryHandle("AUDIOBOOKS")).getDirectoryHandle("Au - Book");
+    folder.kids.set("Short.mp3", folder.kids.get("001 - a.mp3"));
+    folder.kids.delete("001 - a.mp3");
+    const idx = await (await dev.getDirectoryHandle(".absh")).getFileHandle("index.json");
+    const data = JSON.parse(await (await idx.getFile()).text());
+    data.entries["Au - Book"].files[0].name = "Short.mp3";
+    const w = await idx.createWritable();
+    await w.write(JSON.stringify(data));
+    await w.close();
+    const rep = await F.pull(client(zipOf("a.mp3", Buffer.from("jello"), 0x4cd0f5e6)), dev,
+                             [book], { ...opts, force: true });
+    expect([rep.copied, rep.errors]).toEqual([1, []]);
+    expect([...folder.kids.keys()]).toEqual(["Short.mp3"]);
+    expect(await textOf(dev, "AUDIOBOOKS", "Au - Book", "Short.mp3")).toBe("jello");
+  });
+
   it("refuses a backslash in a name to remove on every OS, not just Windows", async () => {
     const dev = new MemDir();
     await (await dev.getDirectoryHandle("AUDIOBOOKS", { create: true }))

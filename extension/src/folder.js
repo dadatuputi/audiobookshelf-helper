@@ -1038,6 +1038,7 @@
       emit({ event: "progress", id: item.id, title, file: label, done, total });
 
     const have = await alreadyOnDevice(dev, await dirAt(dev, sub), item);
+    let haveNames = [];
     if (have && !opts.force) {
       rep.skipped += 1;
       step(1, 1, have);
@@ -1048,6 +1049,10 @@
       // Copy again: into the place it already has, so it is not made twice.
       const rec = (await loadIndex(dev)).entries[have] || {};
       name = rec.kind === "file" ? stem(have) : have;
+      // The names its files have now, which may not be the ones this would
+      // give them: kept, so they are written over rather than copied twice.
+      haveNames = rec.kind === "file" ? [have]
+        : (rec.files || []).map((f) => f && f.name).filter(Boolean);
     } else {
       try {
         name = freeName(name, item, await takenNames(dev, await dirAt(dev, sub)));
@@ -1064,10 +1069,11 @@
       const srcname = m ? m[1] : title + ".bin";
       const root = await dirAt(dev, sub, true);
       if (r.contentType.toLowerCase().includes("zip") || srcname.toLowerCase().endsWith(".zip")) {
-        got = await unzipBook(r.blob, root, name, rename, rep, title, step, !!opts.force);
+        got = await unzipBook(r.blob, root, name, rename, rep, title, step, !!opts.force, haveNames);
       } else {
         const srcExt = suffix(srcname).toLowerCase();
-        const dstName = `${name}${outExt(srcname, rename)}`;
+        const dstName = haveNames.length === 1 && haveNames[0] === have ? have
+          : `${name}${outExt(srcname, rename)}`;
         step(1, 1, dstName);
         const there = await child(root, dstName);
         if (there && there.kind === "file" && (await there.getFile()).size === r.blob.size
@@ -1114,7 +1120,13 @@
     return true;
   }
 
-  async function unzipBook(blob, root, name, rename, rep, title, step, force = false) {
+  /** A plain file name, as the index should hold: nothing that leads out of
+   *  the book's folder. */
+  function validName(n) {
+    return typeof n === "string" && n !== "" && n !== "." && n !== ".." && !/[/\\]/.test(n);
+  }
+
+  async function unzipBook(blob, root, name, rename, rep, title, step, force = false, haveNames = []) {
     const target = await root.getDirectoryHandle(name, { create: true });
     const all = await zipEntries(blob);
     // zipfile.getinfo: the last member of a given name is the one opened.
@@ -1134,7 +1146,8 @@
       // Names are rebuilt, never taken from the archive, so a crafted zip
       // cannot reach outside the book's folder.
       const ext = outExt(member, rename);
-      const dst = `${String(i + 1).padStart(3, "0")} - ${fit(clean(stem(member)), MAX_NAME - 6 - ext.length)}${ext}`;
+      const dst = haveNames.length === members.length && validName(haveNames[i]) ? haveNames[i]
+        : `${String(i + 1).padStart(3, "0")} - ${fit(clean(stem(member)), MAX_NAME - 6 - ext.length)}${ext}`;
       step(i + 1, members.length, dst);
       const there = await child(target, dst);
       if (there && force) {
