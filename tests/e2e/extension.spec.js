@@ -686,7 +686,16 @@ test.describe("full loop in a real browser", () => {
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
     await page.locator("#list li", { hasText: "Holes" }).locator("input[type=checkbox]").check();
     await page.click("#act");
-    await page.close();                            // straight away, mid-copy
+    // Closed as soon as the copy is queued. Not before: the click asks the
+    // background about tags first, and a popup closed during that round trip
+    // never queues anything - a race the test lost on CI, not something a
+    // person can do.
+    await expect.poll(() => page.evaluate(async () => {
+      const { data: j } = await chrome.runtime.sendMessage({ type: "jobState" });
+      return [j.current, ...j.queue, j.last].filter(Boolean)
+        .some((x) => x.items.some((i) => i.title === "Holes"));
+    }), { timeout: 10_000 }).toBe(true);
+    await page.close();
 
     const badge = async () => {
       const opts = await env.ctx.newPage();
