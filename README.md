@@ -255,9 +255,31 @@ absh tui                 # full-screen picker
 absh doctor              # why isn't it working
 ```
 
-Every command takes `--dry-run`. `pull` skips books already on the device
-*before* downloading them, so `absh pull --all` is cheap to re-run; pass
-`--force` to fetch them again anyway.
+Every command takes `--dry-run`. `pull` copies what the device does not have,
+and updates what it copied before when Audiobookshelf has changed it since. It
+goes file by file and writes only what differs: a file the server has not
+touched is not downloaded at all, and a file that did change is compared in
+blocks against the copy, so only the changed sectors are written. `absh pull
+--all` is cheap to re-run. `--force` goes over every matching book, for when
+you do not trust what is there, and still writes only what differs.
+
+#### Tags
+
+Audiobookshelf keeps a book's details (title, author, series, narrator) in its
+database, and writes them into the files only when you run its **Embed
+Metadata** tool. A pull can write the same tags, in the same format, into the
+copies on the player, so the player's own library shows books the way
+Audiobookshelf does. Only the copies change, never the files on the server.
+
+The tags go in place inside the MP4 (m4b/m4a) with room left after them, so a
+later change to the book's details rewrites a few kilobytes, and a book copied
+without tags gets them without being downloaded again.
+
+`pull` asks the first time (`[y]es, [n]o, [a]lways, ne[v]er`; always and never
+are saved). `--tags` and `--no-tags` answer for one run, and `absh config
+--write-tags ask|always|never` sets it. With nobody at the keyboard it does not
+write tags. The TUI asks the same way, and <kbd>w</kbd> in its settings changes
+it.
 
 In the TUI: <kbd>space</kbd> selects, <kbd>/</kbd> filters, <kbd>p</kbd> pulls,
 <kbd>u</kbd> pushes, <kbd>d</kbd> deletes, <kbd>r</kbd> refreshes,

@@ -70,7 +70,9 @@ def scan(device_path, subdir, folder_template="{author} - {title}", read_tags=Tr
         if rec:
             entry.update({"itemId": rec.get("itemId"), "title": rec.get("title") or p.stem,
                           "author": rec.get("author") or "", "series": rec.get("series") or "",
-                          "source": "index"})
+                          "source": "index", "itemUpdatedAt": rec.get("itemUpdatedAt") or 0,
+                          "tagged": bool(rec.get("files")) and all(
+                              f.get("tags") for f in rec["files"] if isinstance(f, dict))})
         elif read_tags:
             t = tags_mod.read_book([Path(x) for x in entry["paths"]])
             # For a folder, the per-file title is usually a chapter name. The
@@ -97,6 +99,15 @@ def free_space(device_path):
         return {"free": u.free, "total": u.total, "used": u.used}
     except OSError:
         return {}
+
+
+def stale(entry, item):
+    """Whether the server has changed this book since it was copied: its
+    details or its files. Only known for books this tool copied."""
+    if entry.get("source") != "index":
+        return False
+    then, now = entry.get("itemUpdatedAt") or 0, item.get("updatedAt") or 0
+    return bool(then and now and now > then)
 
 
 def diff(server_items, device_entries, folder_template="{author} - {title}"):
@@ -130,7 +141,8 @@ def diff(server_items, device_entries, folder_template="{author} - {title}"):
                 item, how = by_key[k], "tags"
         if item is not None:
             matched_ids.add(item["id"])
-            both.append({**e, "item": item, "itemId": item["id"], "matchedBy": how})
+            both.append({**e, "item": item, "itemId": item["id"], "matchedBy": how,
+                         "stale": stale(e, item)})
         else:
             device_only.append(e)
 

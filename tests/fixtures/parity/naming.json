@@ -552,7 +552,8 @@
     "series": "Redwall #1",
     "size": 100,
     "subtitle": "",
-    "title": "Redwall"
+    "title": "Redwall",
+    "updatedAt": 0
    }
   },
   {
@@ -599,7 +600,8 @@
     "series": "S1, S2",
     "size": 55,
     "subtitle": "",
-    "title": "x"
+    "title": "x",
+    "updatedAt": 0
    }
   },
   {
@@ -617,7 +619,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "(untitled)"
+    "title": "(untitled)",
+    "updatedAt": 0
    }
   },
   {
@@ -638,7 +641,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "No id here"
+    "title": "No id here",
+    "updatedAt": 0
    }
   },
   {
@@ -668,7 +672,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "T"
+    "title": "T",
+    "updatedAt": 0
    }
   },
   {
@@ -692,7 +697,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "PS"
+    "title": "PS",
+    "updatedAt": 0
    }
   },
   {
@@ -720,7 +726,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "PS"
+    "title": "PS",
+    "updatedAt": 0
    }
   },
   {
@@ -747,7 +754,8 @@
     "series": "Harry Potter #1",
     "size": 0,
     "subtitle": "Full-Cast Edition",
-    "title": "Harry Potter and the Philosopher's Stone"
+    "title": "Harry Potter and the Philosopher's Stone",
+    "updatedAt": 0
    }
   },
   {
@@ -772,7 +780,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "T"
+    "title": "T",
+    "updatedAt": 0
    }
   },
   {
@@ -796,7 +805,8 @@
     "series": "",
     "size": 0,
     "subtitle": "",
-    "title": "Half"
+    "title": "Half",
+    "updatedAt": 0
    }
   }
  ],
@@ -1021,6 +1031,7 @@
        }
       ],
       "itemId": "hp_cast",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1036,6 +1047,7 @@
        }
       ],
       "itemId": "hp_dale",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1168,6 +1180,7 @@
        }
       ],
       "itemId": "hp_cast",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1183,6 +1196,7 @@
        }
       ],
       "itemId": "hp_dale",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1334,6 +1348,7 @@
        }
       ],
       "itemId": "hp_other",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1349,6 +1364,7 @@
        }
       ],
       "itemId": "hp_third",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1364,6 +1380,7 @@
        }
       ],
       "itemId": "hp_dale",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1463,6 +1480,7 @@
        }
       ],
       "itemId": "hp_cast",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1557,6 +1575,7 @@
        }
       ],
       "itemId": "hp_cast",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Harry Potter",
       "sourceExt": ".m4b",
@@ -1643,6 +1662,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".m4b",
@@ -1725,6 +1745,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".m4b",
@@ -1809,6 +1830,7 @@
        }
       ],
       "itemId": "bk_o",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "",
       "sourceExt": ".mp3",
@@ -1891,6 +1913,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".bin",
@@ -1973,6 +1996,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".m4b",
@@ -2095,6 +2119,7 @@
        }
       ],
       "itemId": "bk_h",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".m4b",
@@ -2217,6 +2242,7 @@
        }
       ],
       "itemId": "bk_h",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".m4b",
@@ -2317,6 +2343,7 @@
        }
       ],
       "itemId": "bk_h",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".m4b",
@@ -2425,6 +2452,7 @@
        }
       ],
       "itemId": "bk_h",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".m4b",
@@ -2534,6 +2562,7 @@
        }
       ],
       "itemId": "bk_o",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".mp3",
@@ -2694,6 +2723,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".m4b",
@@ -2782,6 +2812,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".m4b",
@@ -2867,6 +2898,7 @@
        }
       ],
       "itemId": "bk_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "series": "Redwall",
       "sourceExt": ".m4b",
@@ -2964,6 +2996,7 @@
        }
       ],
       "itemId": "bk_long",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".m4b",
@@ -3060,6 +3093,7 @@
        }
       ],
       "itemId": "bk_h",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "series": "",
       "sourceExt": ".m4b",

@@ -188,6 +188,17 @@ class Client:
         return self._request(f"/api/items/{urllib.parse.quote(str(item_id))}/download",
                              timeout=timeout)
 
+    def item(self, item_id):
+        """One library item in full: every audio file with its inode, size
+        and modification time, and the metadata Audiobookshelf would embed."""
+        return self._json(f"/api/items/{urllib.parse.quote(str(item_id))}?expanded=1")
+
+    def open_file(self, item_id, ino, timeout=DOWNLOAD_TIMEOUT):
+        """Open the download stream for one file of an item, by its inode."""
+        q = urllib.parse.quote
+        return self._request(f"/api/items/{q(str(item_id))}/file/{q(str(ino))}/download",
+                             timeout=timeout)
+
     def upload(self, library_id, folder_id, title, author, files, series=None,
                timeout=DOWNLOAD_TIMEOUT):
         """Create a new library item from local files.
@@ -249,4 +260,7 @@ def normalize_item(it):
         "relPath": it.get("relPath") or "",
         "numTracks": tracks or 0,
         "size": it.get("size") or media.get("size") or 0,
+        # Moves when the book's details or files change on the server; the
+        # index keeps the value it had when the book was copied.
+        "updatedAt": it.get("updatedAt") or 0,
     }

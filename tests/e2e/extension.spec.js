@@ -505,6 +505,15 @@ test.describe("full loop in a real browser", () => {
     await expect(page.locator("#act")).toContainText(`Copy 1 to ${basename(env.dev)} →`);
     await page.click("#act");
 
+    // Writing tags is asked about first. Kept as "never" for the rest of the
+    // run, so the file below is the server's, byte for byte.
+    await expect(page.locator("#tagsAsk")).toBeVisible();
+    await expect(page.locator("#tagsPlayer")).toHaveText(basename(env.dev));
+    await page.check("#tagsKeep");
+    await page.click("#tagsNo");
+    await expect(page.locator("#tagsAsk")).toBeHidden();
+    await expect.poll(() => stored(page, "writeTags")).toBe("never");
+
     await expect(page.locator("#jobBox")).toContainText(`Copied 1 to ${basename(env.dev)}`, { timeout: 30_000 });
 
     // The .m4b became .m4a on the way, which is the whole point of the tool.
@@ -972,7 +981,7 @@ test.describe("before access is granted", () => {
     await page.click("#saveNaming");
     // Saying what changed, not just that something did.
     await expect(page.locator("#msgNaming")).toHaveText("Saved folder template.");
-    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a");
+    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a · asks about tags");
 
     await page.reload();
     await expect(page.locator("#folderTemplate")).toHaveValue("{title}");

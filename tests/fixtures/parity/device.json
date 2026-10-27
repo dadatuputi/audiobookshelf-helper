@@ -67,6 +67,7 @@
       "bytes": 64,
       "files": 1,
       "itemId": "li_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "name": "Brian Jacques - Redwall.m4a",
       "paths": [
@@ -74,6 +75,7 @@
       ],
       "series": "Redwall",
       "source": "index",
+      "tagged": false,
       "title": "Redwall"
      },
      {
@@ -155,6 +157,7 @@
       "bytes": 20,
       "files": 1,
       "itemId": "li_gone",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "name": "Vol.2 of Something",
       "paths": [
@@ -162,6 +165,7 @@
       ],
       "series": "",
       "source": "index",
+      "tagged": false,
       "title": "Vol"
      },
      {
@@ -273,6 +277,7 @@
       "bytes": 64,
       "files": 1,
       "itemId": "li_r",
+      "itemUpdatedAt": 0,
       "kind": "file",
       "name": "Brian Jacques - Redwall.m4a",
       "paths": [
@@ -280,6 +285,7 @@
       ],
       "series": "Redwall",
       "source": "index",
+      "tagged": false,
       "title": "Redwall"
      },
      {
@@ -361,6 +367,7 @@
       "bytes": 20,
       "files": 1,
       "itemId": "li_gone",
+      "itemUpdatedAt": 0,
       "kind": "dir",
       "name": "Vol.2 of Something",
       "paths": [
@@ -368,6 +375,7 @@
       ],
       "series": "",
       "source": "index",
+      "tagged": false,
       "title": "Vol"
      },
      {

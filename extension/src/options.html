@@ -103,6 +103,19 @@
     <label class="chk"><input type="checkbox" id="renameM4b" checked>
       <span>Rename <code>.m4b</code> → <code>.m4a</code>. Same audio, no re-encode; leave it on
         unless your player plays .m4b.</span></label>
+    <div class="field">
+      <label for="writeTags">Write tags</label>
+      <select id="writeTags">
+        <option value="ask">Ask each time</option>
+        <option value="always">Always</option>
+        <option value="never">Never</option>
+      </select>
+      <div class="hint">Writes Audiobookshelf's details (title, author, series, narrator) into
+        the copies, the way its own Embed Metadata tool would, so a player shows the book as
+        the library does. Only the copies on the player change. A book already copied gets
+        them for a few bytes, not a second download. Needs the helper: Chrome's folder mode
+        copies the files as they are.</div>
+    </div>
     <div class="actions end">
       <span id="msgNaming" class="msg" role="status"></span>
       <button class="secondary cancel">Cancel <kbd>Esc</kbd></button>

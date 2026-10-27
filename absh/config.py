@@ -21,7 +21,19 @@ DEFAULTS = {
     "folderTemplate": "{author} - {title}",
     "renameM4b": True,
     "restoreM4b": True,
+    # Write Audiobookshelf's own tags into books as they are copied:
+    # "ask" each time, "always" or "never".
+    "writeTags": "ask",
 }
+
+
+def writes_tags(cfg):
+    """Whether a copy writes tags. A request may carry a plain yes or no -
+    the answer to "ask" - which wins over the setting."""
+    v = cfg.get("writeTags")
+    if isinstance(v, bool):
+        return v
+    return str(v or "").strip().lower() in ("always", "yes", "true", "1", "on")
 
 # Everything is settable from the environment, which is how you drive this in
 # a script or a container without writing a config file.
@@ -76,6 +88,20 @@ def save(cfg, path=None):
     except OSError:
         pass
     return p
+
+
+def remember(key, value, path=None):
+    """Change one setting in the file, leaving the rest of the file as it was
+    - not the environment or the flags this run happened to be given."""
+    p = Path(path) if path else config_path()
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data[key] = value
+    return save({**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS}}, path=p)
 
 
 def redacted(cfg):

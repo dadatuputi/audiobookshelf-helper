@@ -120,7 +120,7 @@ def _serialisable(st):
     def entry(e):
         return {k: e.get(k) for k in
                 ("name", "kind", "bytes", "files", "title", "author", "series",
-                 "itemId", "source", "matchedBy")}
+                 "itemId", "source", "matchedBy", "stale", "tagged")}
 
     return {
         "both": [{**entry(b), "item": item(b["item"])} for b in st["both"]],

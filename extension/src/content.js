@@ -227,10 +227,63 @@
 
   function copy(id) {
     const i = serverItem(id);
-    return send({ type: "jobAdd", op: "pull", player: PLAYER,
-                  items: [{ key: id, ref: id, title: i.title || "", bytes: i.size || 0 }] })
-      .then((job) => setJob(job))
-      .catch((e) => note(String(e.message || e), true));
+    return queuePull([{ key: id, ref: id, title: i.title || "", bytes: i.size || 0 }]);
+  }
+
+  /* Queue a copy, first asking about tags when the setting says to ask.
+     Let go of the question and nothing is queued. */
+  async function queuePull(items) {
+    try {
+      const writeTags = await askTags();
+      if (writeTags === null) return;
+      setJob(await send({ type: "jobAdd", op: "pull", player: PLAYER, items, writeTags }));
+    } catch (e) {
+      note(String(e.message || e), true);
+    }
+  }
+
+  const ASK_ID = "absh-ask";
+
+  /* true or false to write Audiobookshelf's tags into the copies, or null if
+     the question was let go. Asked in a box beside the note, not a dialog. */
+  async function askTags() {
+    const t = (await send({ type: "tagsAsk" })) || {};
+    if (!t.ask) return t.write;
+    const old = document.getElementById(ASK_ID);
+    if (old) old.__done(null);
+    return new Promise((resolve) => {
+      const box = document.createElement("div");
+      box.id = ASK_ID;
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-label", "Write tags");
+      const p = document.createElement("p");
+      p.textContent = `Write Audiobookshelf's details (title, author, series, narrator) into ` +
+        `the copies on ${PLAYER}? Only the copies change, and a book already there ` +
+        `takes a few bytes.`;
+      const keep = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      keep.append(cb, " Don't ask again");
+      const done = (v) => {
+        box.remove();
+        document.removeEventListener("keydown", onKey, true);
+        if (v !== null && cb.checked) {
+          send({ type: "tagsRemember", value: v ? "always" : "never" }).catch(() => {});
+        }
+        resolve(v);
+      };
+      const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); done(null); } };
+      box.__done = done;
+      const yes = bigButton("Write tags", "", () => done(true));
+      const no = bigButton("Leave them", "absh-ghost", () => done(false));
+      const row = document.createElement("div");
+      row.className = "absh-ask-row";
+      row.append(yes, no, keep);
+      box.append(p, row);
+      document.body.appendChild(box);
+      document.addEventListener("keydown", onKey, true);
+      yes.focus({ preventScroll: true });
+    });
   }
 
   /* The strip along the bottom of a cover. A state when there is nothing to
@@ -246,15 +299,18 @@
     }
     const here = onDevice(id);
     const st = standing(id);
-    const kind = here ? "on" : st && st.it.state === "copying" ? "run"
-      : st && st.it.state === "waiting" ? "wait" : st ? "failed" : "copy";
+    // A book the server changed since it was copied: an update, which
+    // writes only what differs.
+    const kind = st && st.it.state === "copying" ? "run"
+      : st && st.it.state === "waiting" ? "wait"
+      : here ? (here.stale ? "update" : "on") : st ? "failed" : "copy";
     if (strip && strip.dataset.abshId === id && strip.dataset.kind === kind && kind !== "run") return;
 
     // On the cover itself, not the card: the card also holds the title and
     // author under the cover, and a strip at its foot sat on top of them.
     const cover = card.querySelector('[id^="cover-area-"]') || card;
     if (getComputedStyle(cover).position === "static") cover.style.position = "relative";
-    const make = kind === "copy" || kind === "failed" ? "button" : "div";
+    const make = kind === "copy" || kind === "failed" || kind === "update" ? "button" : "div";
     if (!strip || strip.tagName.toLowerCase() !== make || strip.parentElement !== cover) {
       if (strip) strip.remove();
       strip = document.createElement(make);
@@ -290,8 +346,11 @@
       strip.title = `Queued to copy to ${PLAYER}`;
     } else {
       strip.type = "button";
-      strip.textContent = kind === "failed" ? "Copy failed · Try again" : "Copy to player";
-      strip.title = kind === "failed" && st.it.error ? st.it.error : `Copy to ${PLAYER}`;
+      strip.textContent = kind === "failed" ? "Copy failed · Try again"
+        : kind === "update" ? "Update on player" : "Copy to player";
+      strip.title = kind === "failed" && st.it.error ? st.it.error
+        : kind === "update" ? `Changed in Audiobookshelf since it was copied. Update it on ${PLAYER}`
+        : `Copy to ${PLAYER}`;
       strip.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();          // the cover would open the book
@@ -354,6 +413,7 @@
     // The app changes the page all the time; rebuild only when what this box
     // says has changed, or a click lands on a button that is being replaced.
     const sig = JSON.stringify([id, PLAYER, down && STATUS && STATUS.error, here && here.name,
+      here && here.stale,
       st && st.it.state, st && st.it.error, asking, STATUS && STATUS.free && STATUS.free.free]);
     if (el.dataset.sig === sig) return;
     el.dataset.sig = sig;
@@ -376,14 +436,16 @@
         keep);
       el.append(actions, line(`Remove from ${PLAYER}? The library keeps it.`));
       keep.focus({ preventScroll: true });
+    } else if (st && st.it.state !== "failed") {
+      el.append(line(st.it.state === "copying" ? `Copying to ${PLAYER}…` : `Waiting to copy to ${PLAYER}`));
     } else if (here) {
+      if (here.stale) actions.append(bigButton(`Update on ${PLAYER}`, "", () => copy(id)));
       actions.append(bigButton(`Remove from ${PLAYER}`, "absh-ghost absh-remove", () => {
         CONFIRM = { id, timer: setTimeout(() => unconfirm(), CONFIRM_SECONDS * 1000) };
         itemPage();
       }));
-      el.append(actions, line(`✓ On ${PLAYER}`));
-    } else if (st && st.it.state !== "failed") {
-      el.append(line(st.it.state === "copying" ? `Copying to ${PLAYER}…` : `Waiting to copy to ${PLAYER}`));
+      el.append(actions, line(here.stale
+        ? `On ${PLAYER} · changed in Audiobookshelf since it was copied` : `✓ On ${PLAYER}`));
     } else {
       actions.append(bigButton(`Copy to ${PLAYER}`, "", () => copy(id)));
       const free = STATUS.free && STATUS.free.free;
@@ -469,9 +531,7 @@
       const i = serverItem(id);
       return { key: id, ref: id, title: i.title || "", bytes: i.size || 0 };
     });
-    return send({ type: "jobAdd", op: "pull", player: PLAYER, items })
-      .then((job) => setJob(job))
-      .catch((e) => note(String(e.message || e), true));
+    return queuePull(items);
   }
 
   function groupPage() {

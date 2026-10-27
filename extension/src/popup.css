@@ -193,3 +193,10 @@ footer .primary { flex: 1 1 auto; }
 .act-sub { font-size: 12px; font-weight: 400; opacity: .8; }
 .act-sub:empty { display: none; }
 footer .secondary { min-height: 56px; border-radius: 8px; }
+
+/* ------------------------------------------- write tags? asked before a copy */
+.ask { display: grid; gap: 10px; padding: 12px 14px; box-shadow: 0 0 0 2px var(--accent); }
+.ask p { margin: 0; font-size: 12px; line-height: 1.45; }
+.ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ask-row button { min-height: 36px; border-radius: 6px; padding: 0 14px; }
+.ask-keep { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }

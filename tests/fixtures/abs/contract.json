@@ -47,7 +47,8 @@
         "results[].media.metadata.authorName, or authors[].name",
         "results[].media.metadata.narratorName, or narrators[]",
         "results[].media.metadata.seriesName, or series[].name and sequence",
-        "results[].media.metadata.publishedYear"
+        "results[].media.metadata.publishedYear",
+        "results[].updatedAt, which moves when the book's details or files change"
       ]
     },
     {
@@ -75,6 +76,25 @@
       "used_for": "one click copying the books a playlist page lists",
       "fields": ["items[].libraryItemId",
                  "items[].episodeId, set only for podcast episodes, which are left out"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/items/{id}?expanded=1",
+      "used_for": "copying file by file, only what changed, and the tags Embed Metadata would write",
+      "fields": [
+        "media.audioFiles[].ino, index, exclude",
+        "media.audioFiles[].metadata.filename, relPath, size, mtimeMs",
+        "media.metadata.title, subtitle, authors[].name, narrators[], series[].name and sequence",
+        "media.metadata.genres[], publishedYear, description, publisher",
+        "the tags mirror getFFMetadataObject in server/utils/ffmpegHelpers.js"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/items/{id}/file/{ino}/download",
+      "used_for": "fetching one file of a book, when only it changed",
+      "fields": ["accepts the API key as an Authorization: Bearer header",
+                 "returns the file as stored"]
     },
     {
       "method": "GET",

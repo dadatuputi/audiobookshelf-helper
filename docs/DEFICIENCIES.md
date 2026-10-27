@@ -467,6 +467,35 @@ through the portal), and with no portal (expects "Not installed").
    at both ends of the supported range. The endpoints are in the API
    contract.
 
+### N17. Books carry the server's tags, and a re-copy moves only what changed — DONE
+Asked for (2026-10-26): write Audiobookshelf's tags into the copies, after a
+prompt, in Audiobookshelf's own format; and transfer only what differs, down to
+the bytes, so adding tags moves a few bytes. **Done in the helper** (CLI, TUI,
+extension through the helper):
+- `absh/embed.py` is `getFFMetadataObject` from the server's ffmpegHelpers,
+  key for key, plus each file's track number. `absh/mp4meta.py` writes it as
+  MP4 `ilst` atoms with a `free` pad after, shifting `stco`/`co64` when moov
+  sits before the audio, so a retag after the first rewrites only ilst and
+  its pad. Cut off mid-write, a file still reads (the old moov is retired
+  last).
+- Pulls go per file (`/api/items/:id?expanded=1`, `/file/:ino/download`).
+  The index records each file's inode, size and mtime on the server and the
+  tags digest written; an unchanged file is not downloaded, a changed one is
+  diffed in 1 MiB blocks and only the 4 KiB sectors that differ are written.
+  `--force` does the same comparison for every file. A server that cannot
+  list files falls back to the whole-book download.
+- A book whose `updatedAt` on the server is newer than when it was copied is
+  "changed on the server": `status` and the TUI mark it, `pull` updates it,
+  and the extension offers **Update on <player>** on its cover and page, and
+  lists it under To player.
+- The extension asks before a copy (once per copy, or "Don't ask again"), and
+  Settings has Ask / Always / Never.
+
+**Not done: Chrome's folder mode** copies the server's files as they are,
+whole, with no tags. Writing tags there means porting `mp4meta.py` to the
+browser and per-file downloads to `folder.js`; the setting says it needs the
+helper, and the question is not asked in folder mode.
+
 ## Todo
 
 ### T1. Consume ping's `release` and offer the update — DONE (`0138d94`)

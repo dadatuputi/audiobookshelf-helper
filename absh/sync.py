@@ -14,12 +14,16 @@ remove device            (delete, with hard containment checks)
 """
 import os
 import re
+from struct import error as struct_error
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
 
+from . import config as config_mod
+from . import embed
 from . import index as index_mod
+from . import mp4meta
 from . import tags as tags_mod
 from .abs_api import AbsError
 from .device import device_root
@@ -84,8 +88,8 @@ class Report(dict):
     """Accumulates what happened, in a shape both the CLI and the host render."""
 
     def __init__(self):
-        super().__init__(copied=0, skipped=0, uploaded=0, removed=[],
-                         freed=0, errors=[], books=0, interrupted=[])
+        super().__init__(copied=0, skipped=0, updated=0, written=0, uploaded=0,
+                         removed=[], freed=0, errors=[], books=0, interrupted=[])
 
     def fail(self, title, why):
         self["errors"].append(f"{title}: {why}")
@@ -135,6 +139,10 @@ def pull_book(client, item, opts, report, emit=_noop):
     def step(done, total, label):
         emit({"event": "progress", "id": item.get("id"), "title": title,
               "file": label, "done": done, "total": total})
+
+    full = _full_item(client, item)
+    if full is not None:
+        return _pull_files(client, item, full, opts, report, step, root, name, rename)
 
     if not opts.get("force"):
         have = already_on_device(opts, item)
@@ -241,6 +249,248 @@ def _download(client, item, root, name, rename, report, step, device_path):
                 tmp.unlink()
             except OSError:
                 pass
+
+
+# ------------------------------------------------- file by file, by bytes
+# With the full item from the server, a book is copied file by file and each
+# file is compared with what the index says is on the player: the server's
+# inode, size and mtime for that file, and the tags last written into it.
+# Only what differs moves. A file the server has not changed is not
+# downloaded at all; if only the tags differ, just the tag bytes are written
+# on the player. A file that did change, or a forced copy, is downloaded and
+# compared with the player's copy block by block, and only blocks that differ
+# are written.
+
+BLOCK = 1 << 20      # compared at a time
+SECTOR = 4096        # written at a time, when it differs
+
+
+def _full_item(client, item):
+    """The item with its files, or None when the server (or a test double)
+    cannot say - then the whole-book download is used, as before."""
+    get = getattr(client, "item", None)
+    if get is None or getattr(client, "open_file", None) is None:
+        return None
+    try:
+        full = get(item["id"])
+    except AbsError:
+        return None
+    return full if isinstance(full, dict) and embed.audio_files(full) else None
+
+
+def _blocks(src, segs, size=BLOCK):
+    """The bytes `segs` describe (see mp4meta.rebuild), in blocks of `size`."""
+    buf = bytearray()
+    for seg in segs:
+        if seg[0] == "bytes":
+            buf += seg[1]
+        else:
+            src.seek(seg[1])
+            left = seg[2] - seg[1]
+            while left:
+                chunk = src.read(min(left, size))
+                if not chunk:
+                    raise OSError("source file shorter than expected")
+                buf += chunk
+                left -= len(chunk)
+                while len(buf) >= size:
+                    yield bytes(buf[:size])
+                    del buf[:size]
+        while len(buf) >= size:
+            yield bytes(buf[:size])
+            del buf[:size]
+    if buf:
+        yield bytes(buf)
+
+
+def _put_changed(out, pos, data, old):
+    """Write the sectors of `data` at `pos` that differ from `old`."""
+    written = 0
+    for i in range(0, len(data), SECTOR):
+        new = data[i:i + SECTOR]
+        if old[i:i + SECTOR] != new:
+            out.seek(pos + i)
+            out.write(new)
+            written += len(new)
+    return written
+
+
+def _diff_write(dst, src, segs):
+    """Make `dst` equal to what `segs` describe, writing only what differs."""
+    written = 0
+    pos = 0
+    with open(dst, "r+b") as out:
+        for block in _blocks(src, segs):
+            out.seek(pos)
+            written += _put_changed(out, pos, block, out.read(len(block)))
+            pos += len(block)
+        out.seek(0, 2)
+        if out.tell() != pos:
+            out.truncate(pos)
+    return written
+
+
+def _apply_writes(dst, writes, truncate):
+    """mp4meta.retag()'s writes, in order, each only where it differs."""
+    written = 0
+    with open(dst, "r+b") as out:
+        for pos, data in writes:
+            out.seek(pos)
+            written += _put_changed(out, pos, data, out.read(len(data)))
+        if truncate is not None:
+            out.truncate(truncate)
+    return written
+
+
+def _tagged(path, tags):
+    """rebuild() segments for `path`, or the whole file untouched when it is
+    not an MP4 this can tag (or no tags are wanted)."""
+    size = path.stat().st_size
+    if tags:
+        try:
+            with open(path, "rb") as f:
+                return mp4meta.rebuild(f, tags), True
+        except (mp4meta.NotMp4, OSError, struct_error):
+            pass
+    return [("src", 0, size)], False
+
+
+def _layout(entry_name, files, name, root, rename, have):
+    """Where each server file goes on the player."""
+    if len(files) == 1:
+        f = files[0]
+        ext = out_ext(f["filename"], rename)
+        fname = have if have else f"{name}{ext}"
+        return "file", [root / fname]
+    target = root / entry_name
+    out = []
+    for i, f in enumerate(files, 1):
+        ext = out_ext(f["filename"], rename)
+        part = fit(clean(Path(f["relPath"]).stem), MAX_NAME - 6 - len(ext))
+        out.append(target / f"{i:03d} - {part}{ext}")
+    return "dir", out
+
+
+def _download_file(client, item_id, f, step_label, step, n, total):
+    step(n - 1, total, step_label)
+    with client.open_file(item_id, f["ino"]) as r, \
+            tempfile.NamedTemporaryFile(delete=False) as fh:
+        shutil.copyfileobj(r, fh)
+        return Path(fh.name)
+
+
+def _pull_files(client, item, full, opts, report, step, root, name, rename):
+    title = item.get("title") or name
+    device_path = opts["devicePath"]
+    force = bool(opts.get("force"))
+    files = embed.audio_files(full)
+    want_tags = config_mod.writes_tags(opts)
+
+    have = already_on_device(opts, item)
+    rec = index_mod.load(device_path).get("entries", {}).get(have) if have else None
+    kind_now = "file" if len(files) == 1 else "dir"
+    if have and rec and rec.get("kind") != kind_now:
+        report.fail(title, f"the book is now {len(files)} file(s) on the server but not on "
+                           f"the player; remove it from the player and copy it again")
+        return None
+    if have:
+        entry_name = have
+    else:
+        try:
+            entry_name = free_name(name, item, taken_names(device_path, root))
+        except ValueError as e:
+            report.fail(title, str(e))
+            return None
+    kind, dsts = _layout(entry_name, files, entry_name, root, rename,
+                         have if kind_now == "file" else None)
+    if kind == "file":
+        entry_name = dsts[0].name
+    old = {r.get("name"): r for r in (rec or {}).get("files") or []}
+
+    out_files = []
+    src_ext = ""
+    changed = False
+    tmp = None
+    try:
+        for n, (f, dst) in enumerate(zip(files, dsts), 1):
+            src_ext = src_ext or Path(f["filename"]).suffix.lower()
+            tags = embed.mp4_tags(full, f.get("index") or n) if want_tags else None
+            digest = mp4meta.tags_digest(tags) if tags else None
+            r = old.get(dst.name)
+            same_src = bool(r) and r.get("ino") == f["ino"] and r.get("srcSize") == f["size"] \
+                and r.get("srcMtime") == f["mtimeMs"]
+            here = dst.is_file()
+            intact = here and r is not None and dst.stat().st_size == r.get("size")
+            # A book this tool copied before it kept per-file records: same
+            # size as the server's file means it is the server's file.
+            legacy = here and r is not None and "ino" not in r and dst.stat().st_size == f["size"]
+            record = {"name": dst.name, "ino": f["ino"], "srcSize": f["size"],
+                      "srcMtime": f["mtimeMs"]}
+
+            if not force and ((same_src and intact) or legacy):
+                had = None if legacy else r.get("tags")
+                if digest and had != digest:
+                    step(n - 1, len(files), dst.name)
+                    try:
+                        with open(dst, "rb") as fh:
+                            writes, cut = mp4meta.retag(fh, tags)
+                    except (mp4meta.NotMp4, struct_error):
+                        writes, digest = None, None
+                    if writes:
+                        report["written"] += _apply_writes(dst, writes, cut)
+                        report["updated"] += 1
+                        changed = True
+                    record["tags"] = digest
+                else:
+                    record["tags"] = had
+                record["size"] = dst.stat().st_size
+                out_files.append(record)
+                continue
+
+            tmp = _download_file(client, item["id"], f, dst.name, step, n, len(files))
+            segs, tagged = _tagged(tmp, tags)
+            record["tags"] = digest if tagged else None
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            with open(tmp, "rb") as src:
+                if here:
+                    report["written"] += _diff_write(dst, src, segs)
+                    report["updated"] += 1
+                else:
+                    _write_whole(dst, lambda out: [out.write(b) for b in _blocks(src, segs)])
+                    report["written"] += mp4meta.segments_length(segs)
+                    report["copied"] += 1
+            changed = True
+            tmp.unlink()
+            tmp = None
+            record["size"] = dst.stat().st_size
+            out_files.append(record)
+    except DeviceGone:
+        raise
+    except OSError as e:
+        if not device_present(device_path):
+            raise DeviceGone() from e
+        report.fail(title, f"copy failed - {e}")
+        return None
+    except AbsError as e:
+        report.fail(title, f"download failed - {e}")
+        return None
+    finally:
+        if tmp is not None:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+    step(len(files), len(files), entry_name)
+    if changed or not rec or [x.get("name") for x in rec.get("files") or []] != \
+            [x["name"] for x in out_files] or any("ino" not in x for x in rec.get("files") or []) \
+            or [x.get("tags") for x in rec.get("files") or []] != [x["tags"] for x in out_files]:
+        index_mod.record(device_path, entry_name, item, out_files, kind, source_ext=src_ext)
+    if changed or not have:
+        report["books"] += 1
+    else:
+        report["skipped"] += 1
+    return entry_name
 
 
 def pull(client, items, opts, emit=_noop):

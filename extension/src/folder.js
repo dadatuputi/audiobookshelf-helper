@@ -218,6 +218,7 @@
       relPath: it.relPath || "",
       numTracks: tracks || 0,
       size: it.size || media.size || 0,
+      updatedAt: it.updatedAt || 0,
     };
   }
 
@@ -712,7 +713,7 @@
       title: item.title || "", author: item.author || "", series: item.series || "",
       kind, sourceExt: srcExt || "",
       bytes: files.reduce((n, f) => n + (f.size || 0), 0),
-      files, syncedAt: utcNow(),
+      files, itemUpdatedAt: item.updatedAt || 0, syncedAt: utcNow(),
     };
     await saveIndex(dev, data);
   }
@@ -781,7 +782,9 @@
         Object.assign(entry, {
           itemId: rec.itemId === undefined ? null : rec.itemId,
           title: rec.title || stem(name), author: rec.author || "",
-          series: rec.series || "", source: "index" });
+          series: rec.series || "", source: "index", itemUpdatedAt: rec.itemUpdatedAt || 0,
+          tagged: Array.isArray(rec.files) && rec.files.length > 0
+            && rec.files.filter(isPlainObject).every((f) => !!f.tags) });
       } else if (readTagsToo) {
         const book = [];
         for (const f of files) {
@@ -806,6 +809,14 @@
     // deleted outside this tool.
     await pruneIndex(dev, new Set(out.map((e) => e.name)));
     return out;
+  }
+
+  /** absh/device.py stale: changed on the server since it was copied. */
+  function stale(entry, item) {
+    if (entry.source !== "index") return false;
+    const then = entry.itemUpdatedAt || 0;
+    const now = item.updatedAt || 0;
+    return !!(then && now && now > then);
   }
 
   function diff(serverItems, entries, template) {
@@ -836,7 +847,8 @@
       }
       if (item) {
         matched.add(item.id);
-        const b = { ...e, item, itemId: item.id, matchedBy: how };
+        const b = { ...e, item, itemId: item.id, matchedBy: how,
+                    stale: stale(e, item) };
         Object.defineProperty(b, "handles", { value: e.handles });
         both.push(b);
       } else {
@@ -852,7 +864,7 @@
     const item = (i) => pick(i, ["id", "title", "author", "series", "narrator", "subtitle",
                                  "duration", "publishedYear", "size", "numTracks"]);
     const entry = (e) => pick(e, ["name", "kind", "bytes", "files", "title", "author",
-                                  "series", "itemId", "source", "matchedBy"]);
+                                  "series", "itemId", "source", "matchedBy", "stale", "tagged"]);
     return {
       both: st.both.map((b) => ({ ...entry(b), item: item(b.item) })),
       serverOnly: st.serverOnly.map(item),

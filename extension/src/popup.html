@@ -77,6 +77,18 @@
   <a id="folderChange" class="note-link hidden" href="#">Choose a different folder in Settings</a>
 </section>
 
+<!-- Asked before a copy, unless Settings says always or never. -->
+<section id="tagsAsk" class="card ask hidden" role="dialog" aria-labelledby="tagsQ">
+  <p id="tagsQ">Write Audiobookshelf's details (title, author, series, narrator) into the
+    copies on <b id="tagsPlayer">the player</b>? Only the copies change, and a book
+    already there takes a few bytes.</p>
+  <div class="ask-row">
+    <button id="tagsYes" class="primary">Write tags <kbd>Y</kbd></button>
+    <button id="tagsNo" class="secondary">Leave them <kbd>N</kbd></button>
+    <label class="ask-keep"><input type="checkbox" id="tagsKeep"> Don't ask again</label>
+  </div>
+</section>
+
 <!-- A copy, upload or removal: under way, or just finished. -->
 <section id="jobBox" class="prog hidden" role="status" aria-live="polite">
   <div class="top"><b id="jobHead"></b><span id="jobSize" class="size"></span></div>
