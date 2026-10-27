@@ -62,6 +62,14 @@ def audio_files(full):
     """The book's audio files, in the order the download zip lists them,
     with what identifies each on the server."""
     media = full.get("media") or {}
+    # A file is downloaded by the inode in the item's list of files. The one
+    # its audio entry carries can be out of date - after the file has been
+    # replaced, say - and asking for that one is a 404.
+    by_path = {}
+    for lf in full.get("libraryFiles") or []:
+        m = lf.get("metadata") or {}
+        if lf.get("ino") is not None and m.get("path"):
+            by_path[m["path"]] = str(lf["ino"])
     out = []
     for af in media.get("audioFiles") or []:
         if af.get("exclude"):
@@ -70,7 +78,7 @@ def audio_files(full):
         if af.get("ino") is None or not m.get("filename"):
             continue
         out.append({
-            "ino": str(af["ino"]),
+            "ino": by_path.get(m.get("path"), str(af["ino"])),
             "index": af.get("index"),
             "filename": m["filename"],
             "relPath": m.get("relPath") or m["filename"],
