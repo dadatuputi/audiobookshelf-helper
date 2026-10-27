@@ -7,7 +7,7 @@
  * engine, the Audiobookshelf API - and then checks the file that landed on
  * disk. That is the claim worth making.
  */
-import { readdirSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { readdirSync, rmSync, mkdirSync, existsSync, renameSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -225,8 +225,12 @@ export async function unplugMidRun(page, state, expect) {
     await expect(s).toBeVisible({ timeout: 30_000 });
     await s.click();
     await box.locator("button", { hasText: `Yes, copy ${n} books` }).click();
-    // Out it comes, as the run starts.
-    rmSync(state.device, { recursive: true, force: true });
+    // Out it comes, as the run starts. All at once, as a real player goes:
+    // moved away first, so the helper cannot write a file into a folder
+    // that is being deleted from under it (rmdir then fails, ENOTEMPTY).
+    const gone = `${state.device}.unplugged`;
+    renameSync(state.device, gone);
+    rmSync(gone, { recursive: true, force: true, maxRetries: 10 });
 
     await expect(box).toContainText(`Paused · plug ${player} back in`, { timeout: 45_000 });
     expect(existsSync(state.device), "the player's folders were made again on this disk")

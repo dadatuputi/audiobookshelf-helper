@@ -182,6 +182,16 @@ describe("updateCheckDue", () => {
     expect(ABSH.updateCheckDue(ok(1000), "1.0.0-alpha.2", now)).toBe(true);
   });
 
+  it("checks again once the extension is a different one", () => {
+    // A new extension came from a new release, which a check made by the
+    // old one, before that release, cannot have seen.
+    const asked = ok(1000, { extension: "v1.0.0-beta.2" });
+    expect(ABSH.updateCheckDue(asked, "1.0.0-alpha.1", now, false, "v1.0.0-beta.2")).toBe(false);
+    expect(ABSH.updateCheckDue(asked, "1.0.0-alpha.1", now, false, "v1.0.0-beta.4")).toBe(true);
+    // Cached before the extension said which one it was.
+    expect(ABSH.updateCheckDue(ok(1000), "1.0.0-alpha.1", now, false, "v1.0.0-beta.4")).toBe(true);
+  });
+
   it("does not trust an answer from the future", () => {
     expect(ABSH.updateCheckDue(ok(-DAY), "1.0.0-alpha.1", now)).toBe(true);
   });
