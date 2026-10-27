@@ -492,6 +492,30 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
+  test("the tags question fits whole while a copy is shown, the list giving way", async () => {
+    const page = await popupPage(env.ctx);
+    await expect(page.locator("#list li")).toHaveCount(BOOKS.length, { timeout: 20_000 });
+    // As during a long copy, with the question asked for the next one.
+    await page.evaluate(() => {
+      // A library long enough to fill the list.
+      const ul = document.getElementById("list");
+      while (ul.children.length < 12) ul.append(ul.firstElementChild.cloneNode(true));
+      for (const id of ["tagsAsk", "jobBox"]) document.getElementById(id).classList.remove("hidden");
+      document.getElementById("jobHead").textContent = "Copying 2 of 35";
+      document.getElementById("jobSub").textContent = "About 77 minutes left";
+    });
+    const fit = (sel) => page.locator(sel).evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(await fit("#tagsAsk")).toBeLessThanOrEqual(1);
+    expect(await fit("#jobBox")).toBeLessThanOrEqual(1);
+    const box = await page.locator("#tagsAsk").boundingBox();
+    const list = await page.locator(".shelf").boundingBox();
+    expect(box.y).toBeGreaterThanOrEqual(list.y + list.height);
+    if (process.env.ABSH_SHOTS) {
+      await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-tags-ask.png") });
+    }
+    await page.close();
+  });
+
   test("pulling a book writes it to the device, renamed", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);

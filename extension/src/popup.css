@@ -4,6 +4,9 @@ body {
   width: 390px; max-height: 600px; padding: 8px;
   display: flex; flex-direction: column; gap: 8px;
 }
+/* When it all does not fit, the list of books gives way: these are never
+   squeezed, which would cut off their text. */
+.ends, .status, .ask, .prog, footer { flex-shrink: 0; }
 
 /* ------------------------------------------------------------ the two ends */
 .ends { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); }
