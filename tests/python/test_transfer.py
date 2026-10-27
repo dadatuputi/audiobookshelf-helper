@@ -301,6 +301,30 @@ class TestPullByBytes(unittest.TestCase):
         self.assertEqual(rep["skipped"], 1)
         self.assertEqual(self.rec()["files"][0]["ino"], "111")
 
+    def test_a_file_is_fetched_by_the_inode_the_server_downloads_it_by(self):
+        """Audiobookshelf finds a file to download among the item's files,
+        and the inode on its audio entry can be out of date: asking for
+        that one is a 404."""
+        class Stale(Server):
+            def item(self, item_id):
+                full = super().item(item_id)
+                full["libraryFiles"] = []
+                for af in full["media"]["audioFiles"]:
+                    af["metadata"]["path"] = "/books/" + af["metadata"]["relPath"]
+                    full["libraryFiles"].append({"ino": af["ino"], "metadata": dict(af["metadata"])})
+                    af["ino"] = "999" + af["ino"]          # what a replaced file left behind
+                return full
+
+            def open_file(self, item_id, ino, timeout=None):
+                if ino not in self.files:
+                    raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+                return super().open_file(item_id, ino, timeout)
+
+        s = Stale({"111": book_file()})
+        self.pull(s, writeTags=False)
+        self.assertEqual(s.fetched, ["111"])
+        self.assertEqual(self.book().read_bytes(), book_file())
+
     def legacy_folder(self, inner):
         """A one-file book as older versions copied it: Audiobookshelf's
         download is a zip when the book's folder holds a cover too, so the
