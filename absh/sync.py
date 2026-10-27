@@ -363,20 +363,43 @@ def _embed_on_server(client, item_id, step):
         time.sleep(EMBED_POLL)
 
 
-def _layout(entry_name, files, name, root, rename, have):
-    """Where each server file goes on the player."""
-    if len(files) == 1:
+def _layout(entry_name, files, root, rename, kind, have_names=None):
+    """Where each server file goes on the player.
+
+    `have_names` are the names the book's files already have on the player,
+    in order. When there is one for each server file they are kept, so a
+    book renamed on the player is written over, not copied a second time."""
+    if kind == "file":
         f = files[0]
-        ext = out_ext(f["filename"], rename)
-        fname = have if have else f"{name}{ext}"
-        return "file", [root / fname]
+        fname = have_names[0] if have_names else f"{entry_name}{out_ext(f['filename'], rename)}"
+        return [root / fname]
     target = root / entry_name
+    if have_names and len(have_names) == len(files):
+        return [target / n for n in have_names]
     out = []
     for i, f in enumerate(files, 1):
         ext = out_ext(f["filename"], rename)
         part = fit(clean(Path(f["relPath"]).stem), MAX_NAME - 6 - len(ext))
         out.append(target / f"{i:03d} - {part}{ext}")
-    return "dir", out
+    return out
+
+
+def _names_there(root, have, rec):
+    """The names a book's files have on the player now, in order: from its
+    record, or else the audio files in its folder."""
+    # From the player's own index, so only plain names: none that leads out.
+    names = [n for n in (r.get("name") for r in rec.get("files") or [])
+             if isinstance(n, str) and n not in ("", ".", "..") and "/" not in n and "\\" not in n]
+    if rec.get("kind") == "file":
+        return [have]
+    folder = root / have
+    if names and all((folder / n).is_file() for n in names):
+        return names
+    try:
+        return sorted(p.name for p in folder.iterdir()
+                      if p.is_file() and p.suffix.lower() in AUDIO_EXT)
+    except OSError:
+        return []
 
 
 def _download_file(client, item_id, f, step_label, step, n, total):
@@ -396,6 +419,11 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
     have = already_on_device(opts, item)
     rec = index_mod.load(device_path).get("entries", {}).get(have) if have else None
     kind_now = "file" if len(files) == 1 else "dir"
+    if have and rec and rec.get("kind") == "dir" and kind_now == "file":
+        # A one-file book in a folder of its own: how Audiobookshelf's
+        # download hands over a book whose folder holds more than its audio,
+        # so older versions of this tool copied it that way. It stays so.
+        kind_now = "dir"
     if have and rec and rec.get("kind") != kind_now:
         report.fail(title, f"the book is now {len(files)} file(s) on the server but not on "
                            f"the player; remove it from the player and copy it again")
@@ -429,8 +457,9 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
         except ValueError as e:
             report.fail(title, str(e))
             return None
-    kind, dsts = _layout(entry_name, files, entry_name, root, rename,
-                         have if kind_now == "file" else None)
+    kind = kind_now
+    dsts = _layout(entry_name, files, root, rename, kind,
+                   _names_there(root, have, rec or {"kind": kind}) if have else None)
     if kind == "file":
         entry_name = dsts[0].name
 

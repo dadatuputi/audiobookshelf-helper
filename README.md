@@ -337,8 +337,9 @@ book on the player, then **Copy again** (<kbd>C</kbd>). A book's own page has a
 Audiobookshelf file by file and only the 4 KB pieces that differ are written,
 so a copy that is already right costs a download and no writes. With tags on,
 a book whose details were never embedded, or have changed, is embedded first.
-In Chrome's folder mode a file that differs is written whole. From the command
-line it is `absh pull --all --force`.
+In Chrome's folder mode a file that differs is written whole. A book keeps its
+place and its file names on the player, even ones you have renamed there. From
+the command line it is `absh pull --all --force`.
 
 While copying, the toolbar icon carries a count, then a check when it is done,
 and a notification says so if the popup is closed.
