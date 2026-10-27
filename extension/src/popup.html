@@ -79,12 +79,13 @@
 
 <!-- Asked before a copy, unless Settings says always or never. -->
 <section id="tagsAsk" class="card ask hidden" role="dialog" aria-labelledby="tagsQ">
-  <p id="tagsQ">Write Audiobookshelf's details (title, author, series, narrator) into the
-    copies on <b id="tagsPlayer">the player</b>? Only the copies change, and a book
-    already there takes a few bytes.</p>
+  <p id="tagsQ">Have Audiobookshelf embed each book's details (title, author, series,
+    narrator, cover) into its files before copying to <b id="tagsPlayer">the player</b>?
+    This is its Embed Metadata tool: it changes the files in your library, and only works if
+    your API key belongs to an admin.</p>
   <div class="ask-row">
-    <button id="tagsYes" class="primary">Write tags <kbd>Y</kbd></button>
-    <button id="tagsNo" class="secondary">Leave them <kbd>N</kbd></button>
+    <button id="tagsYes" class="primary">Embed tags <kbd>Y</kbd></button>
+    <button id="tagsNo" class="secondary">Copy as is <kbd>N</kbd></button>
     <label class="ask-keep"><input type="checkbox" id="tagsKeep"> Don't ask again</label>
   </div>
 </section>

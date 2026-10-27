@@ -1,13 +1,13 @@
-"""Writing Audiobookshelf's tags on copy, and moving only what changed.
+"""Copying only what changed, and having Audiobookshelf write the tags.
 
-The MP4s here are small but real: a sample table whose chunk offsets point
-into mdat, so a test can tell whether the audio still lines up after the
-tags moved things around.
+Tags are written by Audiobookshelf's own Embed Metadata, on the server. The
+fake server here does what that does to a file - rewrites its tag area -
+and, like the real one, may not update the size and time it reports for the
+file until it next scans.
 """
 import argparse
 import json
 import shutil
-import struct
 import sys
 import tempfile
 import unittest
@@ -17,176 +17,21 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from absh import device, embed, index, mp4meta, sync   # noqa: E402
+from absh import device, embed, index, sync   # noqa: E402
 from absh import index as index_mod            # noqa: E402
+from absh.abs_api import AbsError              # noqa: E402
+
+AUDIO = bytes(range(256)) * 64            # 16 KB of "audio"
+TAG_AREA = 4096                           # where the fake embed writes, one sector
 
 
-def atom(name, payload):
-    return struct.pack(">I", len(payload) + 8) + name + payload
+def book_file(audio=AUDIO, tags=""):
+    """A file: a fixed-size tag area, then the audio."""
+    return tags.encode().ljust(TAG_AREA, b"\0") + audio
 
 
-def text(key, value):
-    return atom(key, atom(b"data", struct.pack(">II", 1, 0) + value.encode()))
-
-
-AUDIO = bytes(range(256)) * 64            # 16 KB "audio", four 4 KB chunks
-
-
-def mp4(faststart=True, title="Old Title", audio=AUDIO, wide=False):
-    """ftyp, moov and mdat, in either order, with chunk offsets into mdat."""
-    ilst = atom(b"ilst", text(b"\xa9nam", title) + text(b"\xa9too", "Lavf"))
-    udta = atom(b"udta", atom(b"meta", b"\0" * 4 + ilst))
-    ftyp = atom(b"ftyp", b"M4A \0\0\0\0M4A isom")
-    chunks = 4
-    step = len(audio) // chunks
-
-    def moov_with(base):
-        if wide:
-            table = atom(b"co64", struct.pack(">II", 0, chunks) +
-                         b"".join(struct.pack(">Q", base + i * step) for i in range(chunks)))
-        else:
-            table = atom(b"stco", struct.pack(">II", 0, chunks) +
-                         b"".join(struct.pack(">I", base + i * step) for i in range(chunks)))
-        stbl = atom(b"stbl", table)
-        trak = atom(b"trak", atom(b"mdia", atom(b"minf", stbl)))
-        return atom(b"moov", atom(b"mvhd", b"\0" * 100) + trak + udta)
-
-    mdat = atom(b"mdat", audio)
-    if faststart:
-        size = len(moov_with(0))
-        return ftyp + moov_with(len(ftyp) + size + 8) + mdat
-    return ftyp + mdat + moov_with(len(ftyp) + 8)
-
-
-def chunk_offsets(data):
-    """The stco/co64 entries of the first moov, which is the one players read."""
-    out = []
-    seen = []
-
-    def walk(start, end):
-        i = start
-        while i + 8 <= end:
-            size, kind = struct.unpack(">I4s", data[i:i + 8])
-            if kind == b"moov" and not seen:
-                seen.append(i)
-                walk(i + 8, i + size)
-            elif kind in (b"trak", b"mdia", b"minf", b"stbl"):
-                walk(i + 8, i + size)
-            elif kind in (b"stco", b"co64"):
-                n = struct.unpack(">I", data[i + 12:i + 16])[0]
-                w = 8 if kind == b"co64" else 4
-                fmt = ">Q" if w == 8 else ">I"
-                out.extend(struct.unpack(fmt, data[i + 16 + k * w:i + 16 + (k + 1) * w])[0]
-                           for k in range(n))
-            i += size
-    walk(0, len(data))
-    return out
-
-
-def audio_lines_up(data, audio=AUDIO):
-    step = len(audio) // 4
-    return [data[o:o + step] for o in chunk_offsets(data)] == \
-        [audio[i * step:(i + 1) * step] for i in range(4)]
-
-
-def materialise(path, segs):
-    with open(path, "rb") as f:
-        return b"".join(sync._blocks(f, segs))
-
-
-def tags_of(path):
-    with open(path, "rb") as f:
-        return mp4meta.read_tags(f)
-
-
-class Files(unittest.TestCase):
-    def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def put(self, name, data):
-        p = self.tmp / name
-        p.write_bytes(data)
-        return p
-
-
-TAGS = {mp4meta.KEYS["title"]: "New Title", mp4meta.KEYS["grouping"]: "Redwall #2",
-        mp4meta.KEYS["track"]: (1, 0)}
-
-
-class TestMp4Meta(Files):
-    def test_rebuild_keeps_the_audio_where_the_tables_say(self):
-        for faststart in (True, False):
-            for wide in (False, True):
-                src = self.put("a.m4b", mp4(faststart, wide=wide))
-                with open(src, "rb") as f:
-                    out = materialise(src, mp4meta.rebuild(f, TAGS))
-                self.assertTrue(audio_lines_up(out), (faststart, wide))
-                p = self.put("b.m4b", out)
-                t = tags_of(p)
-                self.assertEqual(t[mp4meta.KEYS["title"]], "New Title")
-                self.assertEqual(t[mp4meta.KEYS["grouping"]], "Redwall #2")
-                self.assertEqual(t[mp4meta.KEYS["track"]], (1, 0))
-                self.assertEqual(t[b"\xa9too"], "Lavf", "a tag it was not given went missing")
-
-    def test_rebuild_is_deterministic_and_leaves_room(self):
-        src = self.put("a.m4b", mp4())
-        with open(src, "rb") as f:
-            a = materialise(src, mp4meta.rebuild(f, TAGS))
-            b = materialise(src, mp4meta.rebuild(f, TAGS))
-        self.assertEqual(a, b)
-        at = a.index(b"moov") - 4
-        self.assertEqual(struct.unpack(">I", a[at:at + 4])[0] % mp4meta.ROUND, 0)
-
-    def test_a_small_change_is_a_small_write_in_place(self):
-        src = self.put("a.m4b", mp4())
-        with open(src, "rb") as f:
-            p = self.put("b.m4b", materialise(src, mp4meta.rebuild(f, TAGS)))
-        before = p.read_bytes()
-        with open(p, "rb") as f:
-            writes, cut = mp4meta.retag(f, {**TAGS, mp4meta.KEYS["grouping"]: "Redwall #3"})
-        self.assertIsNone(cut)
-        self.assertEqual(len(writes), 1)
-        written = sync._apply_writes(p, writes, cut)
-        self.assertLessEqual(written, 2 * sync.SECTOR)
-        after = p.read_bytes()
-        self.assertEqual(len(after), len(before))
-        self.assertTrue(audio_lines_up(after))
-        self.assertEqual(tags_of(p)[mp4meta.KEYS["grouping"]], "Redwall #3")
-
-    def test_too_big_for_the_room_appends_a_new_moov(self):
-        p = self.put("a.m4b", mp4(faststart=True))
-        big = {**TAGS, mp4meta.KEYS["comment"]: "x" * 9000}
-        with open(p, "rb") as f:
-            writes, cut = mp4meta.retag(f, big)
-        self.assertEqual(writes[-1][1], b"free", "the old moov is retired last")
-        sync._apply_writes(p, writes, cut)
-        data = p.read_bytes()
-        self.assertTrue(audio_lines_up(data))
-        self.assertEqual(len(tags_of(p)[mp4meta.KEYS["comment"]]), 9000)
-
-    def test_cut_off_after_the_append_still_reads_the_old_tags(self):
-        p = self.put("a.m4b", mp4(faststart=True))
-        with open(p, "rb") as f:
-            writes, cut = mp4meta.retag(f, {**TAGS, mp4meta.KEYS["comment"]: "x" * 9000})
-        sync._apply_writes(p, writes[:1], None)          # unplugged before the last write
-        self.assertEqual(tags_of(p)[mp4meta.KEYS["title"]], "Old Title")
-        self.assertTrue(audio_lines_up(p.read_bytes()))
-
-    def test_moov_at_the_end_is_rewritten_where_it_is(self):
-        p = self.put("a.m4b", mp4(faststart=False))
-        with open(p, "rb") as f:
-            writes, cut = mp4meta.retag(f, {**TAGS, mp4meta.KEYS["comment"]: "x" * 9000})
-        sync._apply_writes(p, writes, cut)
-        self.assertTrue(audio_lines_up(p.read_bytes()))
-        self.assertEqual(tags_of(p)[mp4meta.KEYS["title"]], "New Title")
-
-    def test_not_an_mp4_is_refused(self):
-        p = self.put("a.mp3", b"ID3\x03\0\0\0\0\0\0" + b"\xff\xfb" * 100)
-        with open(p, "rb") as f, self.assertRaises(mp4meta.NotMp4):
-            mp4meta.rebuild(f, TAGS)
+def tags_in(data):
+    return data[:TAG_AREA].rstrip(b"\0").decode()
 
 
 FULL = {
@@ -209,6 +54,13 @@ FULL = {
 
 
 class TestEmbed(unittest.TestCase):
+    def test_the_fingerprint_moves_with_the_details_and_only_them(self):
+        a = embed.digest(FULL)
+        self.assertEqual(a, embed.digest(json.loads(json.dumps(FULL))))
+        moved = json.loads(json.dumps(FULL))
+        moved["media"]["metadata"]["title"] = "Mattimeo"
+        self.assertNotEqual(a, embed.digest(moved))
+
     def test_the_same_fields_audiobookshelf_embeds(self):
         self.assertEqual(embed.ffmetadata(FULL), {
             "title": "Mossflower",
@@ -252,40 +104,67 @@ class Resp:
 
 
 class Server:
-    """Answers item() and open_file() like Audiobookshelf, and counts."""
+    """Answers like Audiobookshelf, counts downloads and embeds, and embeds
+    the way it does: in place, as a task that takes a moment."""
 
-    def __init__(self, files, meta=None):
+    def __init__(self, files, meta=None, admin=True):
         self.files = dict(files)            # ino -> bytes
         self.mtimes = {ino: 1000 for ino in files}
+        self.sizes = {ino: len(d) for ino, d in files.items()}
         self.meta = dict(FULL["media"]["metadata"], **(meta or {}))
+        self.admin = admin
         self.fetched = []
+        self.embeds = []
+        self.busy = 0                       # polls left before the task is done
 
     def item(self, item_id):
         afs = [{"index": n, "ino": ino, "metadata": {
                    "filename": f"part {n}.m4b", "relPath": f"part {n}.m4b",
-                   "size": len(data), "mtimeMs": self.mtimes[ino]}}
-               for n, (ino, data) in enumerate(sorted(self.files.items()), 1)]
+                   "size": self.sizes[ino], "mtimeMs": self.mtimes[ino]}}
+               for n, ino in enumerate(sorted(self.files), 1)]
         return {"id": item_id, "media": {"metadata": self.meta, "audioFiles": afs}}
 
     def open_file(self, item_id, ino, timeout=None):
         self.fetched.append(ino)
         return Resp(self.files[ino])
 
+    def embed_metadata(self, item_id):
+        if not self.admin:
+            raise AbsError("Audiobookshelf /api/tools/... responded 403", status=403)
+        self.embeds.append(item_id)
+        self.busy = 2
+        title = self.meta["title"]
+        for ino, data in self.files.items():
+            # Rewritten in place. The size and time it reports stay as they
+            # were until a scan - the case the copy has to cope with.
+            self.files[ino] = book_file(data[TAG_AREA:], f"{title}|{sorted(self.files).index(ino) + 1}")
+
+    def embedding(self, item_id):
+        self.busy = max(0, self.busy - 1)
+        return self.busy > 0
+
     def change(self, ino, data):
         self.files[ino] = data
         self.mtimes[ino] += 1
+        self.sizes[ino] = len(data)
 
 
 ITEM = {"id": "li_1", "title": "Mossflower", "author": "Brian Jacques"}
 
 
-class TestPullByBytes(Files):
+class TestPullByBytes(unittest.TestCase):
     def setUp(self):
-        super().setUp()
+        self.tmp = Path(tempfile.mkdtemp())
         self.dev = self.tmp / "dev"
         (self.dev / "AUDIOBOOKS").mkdir(parents=True)
         self.opts = {"devicePath": str(self.dev), "subdir": "AUDIOBOOKS", "renameM4b": False,
                      "folderTemplate": "{author} - {title}", "writeTags": True}
+        patcher = mock.patch.object(sync.time, "sleep")
+        self.sleeps = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
 
     def pull(self, server, **kw):
         rep = sync.pull(server, [ITEM], dict(self.opts, **kw))
@@ -295,75 +174,94 @@ class TestPullByBytes(Files):
     def book(self):
         return self.dev / "AUDIOBOOKS" / "Brian Jacques - Mossflower.m4b"
 
-    def test_a_copy_carries_audiobookshelfs_tags(self):
-        s = Server({"111": mp4()})
+    def rec(self):
+        return index_mod.load(str(self.dev))["entries"][self.book().name]
+
+    def test_tags_are_embedded_by_audiobookshelf_then_copied(self):
+        s = Server({"111": book_file()})
         rep = self.pull(s)
+        self.assertEqual(s.embeds, ["li_1"])
+        self.assertTrue(self.sleeps.called, "did not wait for the embed to finish")
         self.assertEqual(rep["copied"], 1)
-        t = tags_of(self.book())
-        self.assertEqual(t[mp4meta.KEYS["grouping"]], "Redwall #2; Tales")
-        self.assertEqual(t[mp4meta.KEYS["album"]], "Mossflower: Redwall, Book 2")
-        self.assertEqual(t[mp4meta.KEYS["composer"]], "Brian Jacques, Full Cast")
-        self.assertTrue(audio_lines_up(self.book().read_bytes()))
-        rec = index_mod.load(str(self.dev))["entries"]["Brian Jacques - Mossflower.m4b"]
-        self.assertEqual(rec["files"][0]["ino"], "111")
-        self.assertTrue(rec["files"][0]["tags"])
+        self.assertEqual(tags_in(self.book().read_bytes()), "Mossflower|1")
+        self.assertEqual(self.rec()["files"][0]["ino"], "111")
+        self.assertEqual(self.rec()["files"][0]["tags"], embed.digest(s.item("li_1")))
 
-    def test_without_tags_the_file_is_the_servers_byte_for_byte(self):
-        s = Server({"111": mp4()})
+    def test_without_tags_nothing_is_embedded_and_the_file_is_the_servers(self):
+        s = Server({"111": book_file()})
         self.pull(s, writeTags=False)
-        self.assertEqual(self.book().read_bytes(), mp4())
+        self.assertEqual(s.embeds, [])
+        self.assertEqual(self.book().read_bytes(), book_file())
+        self.assertIsNone(self.rec()["files"][0]["tags"])
 
-    def test_nothing_changed_nothing_moves(self):
-        s = Server({"111": mp4()})
+    def test_nothing_changed_nothing_is_embedded_or_moved(self):
+        s = Server({"111": book_file()})
         self.pull(s)
         rep = self.pull(s)
+        self.assertEqual(s.embeds, ["li_1"], "embedded again for nothing")
         self.assertEqual(s.fetched, ["111"], "fetched the book again")
         self.assertEqual((rep["skipped"], rep["updated"], rep["written"]), (1, 0, 0))
 
-    def test_new_details_on_the_server_write_only_the_tag_bytes(self):
-        s = Server({"111": mp4()})
+    def test_new_details_embed_again_and_write_only_the_changed_sector(self):
+        audio = AUDIO * 128                            # 2 MB, so blocks matter
+        s = Server({"111": book_file(audio)})
         self.pull(s)
-        before = self.book().read_bytes()
-        s.meta = dict(s.meta, series=[{"name": "Redwall", "sequence": "2"}])
+        s.meta = dict(s.meta, title="Mossflower (Redwall 2)")
         rep = self.pull(s)
-        self.assertEqual(s.fetched, ["111"], "downloaded the audio for a tag change")
-        self.assertEqual(rep["updated"], 1)
-        self.assertLessEqual(rep["written"], 2 * sync.SECTOR)
-        after = self.book().read_bytes()
-        self.assertEqual(len(after), len(before))
-        self.assertEqual(tags_of(self.book())[mp4meta.KEYS["grouping"]], "Redwall #2")
-        self.assertTrue(audio_lines_up(after))
-
-    def test_turning_tags_on_later_tags_in_place(self):
-        s = Server({"111": mp4()})
-        self.pull(s, writeTags=False)
-        rep = self.pull(s)
-        self.assertEqual(s.fetched, ["111"])
-        self.assertEqual(rep["updated"], 1)
-        self.assertEqual(tags_of(self.book())[mp4meta.KEYS["grouping"]], "Redwall #2; Tales")
-        self.assertTrue(audio_lines_up(self.book().read_bytes()))
-
-    def test_a_changed_file_on_the_server_writes_only_the_blocks_that_differ(self):
-        audio = bytearray(AUDIO * 128)                 # 2 MB, so blocks matter
-        s = Server({"111": mp4(audio=bytes(audio))})
-        self.pull(s)
-        audio[1_000_000] ^= 0xFF
-        s.change("111", mp4(audio=bytes(audio)))
-        rep = self.pull(s)
+        self.assertEqual(s.embeds, ["li_1", "li_1"])
+        # The server did not say the file changed; it was fetched anyway.
         self.assertEqual(s.fetched, ["111", "111"])
         self.assertEqual(rep["updated"], 1)
         self.assertEqual(rep["written"], sync.SECTOR)
-        self.assertTrue(audio_lines_up(self.book().read_bytes(), bytes(audio)))
+        self.assertEqual(tags_in(self.book().read_bytes()), "Mossflower (Redwall 2)|1")
+
+    def test_turning_tags_on_later_embeds_and_updates_in_place(self):
+        s = Server({"111": book_file()})
+        self.pull(s, writeTags=False)
+        rep = self.pull(s)
+        self.assertEqual(s.embeds, ["li_1"])
+        self.assertEqual(rep["written"], sync.SECTOR)
+        self.assertEqual(tags_in(self.book().read_bytes()), "Mossflower|1")
+
+    def test_a_key_that_is_not_an_admins_copies_without_tags_and_says_so(self):
+        s = Server({"111": book_file()}, admin=False)
+        rep = self.pull(s)
+        self.assertEqual(rep["copied"], 1)
+        self.assertEqual(self.book().read_bytes(), book_file())
+        self.assertEqual(len(rep["notes"]), 1)
+        self.assertIn("admin", rep["notes"][0])
+        self.assertIsNone(self.rec()["files"][0]["tags"])
+
+    def test_an_embed_that_never_finishes_gives_up_and_copies_as_is(self):
+        s = Server({"111": book_file()})
+        s.embedding = lambda item_id: True
+        with mock.patch.object(sync, "EMBED_TIMEOUT", -1):
+            rep = self.pull(s)
+        self.assertEqual(rep["copied"], 1)
+        self.assertIn("too long", rep["notes"][0])
+
+    def test_a_changed_file_on_the_server_writes_only_the_blocks_that_differ(self):
+        audio = bytearray(AUDIO * 128)
+        s = Server({"111": book_file(bytes(audio))})
+        self.pull(s, writeTags=False)
+        audio[1_000_000] ^= 0xFF
+        s.change("111", book_file(bytes(audio)))
+        rep = self.pull(s, writeTags=False)
+        self.assertEqual(s.fetched, ["111", "111"])
+        self.assertEqual(rep["updated"], 1)
+        self.assertEqual(rep["written"], sync.SECTOR)
+        self.assertEqual(self.book().read_bytes(), book_file(bytes(audio)))
 
     def test_a_forced_copy_of_the_same_book_writes_nothing(self):
-        s = Server({"111": mp4()})
+        s = Server({"111": book_file()})
         self.pull(s)
         rep = self.pull(s, force=True)
         self.assertEqual(s.fetched, ["111", "111"])
+        self.assertEqual(s.embeds, ["li_1"])
         self.assertEqual(rep["written"], 0)
 
     def test_a_forced_copy_repairs_a_damaged_file_in_place(self):
-        s = Server({"111": mp4()})
+        s = Server({"111": book_file()})
         self.pull(s)
         good = self.book().read_bytes()
         bad = bytearray(good)
@@ -374,33 +272,37 @@ class TestPullByBytes(Files):
         self.assertEqual(rep["written"], sync.SECTOR)
 
     def test_a_book_in_parts_moves_only_the_part_that_changed(self):
-        s = Server({"1": mp4(title="one"), "2": mp4(title="two"), "3": mp4(title="three")})
-        rep = self.pull(s)
+        s = Server({"1": book_file(), "2": book_file(AUDIO[::-1]), "3": book_file()})
+        rep = self.pull(s, writeTags=False)
         self.assertEqual(rep["copied"], 3)
         folder = self.dev / "AUDIOBOOKS" / "Brian Jacques - Mossflower"
         names = sorted(p.name for p in folder.iterdir())
         self.assertEqual(names, ["001 - part 1.m4b", "002 - part 2.m4b", "003 - part 3.m4b"])
-        self.assertEqual(tags_of(folder / names[1])[mp4meta.KEYS["track"]], (2, 0))
-        s.change("2", mp4(title="two", audio=AUDIO[::-1]))
-        rep = self.pull(s)
+        s.change("2", book_file(AUDIO))
+        rep = self.pull(s, writeTags=False)
         self.assertEqual(s.fetched, ["1", "2", "3", "2"])
         self.assertEqual(rep["updated"], 1)
-        self.assertTrue(audio_lines_up((folder / names[1]).read_bytes(), AUDIO[::-1]))
+        self.assertEqual((folder / names[1]).read_bytes(), book_file(AUDIO))
+
+    def test_each_part_carries_its_own_track_number(self):
+        s = Server({"1": book_file(), "2": book_file()})
+        self.pull(s)
+        folder = self.dev / "AUDIOBOOKS" / "Brian Jacques - Mossflower"
+        self.assertEqual([tags_in(p.read_bytes()) for p in sorted(folder.iterdir())],
+                         ["Mossflower|1", "Mossflower|2"])
 
     def test_a_book_copied_before_files_were_tracked_is_not_fetched_again(self):
-        s = Server({"111": mp4()})
-        self.book().write_bytes(mp4())
+        s = Server({"111": book_file()})
+        self.book().write_bytes(book_file())
         index_mod.record(str(self.dev), self.book().name, ITEM,
-                         [{"name": self.book().name, "size": len(mp4())}], "file", ".m4b")
-        rep = self.pull(s)
+                         [{"name": self.book().name, "size": len(book_file())}], "file", ".m4b")
+        rep = self.pull(s, writeTags=False)
         self.assertEqual(s.fetched, [])
-        self.assertEqual(rep["updated"], 1)
-        self.assertEqual(tags_of(self.book())[mp4meta.KEYS["grouping"]], "Redwall #2; Tales")
-        rec = index_mod.load(str(self.dev))["entries"][self.book().name]
-        self.assertEqual(rec["files"][0]["ino"], "111")
+        self.assertEqual(rep["skipped"], 1)
+        self.assertEqual(self.rec()["files"][0]["ino"], "111")
 
     def test_a_player_pulled_out_mid_download_is_not_made_again(self):
-        s = Server({"111": mp4(), "222": mp4(title="Two")})
+        s = Server({"111": book_file(), "222": book_file()})
         dev = self.dev
         real_open = s.open_file
 
@@ -419,12 +321,44 @@ class TestPullByBytes(Files):
 
             def open_download(self, item_id, timeout=None):
                 self.downloads.append(item_id)
-                r = Resp(mp4())
+                r = Resp(book_file())
                 r.headers = {"Content-Type": "audio/mp4",
                              "Content-Disposition": 'attachment; filename="Mossflower.m4b"'}
                 return r
         rep = sync.pull(Old(), [ITEM], self.opts)
         self.assertEqual(rep["copied"], 1)
+
+
+class TestEmbedApi(unittest.TestCase):
+    """The two calls, asked the way Audiobookshelf answers them."""
+
+    def client(self, answers):
+        from absh.abs_api import Client
+        seen = []
+
+        def opener(req, timeout=None):
+            seen.append((req.get_method(), req.full_url))
+            return Resp(json.dumps(answers.pop(0)).encode())
+        c = Client("http://abs", "k", opener=opener)
+        return c, seen
+
+    def test_embed_is_a_post_to_the_tools_route(self):
+        c, seen = self.client([{}])
+        c.embed_metadata("li 1")
+        self.assertEqual(seen, [("POST", "http://abs/api/tools/item/li%201/embed-metadata")])
+
+    def test_embedding_while_queued_or_running_and_not_after(self):
+        task = {"action": "embed-metadata", "isFinished": False, "data": {"libraryItemId": "li_1"}}
+        c, seen = self.client([
+            {"tasks": [task]},
+            {"tasks": [], "queuedTaskData": {"embedMetadata": [{"libraryItemId": "li_1"}]}},
+            {"tasks": [dict(task, data={"libraryItemId": "other"})],
+             "queuedTaskData": {"embedMetadata": []}},
+        ])
+        self.assertTrue(c.embedding("li_1"))
+        self.assertTrue(c.embedding("li_1"))
+        self.assertFalse(c.embedding("li_1"))
+        self.assertEqual(seen[0], ("GET", "http://abs/api/tasks?include=queue"))
 
 
 class TestAskingAboutTags(unittest.TestCase):
@@ -490,7 +424,7 @@ class TestChangedOnTheServer(unittest.TestCase):
         try:
             book = tmp / "AUDIOBOOKS" / "Brian Jacques - Mossflower.m4b"
             book.parent.mkdir()
-            book.write_bytes(mp4())
+            book.write_bytes(book_file())
             index.record(str(tmp), book.name, dict(ITEM, updatedAt=100),
                          [{"name": book.name, "size": book.stat().st_size, "tags": "ab"}], "file")
             st = device.status(str(tmp), "AUDIOBOOKS", [dict(ITEM, updatedAt=200)],

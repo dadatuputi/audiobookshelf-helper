@@ -140,6 +140,8 @@ def show_report(rep, verb):
         n = len(rep["interrupted"])
         print(paint(f"The player went away: {n} book(s) not copied. Plug it back in and "
                     "run the same command again - what is there is skipped.", YELLOW))
+    for e in rep.get("notes", []):
+        print(paint("  - " + e, YELLOW))
     for e in rep.get("errors", []):
         print(paint("  ! " + e, RED))
     return 1 if rep.get("errors") or rep.get("interrupted") else 0
@@ -264,9 +266,10 @@ def cmd_ls(args, cfg):
     return 0
 
 
-TAGS_PROMPT = ("Write Audiobookshelf's details (title, author, series, narrator) into the "
-               "copies on the player?\nOnly the copies change, and a book already there "
-               "takes a few bytes.  [y]es, [n]o, [a]lways, ne[v]er: ")
+TAGS_PROMPT = ("Have Audiobookshelf embed each book's details (title, author, series, "
+               "narrator, cover) into its files first?\nThis is its Embed Metadata tool: "
+               "it changes the files in your library, and only works if your API key belongs to an admin.\n"
+               "[y]es, [n]o, [a]lways, ne[v]er: ")
 
 
 def tags_choice(args, cfg, ask=True):

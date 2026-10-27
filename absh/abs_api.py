@@ -199,6 +199,24 @@ class Client:
         return self._request(f"/api/items/{q(str(item_id))}/file/{q(str(ino))}/download",
                              timeout=timeout)
 
+    def embed_metadata(self, item_id):
+        """Start Audiobookshelf's own Embed Metadata on a book: it writes the
+        book's details, cover and chapters into its files in the library.
+        Admins only. It runs as a task; see embedding()."""
+        with self._request(f"/api/tools/item/{urllib.parse.quote(str(item_id))}/embed-metadata",
+                           data=b"", method="POST"):
+            pass
+
+    def embedding(self, item_id):
+        """Whether an embed for this book is still queued or running."""
+        d = self._json("/api/tasks?include=queue")
+        running = any(t.get("action") == "embed-metadata" and not t.get("isFinished")
+                      and (t.get("data") or {}).get("libraryItemId") == item_id
+                      for t in d.get("tasks") or [])
+        queued = any(q.get("libraryItemId") == item_id
+                     for q in (d.get("queuedTaskData") or {}).get("embedMetadata") or [])
+        return running or queued
+
     def upload(self, library_id, folder_id, title, author, files, series=None,
                timeout=DOWNLOAD_TIMEOUT):
         """Create a new library item from local files.

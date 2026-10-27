@@ -551,8 +551,10 @@ function notify(job) {
   const title = failed.length || job.error
     ? `${VERB[job.op]} ${done.length} of ${job.items.length}; ${failed.length || "the rest"} failed`
     : `${VERB[job.op]} ${done.length} ${done.length === 1 ? "book" : "books"} ${job.op === "remove" ? "from" : "to"} ${where}`;
+  const noted = job.items.find((i) => i.note);
   const message = job.error ? job.error
-    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.`;
+    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.` +
+      (noted ? ` ${noted.title}: ${noted.note}` : "");
   Promise.resolve(browser.notifications.create(`absh-job-${job.id}`, {
     type: "basic", iconUrl: browser.runtime.getURL("icons/icon-96.png"), title, message,
   })).catch(() => {});
@@ -636,11 +638,15 @@ async function runJobs() {
       if (left.size) JOBS.paused = { why: "player", player: job.player, since: Date.now() };
       // An error line reads "<title>: why"; those items failed, the rest are done.
       const errs = (job.result.errors || []).map(String);
+      // A note is worth saying but the book is fine - copied without tags.
+      const notes = (job.result.notes || []).map(String);
       for (const it of todo) {
         if (left.has(it.ref)) { it.state = "waiting"; continue; }
         const bad = errs.find((e) => e.startsWith(`${it.title}:`));
         it.state = bad ? "failed" : "done";
         if (bad) it.error = bad.slice(it.title.length + 1).trim();
+        const said = notes.find((e) => e.startsWith(`${it.title}:`));
+        if (said) it.note = said.slice(it.title.length + 1).trim();
       }
     } catch (e) {
       // Did the job fail, or did what it needed go away - the player, or the

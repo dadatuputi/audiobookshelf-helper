@@ -101,7 +101,7 @@ async function namingRow() {
   const s = await browser.storage.local.get({ folderTemplate: ABSH.DEFAULTS.folderTemplate,
                                               renameM4b: true,
                                               writeTags: ABSH.DEFAULTS.writeTags });
-  const tags = { ask: "asks about tags", always: "writes tags", never: "leaves tags" };
+  const tags = { ask: "asks about embedding tags", always: "embeds tags", never: "leaves tags" };
   setRow("naming", "ok", `${s.folderTemplate} · ` +
                          (s.renameM4b ? ".m4b → .m4a" : "keeps .m4b") +
                          ` · ${tags[s.writeTags] || tags.ask}`);

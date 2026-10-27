@@ -981,7 +981,7 @@ test.describe("before access is granted", () => {
     await page.click("#saveNaming");
     // Saying what changed, not just that something did.
     await expect(page.locator("#msgNaming")).toHaveText("Saved folder template.");
-    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a · asks about tags");
+    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a · asks about embedding tags");
 
     await page.reload();
     await expect(page.locator("#folderTemplate")).toHaveValue("{title}");

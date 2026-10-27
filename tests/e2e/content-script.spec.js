@@ -141,7 +141,7 @@ test.describe("content script behaviour", () => {
     await go.click();
     await box.locator("button", { hasText: "Yes, copy 12 books" }).click();
     const ask = page.locator("#absh-ask");
-    await expect(ask).toContainText("Write Audiobookshelf's details");
+    await expect(ask).toContainText("Embed Metadata");
     await page.keyboard.press("Escape");
     await expect(ask).toHaveCount(0);
     expect(await page.evaluate(() => SENT.some((m) => m.type === "jobAdd"))).toBe(false);
@@ -149,7 +149,7 @@ test.describe("content script behaviour", () => {
     await go.click();
     await box.locator("button", { hasText: "Yes, copy 12 books" }).click();
     await ask.locator("input[type=checkbox]").check();
-    await ask.locator("button", { hasText: "Write tags" }).click();
+    await ask.locator("button", { hasText: "Embed tags" }).click();
     const add = await page.evaluate(() => SENT.find((m) => m.type === "jobAdd"));
     expect(add.writeTags).toBe(true);
     expect(await page.evaluate(() => SENT.find((m) => m.type === "tagsRemember")))

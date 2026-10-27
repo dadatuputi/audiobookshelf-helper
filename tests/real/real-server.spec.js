@@ -290,11 +290,11 @@ test.describe("against a real Audiobookshelf", () => {
     // .m4b becomes .m4a on the way. That rename is the whole point of the tool,
     // so assert it here rather than trusting the unit test alone.
     expect(files.some((f) => f.endsWith(".m4a")), `no .m4a in ${files}`).toBe(true);
-    // And it carries Audiobookshelf's tags, as its Embed Metadata writes them.
+    // And it carries the tags Audiobookshelf's own Embed Metadata wrote.
     const tags = tagsOf(join(state.device, "AUDIOBOOKS", files.find((f) => f.endsWith(".m4a"))));
-    expect(tags["©nam"]).toBe(title);
-    expect(tags["©ART"]).toBeTruthy();
-    expect(tags["aART"]).toBe(tags["©ART"]);
+    // The seed books have no track number; Embed Metadata writes one.
+    expect(tags.track, "Audiobookshelf did not embed").toBe(1);
+    expect(tags.title).toBe(title);
 
     // And the page catches up on its own, without a reload.
     await expect(card.locator("div.absh-badge.absh-on"))

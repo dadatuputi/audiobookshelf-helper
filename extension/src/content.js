@@ -255,11 +255,11 @@
       const box = document.createElement("div");
       box.id = ASK_ID;
       box.setAttribute("role", "dialog");
-      box.setAttribute("aria-label", "Write tags");
+      box.setAttribute("aria-label", "Embed tags");
       const p = document.createElement("p");
-      p.textContent = `Write Audiobookshelf's details (title, author, series, narrator) into ` +
-        `the copies on ${PLAYER}? Only the copies change, and a book already there ` +
-        `takes a few bytes.`;
+      p.textContent = `Have Audiobookshelf embed each book's details (title, author, ` +
+        `series, narrator, cover) into its files before copying to ${PLAYER}? This is its ` +
+        `Embed Metadata tool: it changes the files in your library, and only works if your API key belongs to an admin.`;
       const keep = document.createElement("label");
       const cb = document.createElement("input");
       cb.type = "checkbox";
@@ -274,8 +274,8 @@
       };
       const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); done(null); } };
       box.__done = done;
-      const yes = bigButton("Write tags", "", () => done(true));
-      const no = bigButton("Leave them", "absh-ghost", () => done(false));
+      const yes = bigButton("Embed tags", "", () => done(true));
+      const no = bigButton("Copy as is", "absh-ghost", () => done(false));
       const row = document.createElement("div");
       row.className = "absh-ask-row";
       row.append(yes, no, keep);

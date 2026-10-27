@@ -259,8 +259,10 @@ function renderJob() {
     sub = cur.title;
   } else if (!live) {
     const mins = Math.max(1, Math.round((j.finishedAt - startedAt) / 60000));
+    const noted = items.filter((i) => i.note);
     sub = j.error || (failed.length ? failed.map((i) => `${i.title}: ${i.error || "failed"}`).join("\n")
-                                    : `${mins} min`);
+                                    : [`${mins} min`, ...noted.map((i) => `${i.title}: ${i.note}`)]
+                                      .join("\n"));
   }
   $("#jobSub").textContent = sub;
 }

@@ -469,21 +469,25 @@ through the portal), and with no portal (expects "Not installed").
 
 ### N17. Books carry the server's tags, and a re-copy moves only what changed — DONE
 Asked for (2026-10-26): write Audiobookshelf's tags into the copies, after a
-prompt, in Audiobookshelf's own format; and transfer only what differs, down to
-the bytes, so adding tags moves a few bytes. **Done in the helper** (CLI, TUI,
-extension through the helper):
-- `absh/embed.py` is `getFFMetadataObject` from the server's ffmpegHelpers,
-  key for key, plus each file's track number. `absh/mp4meta.py` writes it as
-  MP4 `ilst` atoms with a `free` pad after, shifting `stco`/`co64` when moov
-  sits before the audio, so a retag after the first rewrites only ilst and
-  its pad. Cut off mid-write, a file still reads (the old moov is retired
-  last).
+prompt; and transfer only what differs, down to the bytes. Then (2026-10-27):
+use Audiobookshelf's own mechanism, through the API, rather than writing tags
+on the player. **Done in the helper** (CLI, TUI, extension through the helper):
+- Before copying, a pull asks the server to embed the book's details
+  (`POST /api/tools/item/:id/embed-metadata`, its Embed Metadata tool) and
+  waits on `/api/tasks?include=queue` until the task is gone. This changes the
+  files in the library and needs the configured key to belong to an admin; a 401/403, an error or a
+  30-minute wait leaves the book copied as it is, with a note saying why.
+- `absh/embed.py` keeps the server's `getFFMetadataObject` key for key, only
+  to digest what an embed would write. A book is embedded again only when that
+  digest differs from the one recorded on the player.
 - Pulls go per file (`/api/items/:id?expanded=1`, `/file/:ino/download`).
   The index records each file's inode, size and mtime on the server and the
-  tags digest written; an unchanged file is not downloaded, a changed one is
-  diffed in 1 MiB blocks and only the 4 KiB sectors that differ are written.
-  `--force` does the same comparison for every file. A server that cannot
-  list files falls back to the whole-book download.
+  tags digest; an unchanged file is not downloaded, a changed one is diffed in
+  1 MiB blocks and only the 4 KiB sectors that differ are written. An embed
+  keeps the inode and the database can keep the old size and mtime until a
+  rescan, so after an embed every file of the book is fetched and diffed.
+  `--force` does the comparison for every file. A server that cannot list
+  files falls back to the whole-book download.
 - A book whose `updatedAt` on the server is newer than when it was copied is
   "changed on the server": `status` and the TUI mark it, `pull` updates it,
   and the extension offers **Update on <player>** on its cover and page, and
@@ -492,9 +496,9 @@ extension through the helper):
   Settings has Ask / Always / Never.
 
 **Not done: Chrome's folder mode** copies the server's files as they are,
-whole, with no tags. Writing tags there means porting `mp4meta.py` to the
-browser and per-file downloads to `folder.js`; the setting says it needs the
-helper, and the question is not asked in folder mode.
+whole, with no embed. It could call the same endpoint, but its downloads are
+whole books, so it would re-copy every embedded book in full; the setting says
+it needs the helper, and the question is not asked in folder mode.
 
 ## Todo
 

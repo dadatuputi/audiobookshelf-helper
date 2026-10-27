@@ -5,11 +5,12 @@ then writes with -map_metadata 1 -map_metadata 0: these keys win, anything
 else already in the file stays. Each file also gets its track number, as
 ffmpeg is given -metadata track=<index>.
 
-Kept to Audiobookshelf's format exactly, rather than something tuned for one
-player, so a book copied here carries the same tags as one embedded on the
-server - and a player theme only has to understand one format.
+Audiobookshelf itself does the writing, through its Embed Metadata tool;
+this is what lets a copy know whether what was embedded is still current
+without asking the server to embed again.
 """
-from . import mp4meta
+import hashlib
+import json
 
 
 def _names(v, key="name"):
@@ -49,12 +50,12 @@ def ffmetadata(full):
     return {k: v for k, v in out.items() if v}
 
 
-def mp4_tags(full, track=None):
-    """ffmetadata() as ilst boxes, plus the file's track number."""
-    tags = {mp4meta.KEYS[k]: v for k, v in ffmetadata(full).items()}
-    if track:
-        tags[mp4meta.KEYS["track"]] = (int(track), 0)
-    return tags
+def digest(full):
+    """A fingerprint of what Embed Metadata would write for this book: its
+    details and its files' track numbers. The same details, the same value."""
+    want = [ffmetadata(full), [(f["relPath"], f["index"]) for f in audio_files(full)]]
+    raw = json.dumps(want, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha1(raw).hexdigest()[:16]
 
 
 def audio_files(full):

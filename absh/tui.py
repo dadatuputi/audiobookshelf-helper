@@ -158,6 +158,8 @@ class App:
             bits.append(f"removed {len(rep['removed'])}")
         if rep.get("errors"):
             bits.append(f"{len(rep['errors'])} error(s): {rep['errors'][0]}")
+        elif rep.get("notes"):
+            bits.append(rep["notes"][0])
         self.selected.clear()
         self.busy = False
         self.refresh()
@@ -174,7 +176,7 @@ class App:
             return config_mod.writes_tags(self.cfg)
         if self.ask is None:
             return False
-        a = self.ask("write Audiobookshelf's tags into the copies? "
+        a = self.ask("embed tags in the library's files first (Embed Metadata)? "
                      "[y]es [n]o [a]lways ne[v]er: ").lower()
         if a in ("a", "always", "v", "never"):
             self.cfg["writeTags"] = "always" if a.startswith("a") else "never"

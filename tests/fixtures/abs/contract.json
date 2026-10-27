@@ -110,6 +110,18 @@
     },
     {
       "method": "POST",
+      "path": "/api/tools/item/{id}/embed-metadata",
+      "used_for": "having Audiobookshelf embed a book's details into its files before a copy (its Embed Metadata tool); admin only, 403 otherwise, 400 when that book is already queued",
+      "fields": ["starts a task and answers 200 at once", "rewrites the files in place with ffmpeg, keeping each inode; size and mtime in the database stay stale until a rescan"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks?include=queue",
+      "used_for": "waiting for that embed to finish",
+      "fields": ["tasks[].action == 'embed-metadata'", "tasks[].isFinished", "tasks[].data.libraryItemId", "queuedTaskData.embedMetadata[].libraryItemId"]
+    },
+    {
+      "method": "POST",
       "path": "/api/upload",
       "used_for": "uploading a book that is only on the player",
       "fields": ["multipart: library, folder, title, author, series, file0..n",

@@ -267,19 +267,29 @@ you do not trust what is there, and still writes only what differs.
 
 Audiobookshelf keeps a book's details (title, author, series, narrator) in its
 database, and writes them into the files only when you run its **Embed
-Metadata** tool. A pull can write the same tags, in the same format, into the
-copies on the player, so the player's own library shows books the way
-Audiobookshelf does. Only the copies change, never the files on the server.
+Metadata** tool. A pull can run that tool for you, through the server's API,
+before it copies a book, so the copy on the player carries the same title,
+author, series, narrator, cover and chapters, and the player's own library
+shows books the way Audiobookshelf does.
 
-The tags go in place inside the MP4 (m4b/m4a) with room left after them, so a
-later change to the book's details rewrites a few kilobytes, and a book copied
-without tags gets them without being downloaded again.
+Know what that means before you say yes:
+
+- **It changes the files in your library**, not just the copies. It is the same
+  thing the button on the book's page does.
+- **Your API key must belong to an admin.** It is the key you already set; in
+  Settings → API Keys, the user a key acts as decides this. With a regular
+  user's key the book is copied as it is, and the pull says why.
+- **A book's files are fetched again after an embed**, because the server has
+  rewritten them. Only the sectors that differ are written to the player, but
+  the download is the whole book. A book is embedded again only when its
+  details change.
+- **Chrome's folder mode** copies the files as they are; embedding needs the
+  helper.
 
 `pull` asks the first time (`[y]es, [n]o, [a]lways, ne[v]er`; always and never
 are saved). `--tags` and `--no-tags` answer for one run, and `absh config
 --write-tags ask|always|never` sets it. With nobody at the keyboard it does not
-write tags. The TUI asks the same way, and <kbd>w</kbd> in its settings changes
-it.
+embed. The TUI asks the same way, and <kbd>w</kbd> in its settings changes it.
 
 In the TUI: <kbd>space</kbd> selects, <kbd>/</kbd> filters, <kbd>p</kbd> pulls,
 <kbd>u</kbd> pushes, <kbd>d</kbd> deletes, <kbd>r</kbd> refreshes,
