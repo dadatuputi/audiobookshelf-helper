@@ -399,6 +399,20 @@ class TestPullByBytes(Files):
         rec = index_mod.load(str(self.dev))["entries"][self.book().name]
         self.assertEqual(rec["files"][0]["ino"], "111")
 
+    def test_a_player_pulled_out_mid_download_is_not_made_again(self):
+        s = Server({"111": mp4(), "222": mp4(title="Two")})
+        dev = self.dev
+        real_open = s.open_file
+
+        def gone(item_id, ino, timeout=None):
+            shutil.rmtree(dev)                  # out it comes, mid-download
+            return real_open(item_id, ino)
+        s.open_file = gone
+        rep = sync.pull(s, [ITEM], self.opts)
+        self.assertEqual(rep["interrupted"], [ITEM["id"]])
+        self.assertEqual(rep["errors"], [])
+        self.assertFalse(dev.exists(), "the player's folders were made again on this disk")
+
     def test_a_server_without_per_file_downloads_still_copies(self):
         class Old:
             downloads = []

@@ -431,6 +431,8 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
                 had = None if legacy else r.get("tags")
                 if digest and had != digest:
                     step(n - 1, len(files), dst.name)
+                    if not device_present(device_path):
+                        raise DeviceGone()
                     try:
                         with open(dst, "rb") as fh:
                             writes, cut = mp4meta.retag(fh, tags)
@@ -448,6 +450,10 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
                 continue
 
             tmp = _download_file(client, item["id"], f, dst.name, step, n, len(files))
+            # Gone while it downloaded: stop, rather than make the player's
+            # folders again on this disk below.
+            if not device_present(device_path):
+                raise DeviceGone()
             segs, tagged = _tagged(tmp, tags)
             record["tags"] = digest if tagged else None
             dst.parent.mkdir(parents=True, exist_ok=True)
