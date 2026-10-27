@@ -127,12 +127,15 @@
    *
    *  Always when asked to, when there is no answer, or when the helper is no
    *  longer the one that answer was about - updated from here or from the
-   *  command line, the old answer says nothing about the new copy. A
+   *  command line, the old answer says nothing about the new copy. The same
+   *  when this extension is not the one that asked: a new extension came
+   *  from a new release, which the old answer cannot know about. A
    *  timestamp from the future means the clock moved; trust nothing. */
-  function updateCheckDue(cache, installed, now, force) {
+  function updateCheckDue(cache, installed, now, force, extension) {
     if (force) return true;
     if (!cache || typeof cache.checkedAt !== "number") return true;
     if (cache.installed !== installed) return true;
+    if (extension && cache.extension !== extension) return true;
     const age = now - cache.checkedAt;
     if (!(age >= 0)) return true;
     return age >= (cache.error ? UPDATE_RETRY_AFTER : UPDATE_CHECK_EVERY);

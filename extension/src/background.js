@@ -300,6 +300,10 @@ async function ping() {
  * only when ABSH.updateCheckDue says - see lib.js for the cadence. */
 let CHECKING = null;
 
+// This extension's release, for the cached answer to say which one asked.
+const EXTENSION_RELEASE = (globalThis.ABSH_CONFIG || {}).release
+  || browser.runtime.getManifest().version;
+
 async function askReleaseFeed(previous, installed) {
   let check;
   try {
@@ -319,6 +323,7 @@ async function askReleaseFeed(previous, installed) {
       : { ...(previous || {}), error: msg };
   }
   check.installed = installed;
+  check.extension = EXTENSION_RELEASE;
   check.checkedAt = Date.now();
   await browser.storage.local.set({ updateCheck: check }).catch(() => {});
   return check;
@@ -332,7 +337,8 @@ async function updateStatus({ force = false, peek = false } = {}) {
   const helper = await ping();
   const { updateCheck } = await browser.storage.local.get({ updateCheck: null });
   if (!helper.ok) return { helper, check: updateCheck, due: false };
-  const due = ABSH.updateCheckDue(updateCheck, helper.release, Date.now(), force);
+  const due = ABSH.updateCheckDue(updateCheck, helper.release, Date.now(), force,
+                                 EXTENSION_RELEASE);
   if (!due || peek) return { helper, check: updateCheck, due };
   // The popup and the options page can both ask at once; one request is
   // enough for both.
