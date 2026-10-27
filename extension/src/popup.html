@@ -77,6 +77,19 @@
   <a id="folderChange" class="note-link hidden" href="#">Choose a different folder in Settings</a>
 </section>
 
+<!-- Asked before a copy, unless Settings says always or never. -->
+<section id="tagsAsk" class="card ask hidden" role="dialog" aria-labelledby="tagsQ">
+  <p id="tagsQ">Have Audiobookshelf embed each book's details (title, author, series,
+    narrator, cover) into its files before copying to <b id="tagsPlayer">the player</b>?
+    This is its Embed Metadata tool: it changes the files in your library, and only works if
+    your API key belongs to an admin.</p>
+  <div class="ask-row">
+    <button id="tagsYes" class="primary">Embed tags <kbd>Y</kbd></button>
+    <button id="tagsNo" class="secondary">Copy as is <kbd>N</kbd></button>
+    <label class="ask-keep"><input type="checkbox" id="tagsKeep"> Don't ask again</label>
+  </div>
+</section>
+
 <!-- A copy, upload or removal: under way, or just finished. -->
 <section id="jobBox" class="prog hidden" role="status" aria-live="polite">
   <div class="top"><b id="jobHead"></b><span id="jobSize" class="size"></span></div>
@@ -86,6 +99,8 @@
 </section>
 
 <footer>
+  <!-- Both tab: copy the selected books again. Only what differs is written. -->
+  <button id="again" class="secondary hidden" disabled>Copy again <kbd>C</kbd></button>
   <button id="act" class="primary" disabled>
     <span class="act-text"><span id="actLabel">Select books</span><span id="actSub" class="act-sub"></span></span>
     <kbd>⏎</kbd>

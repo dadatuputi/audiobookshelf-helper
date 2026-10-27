@@ -26,7 +26,9 @@ from .naming import human
 BOTH, SERVER, DEVICE = "both", "server", "device"
 
 MARK = {BOTH: "=", SERVER: "v", DEVICE: "^"}
-LEGEND = "= on both   v server only (pull)   ^ device only (push)"
+STALE_MARK = "~"
+LEGEND = "= on both   ~ changed on server   v server only (pull)   ^ device only (push)"
+TAG_CHOICES = ("ask", "always", "never")
 
 
 def build_rows(status):
@@ -47,7 +49,8 @@ def build_rows(status):
     for b in sorted(status["both"], key=lambda x: (x.get("author") or "", x.get("title") or "")):
         rows.append({"kind": BOTH, "id": b.get("itemId"), "name": b["name"],
                      "title": b.get("title") or b["name"], "author": b.get("author") or "",
-                     "bytes": b.get("bytes") or 0, "entry": b})
+                     "bytes": b.get("bytes") or 0, "entry": b, "item": b.get("item"),
+                     "stale": bool(b.get("stale"))})
     return rows
 
 
@@ -147,33 +150,58 @@ class App:
             self.busy = False
             return
         bits = []
-        for k, word in (("copied", "copied"), ("uploaded", "uploaded"),
-                        ("skipped", "skipped")):
+        for k, word in (("copied", "copied"), ("updated", "updated"),
+                        ("uploaded", "uploaded"), ("skipped", "skipped")):
             if rep.get(k):
                 bits.append(f"{word} {rep[k]}")
         if rep.get("removed"):
             bits.append(f"removed {len(rep['removed'])}")
         if rep.get("errors"):
             bits.append(f"{len(rep['errors'])} error(s): {rep['errors'][0]}")
+        elif rep.get("notes"):
+            bits.append(rep["notes"][0])
         self.selected.clear()
         self.busy = False
         self.refresh()
         if bits:
             self.message = " - ".join(bits)
 
+    # Set by the screen: shows a question on the bottom line, returns the answer.
+    ask = None
+
+    def write_tags(self):
+        """The writeTags setting, asking when it says to."""
+        v = str(self.cfg.get("writeTags") or "ask").strip().lower()
+        if v != "ask":
+            return config_mod.writes_tags(self.cfg)
+        if self.ask is None:
+            return False
+        a = self.ask("embed tags in the library's files first (Embed Metadata)? "
+                     "[y]es [n]o [a]lways ne[v]er: ").lower()
+        if a in ("a", "always", "v", "never"):
+            self.cfg["writeTags"] = "always" if a.startswith("a") else "never"
+            config_mod.remember("writeTags", self.cfg["writeTags"])
+            return self.cfg["writeTags"] == "always"
+        return a in ("y", "yes")
+
     def act(self, kinds=None):
         chosen = [r for r in self.rows if _key(r) in self.selected]
         if kinds:
-            chosen = [r for r in chosen if r["kind"] in kinds]
+            chosen = [r for r in chosen if r["kind"] in kinds
+                      or (SERVER in kinds and r["kind"] == BOTH and r.get("stale"))]
         if not chosen:
             self.message = "nothing selected for that action"
             return
-        pulls = [r["item"] for r in chosen if r["kind"] == SERVER]
+        # A book the server changed since it was copied is pulled again; only
+        # what differs is written.
+        pulls = [r["item"] for r in chosen
+                 if r["kind"] == SERVER or (r["kind"] == BOTH and r.get("stale"))]
         pushes = [r["entry"] for r in chosen if r["kind"] == DEVICE]
         removes = [r["name"] for r in chosen if r["kind"] == BOTH and r.get("name")]
 
         if pulls:
-            self._run(lambda emit: sync_mod.pull(self.client, pulls, self.cfg, emit), "pull")
+            opts = dict(self.cfg, writeTags=self.write_tags())
+            self._run(lambda emit: sync_mod.pull(self.client, pulls, opts, emit), "pull")
         elif pushes:
             folder = self.cfg.get("folderId")
             if not folder:
@@ -208,7 +236,8 @@ def _draw(stdscr, app):
         y = i + 1
         sel = "x" if _key(row) in app.selected else " "
         size = human(row["bytes"]).rjust(7)
-        line = f" [{sel}] {MARK[row['kind']]} {size}  {row['title']}"
+        mark = STALE_MARK if row.get("stale") else MARK[row["kind"]]
+        line = f" [{sel}] {mark} {size}  {row['title']}"
         if row["author"]:
             line += f"  -  {row['author']}"
         attr = curses.A_BOLD if (app.top + i) == app.cursor else curses.A_NORMAL
@@ -226,6 +255,7 @@ def _draw(stdscr, app):
 def _loop(stdscr, app):
     curses.curs_set(0)
     stdscr.timeout(-1)
+    app.ask = lambda label: _prompt(stdscr, label)
     app.refresh()
     while True:
         _draw(stdscr, app)
@@ -302,13 +332,14 @@ def _settings(stdscr, app):
             ("d", "device", cfg.get("devicePath") or "(not set)"),
             ("f", "folder on device", cfg.get("subdir") or "AUDIOBOOKS"),
             ("t", "folder template", cfg.get("folderTemplate") or ""),
+            ("w", "write tags", cfg.get("writeTags") or "ask"),
             ("", "server", cfg.get("absUrl") or "(not set)"),
         ]
         for i, (key, label, value) in enumerate(lines):
             prefix = f" [{key}] " if key else "     "
             stdscr.addnstr(i + 2, 0, f"{prefix}{label:<18} {value}"[:w - 1], w - 1)
         stdscr.addnstr(h - 2, 0,
-                       " d device   f folder   t template   q back".ljust(w - 1),
+                       " d device   f folder   t template   w tags   q back".ljust(w - 1),
                        w - 1, curses.A_REVERSE)
         stdscr.addnstr(h - 1, 0, (" " + app.message)[:w - 1], w - 1)
         stdscr.refresh()
@@ -323,6 +354,11 @@ def _settings(stdscr, app):
             if v:
                 app.cfg["subdir"] = v
                 _save(app, f"folder set to {v}")
+        elif ch == ord("w"):
+            now = str(app.cfg.get("writeTags") or "ask").lower()
+            nxt = TAG_CHOICES[(TAG_CHOICES.index(now) + 1) % 3 if now in TAG_CHOICES else 0]
+            app.cfg["writeTags"] = nxt
+            _save(app, f"write tags: {nxt}")
         elif ch == ord("t"):
             v = _prompt(stdscr, "folder template: ", app.cfg.get("folderTemplate") or "")
             if v:

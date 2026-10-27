@@ -19,7 +19,9 @@
   const DEFAULTS = {
     absUrl: "", apiKey: "", devicePath: "", libraryId: "",
     renameM4b: true, folderTemplate: "{author} - {title}",
-    subdir: "AUDIOBOOKS"
+    subdir: "AUDIOBOOKS",
+    // Write Audiobookshelf's own tags into the copies: "ask", "always", "never".
+    writeTags: "ask"
   };
 
   /** Trim a trailing slash so URL joining never doubles up. */

@@ -453,6 +453,23 @@ class TestPullAndMatch(DeviceBase):
         sync.pull(self.client, [ITEMS[0]], dict(self.opts, force=True))
         self.assertEqual(self.client.downloads, ["li_1", "li_1"])
 
+    def test_force_puts_a_same_size_damaged_copy_right_writing_only_what_differs(self):
+        """A server that only offers whole-book downloads: a forced copy used
+        to see the same size and leave the wrong bytes in place."""
+        sync.pull(self.client, [ITEMS[0]], self.opts)
+        f = self.dev / "AUDIOBOOKS" / "Brian Jacques - Redwall.m4a"
+        good = f.read_bytes()
+        bad = bytearray(good)
+        bad[-1] ^= 0xFF
+        f.write_bytes(bytes(bad))
+        self.assertEqual(sync.pull(self.client, [ITEMS[0]], self.opts)["skipped"], 1)
+        rep = sync.pull(self.client, [ITEMS[0]], dict(self.opts, force=True))
+        self.assertEqual(f.read_bytes(), good)
+        # Only the last sector, the one that holds the damaged byte.
+        self.assertEqual(rep["written"], len(good) - (len(good) - 1) // sync.SECTOR * sync.SECTOR)
+        again = sync.pull(self.client, [ITEMS[0]], dict(self.opts, force=True))
+        self.assertEqual((again["written"], again["skipped"]), (0, 1))
+
     def test_status_matches_by_id(self):
         sync.pull(self.client, [ITEMS[0]], self.opts)
         st = device_mod.status(str(self.dev), "AUDIOBOOKS", ITEMS)

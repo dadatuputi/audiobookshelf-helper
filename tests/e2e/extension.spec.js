@@ -505,6 +505,15 @@ test.describe("full loop in a real browser", () => {
     await expect(page.locator("#act")).toContainText(`Copy 1 to ${basename(env.dev)} →`);
     await page.click("#act");
 
+    // Writing tags is asked about first. Kept as "never" for the rest of the
+    // run, so the file below is the server's, byte for byte.
+    await expect(page.locator("#tagsAsk")).toBeVisible();
+    await expect(page.locator("#tagsPlayer")).toHaveText(basename(env.dev));
+    await page.check("#tagsKeep");
+    await page.click("#tagsNo");
+    await expect(page.locator("#tagsAsk")).toBeHidden();
+    await expect.poll(() => stored(page, "writeTags")).toBe("never");
+
     await expect(page.locator("#jobBox")).toContainText(`Copied 1 to ${basename(env.dev)}`, { timeout: 30_000 });
 
     // The .m4b became .m4a on the way, which is the whole point of the tool.
@@ -525,6 +534,28 @@ test.describe("full loop in a real browser", () => {
     await page.locator('.tab[data-tab="device"]').click();
     await expect(page.locator("#list li")).toHaveCount(1);
     await expect(page.locator("#list li").first()).toContainText("Redwall");
+    await page.close();
+  });
+
+  test("Copy again on the Both tab puts a damaged copy right, in place", async () => {
+    const file = join(env.dev, "AUDIOBOOKS", "Brian Jacques - Redwall.m4a");
+    const good = readFileSync(file);
+    // Same size, wrong bytes: nothing short of checking would notice.
+    writeFileSync(file, Buffer.alloc(good.length, 1));
+
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
+    await page.locator('.tab[data-tab="device"]').click();
+    await expect(page.locator("#again")).toBeHidden();
+    await page.locator("#all").check();
+    await expect(page.locator("#again")).toBeVisible();
+    await expect(page.locator("#again")).toBeEnabled();
+    await expect(page.locator("#act")).toContainText(`Remove 1 from ${basename(env.dev)}`);
+    await page.keyboard.press("c");
+    await expect.poll(() => readFileSync(file).equals(good), { timeout: 30_000 }).toBe(true);
+    expect(deviceFiles(env.dev)).toEqual(["Brian Jacques - Redwall.m4a"]);
+    await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
     await page.close();
   });
 
@@ -972,7 +1003,7 @@ test.describe("before access is granted", () => {
     await page.click("#saveNaming");
     // Saying what changed, not just that something did.
     await expect(page.locator("#msgNaming")).toHaveText("Saved folder template.");
-    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a");
+    await expect(page.locator("#sum-naming")).toHaveText("{title} · .m4b → .m4a · asks about embedding tags");
 
     await page.reload();
     await expect(page.locator("#folderTemplate")).toHaveValue("{title}");

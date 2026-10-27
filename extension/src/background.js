@@ -382,7 +382,7 @@ async function backend() {
  * makes for the helper below. */
 const FOLDER_ARGS = {
   status: (m) => ({ libraryId: m.libraryId, readTags: m.readTags !== false }),
-  pull: (m) => ({ ids: m.ids, libraryId: m.libraryId }),
+  pull: (m) => ({ ids: m.ids, libraryId: m.libraryId, force: !!m.force }),
   push: (m) => ({ names: m.names, libraryId: m.libraryId, folderId: m.folderId }),
   remove: (m) => ({ names: m.names }),
   libraries: () => ({}),
@@ -447,14 +447,21 @@ async function route(msg, onProgress) {
       if (JOBS.paused && !RESUMING) setTimeout(tryResume, 0);
       return { ok: true, data: LAST_STATUS };
     case "lastStatus": return { ok: true, data: LAST_STATUS };
-    case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player) };
+    case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player, msg.writeTags,
+                                                    !!msg.force) };
+    case "tagsAsk":   return { ok: true, data: await tagsAsk() };
+    case "tagsRemember":
+      await browser.storage.local.set({ writeTags: msg.value === "always" ? "always" : "never" });
+      return { ok: true, data: await tagsAsk() };
     case "jobState":  return { ok: true, data: snapshot() };
     case "jobCancel": return { ok: true, data: cancelPaused() };
     case "jobSeen":
       JOBS.seen = true;
       badge();
       return { ok: true, data: snapshot() };
-    case "pull":      return { ok: true, data: await call("pull", { ids: msg.ids, libraryId: msg.libraryId }, onProgress) };
+    case "pull":      return { ok: true, data: await call("pull", { ids: msg.ids, libraryId: msg.libraryId,
+                                                                    ...(msg.force ? { force: true } : {}),
+                                                                    ...tagsArg(msg.writeTags) }, onProgress) };
     case "push":      return { ok: true, data: await call("push", { names: msg.names, libraryId: msg.libraryId, folderId: msg.folderId }, onProgress) };
     case "remove":    return { ok: true, data: await call("remove", { names: msg.names }, onProgress) };
     case "ping":      return { ok: true, data: await ping() };
@@ -546,8 +553,10 @@ function notify(job) {
   const title = failed.length || job.error
     ? `${VERB[job.op]} ${done.length} of ${job.items.length}; ${failed.length || "the rest"} failed`
     : `${VERB[job.op]} ${done.length} ${done.length === 1 ? "book" : "books"} ${job.op === "remove" ? "from" : "to"} ${where}`;
+  const noted = job.items.find((i) => i.note);
   const message = job.error ? job.error
-    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.`;
+    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.` +
+      (noted ? ` ${noted.title}: ${noted.note}` : "");
   Promise.resolve(browser.notifications.create(`absh-job-${job.id}`, {
     type: "basic", iconUrl: browser.runtime.getURL("icons/icon-96.png"), title, message,
   })).catch(() => {});
@@ -555,7 +564,22 @@ function notify(job) {
 
 /* Queue a job: op is pull, push or remove; each item names what it acts on
  * (`ref`: a library item id to pull, a name on the player otherwise). */
-function addJob(op, items, player) {
+/* Whether a copy should ask before writing Audiobookshelf's tags into the
+ * files, and what to do when it does not ask. Only the helper writes tags:
+ * Chrome's folder backend copies the server's files as they are. */
+async function tagsAsk() {
+  const { writeTags } = await browser.storage.local.get({ writeTags: ABSH.DEFAULTS.writeTags });
+  const can = (await backend()) !== "folder";
+  return { ask: can && writeTags === "ask", write: can && writeTags === "always" };
+}
+
+/* A yes or no from the person goes to the helper; anything else is left out,
+ * so the saved setting decides - never a stray "ask" read as no. */
+function tagsArg(v) {
+  return typeof v === "boolean" ? { writeTags: v } : {};
+}
+
+function addJob(op, items, player, writeTags, force = false) {
   // A run is everything queued from idle until idle again - ten covers
   // clicked one after another are one run of ten, whatever the jobs. Counted
   // as a run, so a finished book is "2 of 10", not gone from "1 of 9".
@@ -564,6 +588,9 @@ function addJob(op, items, player) {
   }
   const job = {
     id: ++JOBS.seq, op, player: player || "",
+    ...(op === "pull" && typeof writeTags === "boolean" ? { writeTags } : {}),
+    // Copy again: books already on the player, checked file by file.
+    ...(op === "pull" && force ? { force: true } : {}),
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
                               bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0 })),
     startedAt: 0, finishedAt: 0, result: null, error: "",
@@ -603,7 +630,9 @@ async function runJobs() {
     };
     const todo = job.items.filter((i) => i.state !== "done");
     const refs = todo.map((i) => i.ref);
-    const msg = job.op === "pull" ? { type: "pull", ids: refs } : { type: job.op, names: refs };
+    const msg = job.op === "pull" ? { type: "pull", ids: refs, ...(job.force ? { force: true } : {}),
+                                          ...tagsArg(job.writeTags) }
+      : { type: job.op, names: refs };
     let left = new Set();
     try {
       const r = await route(msg, onProgress);
@@ -614,11 +643,15 @@ async function runJobs() {
       if (left.size) JOBS.paused = { why: "player", player: job.player, since: Date.now() };
       // An error line reads "<title>: why"; those items failed, the rest are done.
       const errs = (job.result.errors || []).map(String);
+      // A note is worth saying but the book is fine - copied without tags.
+      const notes = (job.result.notes || []).map(String);
       for (const it of todo) {
         if (left.has(it.ref)) { it.state = "waiting"; continue; }
         const bad = errs.find((e) => e.startsWith(`${it.title}:`));
         it.state = bad ? "failed" : "done";
         if (bad) it.error = bad.slice(it.title.length + 1).trim();
+        const said = notes.find((e) => e.startsWith(`${it.title}:`));
+        if (said) it.note = said.slice(it.title.length + 1).trim();
       }
     } catch (e) {
       // Did the job fail, or did what it needed go away - the player, or the

@@ -21,7 +21,7 @@ import { installTemporaryAddon, seedLocalStorage,
          readLocalStorage, grantInStore, writeProbeAddon,
          withDeclaredHostPermission, FIREFOX_PREFS } from "./firefox-addon.mjs";
 import { cardFor, deviceFiles, until, stripPlacement, underPlay,
-         oneClickGroups, unplugMidRun } from "./shared.mjs";
+         oneClickGroups, unplugMidRun, answerTags } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -345,6 +345,8 @@ test.describe("Firefox, against a real Audiobookshelf", () => {
     const copy = card.locator("button.absh-badge.absh-copy");
     await expect(copy).toHaveText("Copy to player", { timeout: 30_000 });
     await copy.click();
+    // Asked first; no, and never for the rest of the run.
+    await answerTags(page, expect, false);
 
     // The real assertion: a file on disk, put there through the native host.
     const files = await until(() => {

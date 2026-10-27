@@ -103,6 +103,20 @@
     <label class="chk"><input type="checkbox" id="renameM4b" checked>
       <span>Rename <code>.m4b</code> → <code>.m4a</code>. Same audio, no re-encode; leave it on
         unless your player plays .m4b.</span></label>
+    <div class="field">
+      <label for="writeTags">Embed tags before copying</label>
+      <select id="writeTags">
+        <option value="ask">Ask each time</option>
+        <option value="always">Always</option>
+        <option value="never">Never</option>
+      </select>
+      <div class="hint">Runs Audiobookshelf's own Embed Metadata on a book before it is copied,
+        so its details (title, author, series, narrator, cover, chapters) are in the files and
+        a player shows the book as the library does. It changes the files in your library, and
+        only works if your API key belongs to an admin user. A book is embedded again only when its details change;
+        then its files are fetched again, but only the parts that differ are written to the
+        player. Needs the helper: Chrome's folder mode copies the files as they are.</div>
+    </div>
     <div class="actions end">
       <span id="msgNaming" class="msg" role="status"></span>
       <button class="secondary cancel">Cancel <kbd>Esc</kbd></button>

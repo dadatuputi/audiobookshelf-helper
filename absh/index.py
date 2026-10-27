@@ -81,6 +81,7 @@ def record(device_path, name, item, files, kind, source_ext=""):
         "sourceExt": source_ext,
         "bytes": sum(f.get("size", 0) for f in files),
         "files": files,
+        "itemUpdatedAt": item.get("updatedAt") or 0,
         "syncedAt": _now(),
     }
     save(device_path, data)

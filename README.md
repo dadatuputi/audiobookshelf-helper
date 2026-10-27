@@ -255,9 +255,41 @@ absh tui                 # full-screen picker
 absh doctor              # why isn't it working
 ```
 
-Every command takes `--dry-run`. `pull` skips books already on the device
-*before* downloading them, so `absh pull --all` is cheap to re-run; pass
-`--force` to fetch them again anyway.
+Every command takes `--dry-run`. `pull` copies what the device does not have,
+and updates what it copied before when Audiobookshelf has changed it since. It
+goes file by file and writes only what differs: a file the server has not
+touched is not downloaded at all, and a file that did change is compared in
+blocks against the copy, so only the changed sectors are written. `absh pull
+--all` is cheap to re-run. `--force` goes over every matching book, for when
+you do not trust what is there, and still writes only what differs.
+
+#### Tags
+
+Audiobookshelf keeps a book's details (title, author, series, narrator) in its
+database, and writes them into the files only when you run its **Embed
+Metadata** tool. A pull can run that tool for you, through the server's API,
+before it copies a book, so the copy on the player carries the same title,
+author, series, narrator, cover and chapters, and the player's own library
+shows books the way Audiobookshelf does.
+
+Know what that means before you say yes:
+
+- **It changes the files in your library**, not just the copies. It is the same
+  thing the button on the book's page does.
+- **Your API key must belong to an admin.** It is the key you already set; in
+  Settings → API Keys, the user a key acts as decides this. With a regular
+  user's key the book is copied as it is, and the pull says why.
+- **A book's files are fetched again after an embed**, because the server has
+  rewritten them. Only the sectors that differ are written to the player, but
+  the download is the whole book. A book is embedded again only when its
+  details change.
+- **Chrome's folder mode** copies the files as they are; embedding needs the
+  helper.
+
+`pull` asks the first time (`[y]es, [n]o, [a]lways, ne[v]er`; always and never
+are saved). `--tags` and `--no-tags` answer for one run, and `absh config
+--write-tags ask|always|never` sets it. With nobody at the keyboard it does not
+embed. The TUI asks the same way, and <kbd>w</kbd> in its settings changes it.
 
 In the TUI: <kbd>space</kbd> selects, <kbd>/</kbd> filters, <kbd>p</kbd> pulls,
 <kbd>u</kbd> pushes, <kbd>d</kbd> deletes, <kbd>r</kbd> refreshes,
@@ -298,12 +330,22 @@ leaving no half-written book behind; plug it back in and it carries on, with
 a book cut off partway picking up from its next file. Quitting the browser
 mid-run loses nothing either: the queue is kept and resumes next time. A
 paused run can be let go with **Cancel the rest**.
+
+**Copying books again.** On **Both**, tick the box at the top to select every
+book on the player, then **Copy again** (<kbd>C</kbd>). A book's own page has a
+**Copy again** button beside Remove. Each book is checked against
+Audiobookshelf file by file and only the 4 KB pieces that differ are written,
+so a copy that is already right costs a download and no writes. With tags on,
+a book whose details were never embedded, or have changed, is embedded first.
+In Chrome's folder mode a file that differs is written whole. From the command
+line it is `absh pull --all --force`.
+
 While copying, the toolbar icon carries a count, then a check when it is done,
 and a notification says so if the popup is closed.
 Click the **Player** card to change player: the one that looks most like yours
 is offered in purple, and nothing is saved until you press **Use**. Every action
 has a key, printed on it: <kbd>/</kbd> filter, <kbd>⏎</kbd> the main button,
-<kbd>R</kbd> re-read, <kbd>D</kbd> detect, <kbd>Esc</kbd> cancel. Light or dark
+<kbd>R</kbd> re-read, <kbd>C</kbd> copy again, <kbd>D</kbd> detect, <kbd>Esc</kbd> cancel. Light or dark
 follows your system. A line under the status says when a helper
 update is waiting — see [Updating the helper](#updating-the-helper).
 

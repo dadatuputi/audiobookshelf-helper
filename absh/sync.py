@@ -16,9 +16,12 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
+from . import config as config_mod
+from . import embed
 from . import index as index_mod
 from . import tags as tags_mod
 from .abs_api import AbsError
@@ -84,11 +87,15 @@ class Report(dict):
     """Accumulates what happened, in a shape both the CLI and the host render."""
 
     def __init__(self):
-        super().__init__(copied=0, skipped=0, uploaded=0, removed=[],
-                         freed=0, errors=[], books=0, interrupted=[])
+        super().__init__(copied=0, skipped=0, updated=0, written=0, uploaded=0,
+                         removed=[], freed=0, errors=[], notes=[], books=0, interrupted=[])
 
     def fail(self, title, why):
         self["errors"].append(f"{title}: {why}")
+
+    def note(self, title, what):
+        """Worth saying, but the book is fine: not an error."""
+        self["notes"].append(f"{title}: {what}")
 
 
 # ------------------------------------------------------------------- pull
@@ -136,6 +143,10 @@ def pull_book(client, item, opts, report, emit=_noop):
         emit({"event": "progress", "id": item.get("id"), "title": title,
               "file": label, "done": done, "total": total})
 
+    full = _full_item(client, item)
+    if full is not None:
+        return _pull_files(client, item, full, opts, report, step, root, name, rename)
+
     if not opts.get("force"):
         have = already_on_device(opts, item)
         if have:
@@ -148,7 +159,8 @@ def pull_book(client, item, opts, report, emit=_noop):
     except ValueError as e:
         report.fail(title, str(e))
         return None
-    got = _download(client, item, root, name, rename, report, step, opts["devicePath"])
+    got = _download(client, item, root, name, rename, report, step, opts["devicePath"],
+                    force=bool(opts.get("force")))
     if got is None:
         return None
     written, entry_name, kind, src_ext = got
@@ -160,7 +172,7 @@ def pull_book(client, item, opts, report, emit=_noop):
     return entry_name
 
 
-def _download(client, item, root, name, rename, report, step, device_path):
+def _download(client, item, root, name, rename, report, step, device_path, force=False):
     """Fetch over the API. One file, or a zip for a multi-file book.
 
     Raises DeviceGone if the player is not there to write to, rather than
@@ -201,7 +213,13 @@ def _download(client, item, root, name, rename, report, step, device_path):
                     step(i, len(members), dst.name)
                     # Written whole or not at all, so one that exists is
                     # complete: a book cut off at file 20 carries on at 21.
-                    if dst.exists():
+                    if dst.exists() and force:
+                        # Forced: only the sectors that differ are written.
+                        with z.open(member) as src:
+                            n = _diff_write(dst, src)
+                        report["written"] += n
+                        report["copied" if n else "skipped"] += 1
+                    elif dst.exists():
                         report["skipped"] += 1
                     else:
                         with z.open(member) as src:
@@ -215,7 +233,14 @@ def _download(client, item, root, name, rename, report, step, device_path):
         dst = root / f"{name}{ext}"
         dst.parent.mkdir(parents=True, exist_ok=True)
         step(1, 1, dst.name)
-        if dst.exists() and dst.stat().st_size == tmp.stat().st_size:
+        if dst.exists() and force:
+            # Forced: compared with what is there, and only what differs is
+            # written - a same-size file with the wrong bytes is put right.
+            with open(tmp, "rb") as src:
+                n = _diff_write(dst, src)
+            report["written"] += n
+            report["copied" if n else "skipped"] += 1
+        elif dst.exists() and dst.stat().st_size == tmp.stat().st_size:
             report["skipped"] += 1
         else:
             # A move across drives is a copy, and a copy cut off midway would
@@ -241,6 +266,243 @@ def _download(client, item, root, name, rename, report, step, device_path):
                 tmp.unlink()
             except OSError:
                 pass
+
+
+# ------------------------------------------------- file by file, by bytes
+# With the full item from the server, a book is copied file by file and each
+# file is compared with what the index says is on the player: the server's
+# inode, size and mtime for that file. A file the server has not changed is
+# not downloaded at all. One that did change, or a forced copy, is downloaded
+# and compared with the player's copy block by block, and only the sectors
+# that differ are written.
+#
+# Tags are Audiobookshelf's to write: asked to, it runs its own Embed
+# Metadata on the book, which rewrites the files in the library, and the
+# result is copied as above. The index keeps a fingerprint of the details
+# that were embedded, so a book is only embedded again when they change.
+
+BLOCK = 1 << 20      # compared at a time
+SECTOR = 4096        # written at a time, when it differs
+EMBED_POLL = 1.0     # seconds between asking whether an embed is done
+EMBED_TIMEOUT = 1800 # a long book on a slow disk; ffmpeg only copies streams
+
+
+def _full_item(client, item):
+    """The item with its files, or None when the server (or a test double)
+    cannot say - then the whole-book download is used, as before."""
+    get = getattr(client, "item", None)
+    if get is None or getattr(client, "open_file", None) is None:
+        return None
+    try:
+        full = get(item["id"])
+    except AbsError:
+        return None
+    return full if isinstance(full, dict) and embed.audio_files(full) else None
+
+
+def _blocks(src, size=BLOCK):
+    src.seek(0)
+    while True:
+        chunk = src.read(size)
+        if not chunk:
+            return
+        yield chunk
+
+
+def _put_changed(out, pos, data, old):
+    """Write the sectors of `data` at `pos` that differ from `old`."""
+    written = 0
+    for i in range(0, len(data), SECTOR):
+        new = data[i:i + SECTOR]
+        if old[i:i + SECTOR] != new:
+            out.seek(pos + i)
+            out.write(new)
+            written += len(new)
+    return written
+
+
+def _diff_write(dst, src):
+    """Make `dst` equal to `src`, writing only the sectors that differ."""
+    written = 0
+    pos = 0
+    with open(dst, "r+b") as out:
+        for block in _blocks(src):
+            out.seek(pos)
+            written += _put_changed(out, pos, block, out.read(len(block)))
+            pos += len(block)
+        out.seek(0, 2)
+        if out.tell() != pos:
+            out.truncate(pos)
+    return written
+
+
+class EmbedRefused(Exception):
+    """Audiobookshelf would not embed: the key is not an admin's, or the
+    embed failed. The book is copied as it is, and the report says why."""
+
+
+def _embed_on_server(client, item_id, step):
+    """Run Audiobookshelf's Embed Metadata on the book and wait for it.
+
+    It answers at once and works as a task; a finished task drops off the
+    list, so done is when the book is neither queued nor running."""
+    try:
+        client.embed_metadata(item_id)
+    except AbsError as e:
+        if e.status in (401, 403):
+            raise EmbedRefused("embedding tags needs an API key that belongs to an admin in Audiobookshelf")
+        if e.status != 400:          # 400: already queued or running - wait for it
+            raise EmbedRefused(f"Audiobookshelf would not embed: {e}")
+    deadline = time.monotonic() + EMBED_TIMEOUT
+    while True:
+        step(0, 1, "Audiobookshelf is writing tags")
+        if not client.embedding(item_id):
+            return
+        if time.monotonic() > deadline:
+            raise EmbedRefused("Audiobookshelf took too long to write tags")
+        time.sleep(EMBED_POLL)
+
+
+def _layout(entry_name, files, name, root, rename, have):
+    """Where each server file goes on the player."""
+    if len(files) == 1:
+        f = files[0]
+        ext = out_ext(f["filename"], rename)
+        fname = have if have else f"{name}{ext}"
+        return "file", [root / fname]
+    target = root / entry_name
+    out = []
+    for i, f in enumerate(files, 1):
+        ext = out_ext(f["filename"], rename)
+        part = fit(clean(Path(f["relPath"]).stem), MAX_NAME - 6 - len(ext))
+        out.append(target / f"{i:03d} - {part}{ext}")
+    return "dir", out
+
+
+def _download_file(client, item_id, f, step_label, step, n, total):
+    step(n - 1, total, step_label)
+    with client.open_file(item_id, f["ino"]) as r, \
+            tempfile.NamedTemporaryFile(delete=False) as fh:
+        shutil.copyfileobj(r, fh)
+        return Path(fh.name)
+
+
+def _pull_files(client, item, full, opts, report, step, root, name, rename):
+    title = item.get("title") or name
+    device_path = opts["devicePath"]
+    force = bool(opts.get("force"))
+    files = embed.audio_files(full)
+
+    have = already_on_device(opts, item)
+    rec = index_mod.load(device_path).get("entries", {}).get(have) if have else None
+    kind_now = "file" if len(files) == 1 else "dir"
+    if have and rec and rec.get("kind") != kind_now:
+        report.fail(title, f"the book is now {len(files)} file(s) on the server but not on "
+                           f"the player; remove it from the player and copy it again")
+        return None
+
+    # Tags: embedded on the server when its details differ from what was
+    # embedded last time this book was copied. Its files then change on the
+    # server, perhaps before Audiobookshelf notices, so each is fetched again.
+    old = {r.get("name"): r for r in (rec or {}).get("files") or []}
+    digest = embed.digest(full)
+    had = {r.get("tags") for r in old.values()} if old else {None}
+    refetch = False
+    if config_mod.writes_tags(opts) and had != {digest}:
+        try:
+            _embed_on_server(client, item["id"], step)
+        except (EmbedRefused, AbsError) as e:
+            report.note(title, f"copied without tags - {e}")
+            digest = None
+        else:
+            refetch = True
+            full = _full_item(client, item) or full
+            files = embed.audio_files(full)
+    elif had != {digest}:
+        digest = None               # not embedded, or embedded before a change
+
+    if have:
+        entry_name = have
+    else:
+        try:
+            entry_name = free_name(name, item, taken_names(device_path, root))
+        except ValueError as e:
+            report.fail(title, str(e))
+            return None
+    kind, dsts = _layout(entry_name, files, entry_name, root, rename,
+                         have if kind_now == "file" else None)
+    if kind == "file":
+        entry_name = dsts[0].name
+
+    out_files = []
+    src_ext = ""
+    changed = False
+    tmp = None
+    try:
+        for n, (f, dst) in enumerate(zip(files, dsts), 1):
+            src_ext = src_ext or Path(f["filename"]).suffix.lower()
+            r = old.get(dst.name)
+            same_src = bool(r) and r.get("ino") == f["ino"] and r.get("srcSize") == f["size"] \
+                and r.get("srcMtime") == f["mtimeMs"]
+            here = dst.is_file()
+            intact = here and r is not None and dst.stat().st_size == r.get("size")
+            # A book this tool copied before it kept per-file records: same
+            # size as the server's file means it is the server's file.
+            legacy = here and r is not None and "ino" not in r and dst.stat().st_size == f["size"]
+            record = {"name": dst.name, "ino": f["ino"], "srcSize": f["size"],
+                      "srcMtime": f["mtimeMs"], "tags": digest}
+
+            if not force and not refetch and ((same_src and intact) or legacy):
+                record["size"] = dst.stat().st_size
+                out_files.append(record)
+                continue
+
+            tmp = _download_file(client, item["id"], f, dst.name, step, n, len(files))
+            # Gone while it downloaded: stop, rather than make the player's
+            # folders again on this disk below.
+            if not device_present(device_path):
+                raise DeviceGone()
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            with open(tmp, "rb") as src:
+                if here:
+                    report["written"] += _diff_write(dst, src)
+                    report["updated"] += 1
+                else:
+                    _write_whole(dst, lambda out: [out.write(b) for b in _blocks(src)])
+                    report["written"] += tmp.stat().st_size
+                    report["copied"] += 1
+            changed = True
+            tmp.unlink()
+            tmp = None
+            record["size"] = dst.stat().st_size
+            out_files.append(record)
+    except DeviceGone:
+        raise
+    except OSError as e:
+        if not device_present(device_path):
+            raise DeviceGone() from e
+        report.fail(title, f"copy failed - {e}")
+        return None
+    except AbsError as e:
+        report.fail(title, f"download failed - {e}")
+        return None
+    finally:
+        if tmp is not None:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+    step(len(files), len(files), entry_name)
+    if changed or not rec or [x.get("name") for x in rec.get("files") or []] != \
+            [x["name"] for x in out_files] or any("ino" not in x for x in rec.get("files") or []) \
+            or [x.get("tags") for x in rec.get("files") or []] != [x["tags"] for x in out_files]:
+        index_mod.record(device_path, entry_name, item, out_files, kind, source_ext=src_ext)
+    if changed or not have:
+        report["books"] += 1
+    else:
+        report["skipped"] += 1
+    return entry_name
 
 
 def pull(client, items, opts, emit=_noop):

@@ -82,11 +82,11 @@ test.describe("content script behaviour", () => {
   /* A collection page: the heading row the app draws, and a helper that
    * answers the few messages the page asks. 12 books of 1GB, none on it. */
   const GB = 1024 ** 3;
-  const groupPage = async (page, free) => {
+  const groupPage = async (page, free, tags = null) => {
     await page.route("**/collection/**", (r) => r.fulfill({ status: 200, contentType: "text/html",
       body: `<!doctype html><html><body><div id="page-wrapper"><div class="row">
                <h1>Twelve</h1><button>Play All</button></div></div></body></html>` }));
-    await page.addInitScript(({ GB, free }) => {
+    await page.addInitScript(({ GB, free, tags }) => {
       const ids = Array.from({ length: 12 }, (_, i) => `li_${i}`);
       window.SENT = [];
       const answer = (m) => {
@@ -95,6 +95,7 @@ test.describe("content script behaviour", () => {
                    serverOnly: ids.map((id) => ({ id, title: id, size: GB })) };
         }
         if (m.type === "group") return ids;
+        if (m.type === "tagsAsk") return tags;
         if (m.type === "jobAdd") return { current: null, queue: [], last: null };
         return null;
       };
@@ -102,7 +103,7 @@ test.describe("content script behaviour", () => {
         sendMessage: (m) => { window.SENT.push(m); return Promise.resolve({ ok: true, data: answer(m) }); },
         onMessage: { addListener() {} },
       } };
-    }, { GB, free });
+    }, { GB, free, tags });
     await page.goto("https://abs.test/collection/col_1");
     await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
   };
@@ -131,6 +132,88 @@ test.describe("content script behaviour", () => {
     const add = await page.evaluate(() => SENT.find((m) => m.type === "jobAdd"));
     expect(add.op).toBe("pull");
     expect(add.items.map((i) => i.ref)).toEqual(Array.from({ length: 12 }, (_, i) => `li_${i}`));
+  });
+
+  test("asks about tags before a copy, and a let-go question copies nothing", async ({ page }) => {
+    await groupPage(page, 40 * GB, { ask: true, write: false });
+    const box = page.locator("#absh-group");
+    const go = box.locator("button", { hasText: "Copy collection to" });
+    await go.click();
+    await box.locator("button", { hasText: "Yes, copy 12 books" }).click();
+    const ask = page.locator("#absh-ask");
+    await expect(ask).toContainText("Embed Metadata");
+    await page.keyboard.press("Escape");
+    await expect(ask).toHaveCount(0);
+    expect(await page.evaluate(() => SENT.some((m) => m.type === "jobAdd"))).toBe(false);
+
+    await go.click();
+    await box.locator("button", { hasText: "Yes, copy 12 books" }).click();
+    await ask.locator("input[type=checkbox]").check();
+    await ask.locator("button", { hasText: "Embed tags" }).click();
+    const add = await page.evaluate(() => SENT.find((m) => m.type === "jobAdd"));
+    expect(add.writeTags).toBe(true);
+    expect(await page.evaluate(() => SENT.find((m) => m.type === "tagsRemember")))
+      .toMatchObject({ value: "always" });
+  });
+
+  test("a book changed on the server since it was copied offers an update", async ({ page }) => {
+    await page.route("**/item/**", (r) => r.fulfill({ status: 200, contentType: "text/html",
+      body: `<!doctype html><html><body><div class="row"><button class="abs-btn bg-success">Play</button></div></body></html>` }));
+    await page.addInitScript(() => {
+      window.SENT = [];
+      const answer = (m) => {
+        if (m.type === "status") {
+          return { backend: "native", serverOnly: [], deviceOnly: [], free: {},
+                   both: [{ name: "A - B.m4a", itemId: "li_1", title: "B", stale: true,
+                            item: { id: "li_1", title: "B" } }] };
+        }
+        if (m.type === "tagsAsk") return { ask: false, write: true };
+        if (m.type === "jobAdd") return { current: null, queue: [], last: null };
+        return null;
+      };
+      window.browser = { runtime: {
+        sendMessage: (m) => { window.SENT.push(m); return Promise.resolve({ ok: true, data: answer(m) }); },
+        onMessage: { addListener() {} },
+      } };
+    });
+    await page.goto("https://abs.test/item/li_1");
+    await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
+    const item = page.locator("#absh-item");
+    await expect(item).toContainText("changed in Audiobookshelf since it was copied");
+    await item.locator("button", { hasText: "Update on" }).click();
+    await expect.poll(() => page.evaluate(() => SENT.find((m) => m.type === "jobAdd")))
+      .toMatchObject({ op: "pull", writeTags: true, items: [{ ref: "li_1" }] });
+    expect((await page.evaluate(() => SENT.find((m) => m.type === "jobAdd"))).force).toBeUndefined();
+  });
+
+  test("a book already on the player can be copied again from its page", async ({ page }) => {
+    await page.route("**/item/**", (r) => r.fulfill({ status: 200, contentType: "text/html",
+      body: `<!doctype html><html><body><div class="row"><button class="abs-btn bg-success">Play</button></div></body></html>` }));
+    await page.addInitScript(() => {
+      window.SENT = [];
+      const answer = (m) => {
+        if (m.type === "status") {
+          return { backend: "native", serverOnly: [], deviceOnly: [], free: {},
+                   both: [{ name: "A - B.m4a", itemId: "li_1", title: "B", stale: false,
+                            item: { id: "li_1", title: "B" } }] };
+        }
+        if (m.type === "tagsAsk") return { ask: false, write: true };
+        if (m.type === "jobAdd") return { current: null, queue: [], last: null };
+        return null;
+      };
+      window.browser = { runtime: {
+        sendMessage: (m) => { window.SENT.push(m); return Promise.resolve({ ok: true, data: answer(m) }); },
+        onMessage: { addListener() {} },
+      } };
+    });
+    await page.goto("https://abs.test/item/li_1");
+    await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
+    const item = page.locator("#absh-item");
+    await expect(item).toContainText("✓ On");
+    await expect(item.locator("button", { hasText: "Update on" })).toHaveCount(0);
+    await item.locator("button", { hasText: "Copy again" }).click();
+    await expect.poll(() => page.evaluate(() => SENT.find((m) => m.type === "jobAdd")))
+      .toMatchObject({ op: "pull", force: true, items: [{ ref: "li_1", title: "B" }] });
   });
 
   test("a collection too big for the player says so instead of starting", async ({ page }) => {

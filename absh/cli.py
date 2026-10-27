@@ -122,6 +122,10 @@ def show_report(rep, verb):
     bits = []
     if rep.get("copied"):
         bits.append(f"copied {rep['copied']} file(s)")
+    if rep.get("updated"):
+        bits.append(f"updated {rep['updated']} file(s) in place")
+    if rep.get("written"):
+        bits.append(f"wrote {human(rep['written'])}")
     if rep.get("uploaded"):
         bits.append(f"uploaded {rep['uploaded']} book(s)")
     if rep.get("removed"):
@@ -136,6 +140,8 @@ def show_report(rep, verb):
         n = len(rep["interrupted"])
         print(paint(f"The player went away: {n} book(s) not copied. Plug it back in and "
                     "run the same command again - what is there is skipped.", YELLOW))
+    for e in rep.get("notes", []):
+        print(paint("  - " + e, YELLOW))
     for e in rep.get("errors", []):
         print(paint("  ! " + e, RED))
     return 1 if rep.get("errors") or rep.get("interrupted") else 0
@@ -162,6 +168,8 @@ def cmd_config(args, cfg):
             changed[key] = v
     if args.rename_m4b is not None:
         changed["renameM4b"] = args.rename_m4b
+    if args.write_tags is not None:
+        changed["writeTags"] = args.write_tags
 
     if changed:
         cfg.update(changed)
@@ -217,6 +225,8 @@ def cmd_status(args, cfg):
         print(paint(f"\non both ({len(both)})", GREEN))
         for b in sorted(both, key=lambda x: (x.get("author") or "", x.get("title") or "")):
             how = "" if b["matchedBy"] == "id" else paint(f"  [matched by {b['matchedBy']}]", DIM)
+            if b.get("stale"):
+                how += paint("  [changed on the server -> absh pull]", YELLOW)
             print(f"  {b.get('title','?')}  {paint(human(b['bytes']), DIM)}{how}")
 
     if srv and args.only in (None, "server"):
@@ -256,31 +266,76 @@ def cmd_ls(args, cfg):
     return 0
 
 
+TAGS_PROMPT = ("Have Audiobookshelf embed each book's details (title, author, series, "
+               "narrator, cover) into its files first?\nThis is its Embed Metadata tool: "
+               "it changes the files in your library, and only works if your API key belongs to an admin.\n"
+               "[y]es, [n]o, [a]lways, ne[v]er: ")
+
+
+def tags_choice(args, cfg, ask=True):
+    """Whether this pull writes tags: the flag, else the setting, else ask -
+    and with nobody at the keyboard to ask, no."""
+    if getattr(args, "tags", None) is not None:
+        return args.tags
+    v = str(cfg.get("writeTags") or "ask").strip().lower()
+    if v != "ask":
+        return config_mod.writes_tags(cfg)
+    if not ask or not sys.stdin.isatty():
+        return False
+    while True:
+        try:
+            a = input(TAGS_PROMPT).strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return False
+        if a in ("y", "yes", "n", "no", ""):
+            return a in ("y", "yes")
+        if a in ("a", "always", "v", "never"):
+            keep = "always" if a.startswith("a") else "never"
+            print(f"  saved writeTags={keep} in {config_mod.remember('writeTags', keep, args.config)}"
+                  f" (change it with: absh config --write-tags ask)")
+            return keep == "always"
+
+
 def cmd_pull(args, cfg):
     require_device(cfg)
+    if not args.query and not args.all:
+        die("name something to pull, or pass --all")
     client = client_for(cfg)
     lib = pick_library(client, cfg)
     items = client.items(lib["id"])
     st = device_mod.status(cfg["devicePath"], cfg["subdir"], items,
                            cfg["folderTemplate"], read_tags=False)
-    # --force re-downloads books already on the device; otherwise only the
-    # ones that are missing are even considered.
-    pool = items if args.force else st["serverOnly"]
-    chosen = [i for i in pool if matches(f"{i.get('title')} {i.get('author')} {i.get('series')}",
-                                         args.query)]
-    if not args.query and not args.all:
-        die("name something to pull, or pass --all")
+    want = lambda i: matches(f"{i.get('title')} {i.get('author')} {i.get('series')}", args.query)
+    # --force goes over every book; otherwise the missing ones, and the ones
+    # this tool copied that the server has changed since. Either way only the
+    # files and bytes that differ are written.
+    if args.force:
+        chosen = [i for i in items if want(i)]
+    else:
+        chosen = [i for i in st["serverOnly"] if want(i)]
+        chosen += [b["item"] for b in st["both"] if b.get("stale") and want(b["item"])]
+    # Books copied without tags get them now, for a few bytes each - but only
+    # ask about that if there is something to ask about.
+    untagged = [] if args.force else [b["item"] for b in st["both"]
+                                      if b.get("source") == "index" and not b.get("tagged")
+                                      and not b.get("stale") and want(b["item"])]
+    write_tags = tags_choice(args, cfg, ask=bool(chosen or untagged) and not args.dry_run)
+    if write_tags:
+        chosen += untagged
     if not chosen:
         print("nothing matches" if args.query else "device is already up to date")
         return 0
 
-    print(f"pulling {len(chosen)} book(s) to {cfg['devicePath']}")
+    print(f"pulling {len(chosen)} book(s) to {cfg['devicePath']}"
+          + (", with Audiobookshelf's tags" if write_tags else ""))
     if args.dry_run:
+        on = {b["item"]["id"] for b in st["both"]}
         for i in chosen:
-            print(f"  would pull  {i.get('title')}")
+            print(f"  would {'update' if i['id'] in on else 'pull'}  {i.get('title')}")
         return 0
     emit = progress_printer(args.quiet)
-    rep = sync_mod.pull(client, chosen, dict(cfg, force=args.force), emit)
+    rep = sync_mod.pull(client, chosen, dict(cfg, force=args.force, writeTags=write_tags), emit)
     emit.finish()
     return show_report(rep, "pull")
 
@@ -458,6 +513,8 @@ def build_parser():
                    help="rename .m4b to .m4a on the device (default)")
     c.add_argument("--no-rename-m4b", dest="rename_m4b", action="store_false",
                    help="keep .m4b as-is")
+    c.add_argument("--write-tags", choices=["ask", "always", "never"],
+                   help="write Audiobookshelf's tags into copies (default: ask)")
     c.set_defaults(fn=cmd_config)
 
     s = sub.add_parser("status", help="what is on the server, the device, or both")
@@ -472,7 +529,12 @@ def build_parser():
 
     p = sub.add_parser("pull", help="copy books from the server to the device")
     common(p)
-    p.add_argument("--force", action="store_true", help="include books already on the device")
+    p.add_argument("--force", action="store_true",
+                   help="go over books already on the device too (still writes only what differs)")
+    p.add_argument("--tags", dest="tags", action="store_true", default=None,
+                   help="write Audiobookshelf's tags into the copies, without asking")
+    p.add_argument("--no-tags", dest="tags", action="store_false",
+                   help="leave the files' tags as they are on the server")
     p.set_defaults(fn=cmd_pull)
 
     u = sub.add_parser("push", help="upload device-only books to the server")

@@ -27,6 +27,8 @@ button.absh-badge::after { content: ""; position: absolute; inset: -4px; }
 .absh-badge.absh-copy { background: rgba(52, 67, 201, .95); color: #fff; }
 .absh-badge.absh-copy:hover { background: #2B39B0; }
 .absh-badge.absh-on { color: #8FE0B0; }
+.absh-badge.absh-update { background: rgba(180, 120, 20, .95); color: #fff; }
+.absh-badge.absh-update:hover { background: #9a6410; }
 .absh-badge.absh-failed { background: rgba(180, 35, 24, .95); color: #fff; }
 .absh-bar { width: 80%; height: 3px; border-radius: 2px; background: rgba(255,255,255,.2); overflow: hidden; }
 .absh-bar > i { display: block; height: 100%; background: #8C97F2; width: 0; }
@@ -101,6 +103,19 @@ button.absh-badge::after { content: ""; position: absolute; inset: -4px; }
   box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
 }
 #absh-note.absh-bad { border-left-color: #dc2626; color: #fca5a5; }
+
+/* Whether to write tags into the copies: asked once per copy, unless told. */
+#absh-ask {
+  position: fixed; right: 16px; bottom: 16px; z-index: 10001;
+  max-width: 380px; padding: 12px 14px;
+  background: #111827; color: #e5e7eb;
+  border: 1px solid #374151; border-left: 3px solid #4f46e5; border-radius: 6px;
+  font: 13px/1.45 system-ui, sans-serif;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+}
+#absh-ask p { margin: 0 0 10px; }
+#absh-ask .absh-ask-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#absh-ask label { display: inline-flex; align-items: center; gap: 4px; color: #9ca3af; }
 
 /* Chrome without the helper: why the player's folder cannot be used, and the
    way to fix it. Bottom left, clear of the panel and the note. */

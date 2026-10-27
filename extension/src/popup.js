@@ -134,8 +134,16 @@ function details(r) {
 }
 
 const rowsFor = {
+  // What to send to the player: books it does not have, and books that
+  // changed in Audiobookshelf since they were copied - those write only what
+  // differs.
   server: () => ST.serverOnly.map((i) => ({ key: i.id, id: i.id, title: i.title, item: i,
-    author: i.author, sub: line2(i, i.author), bytes: i.size })),
+    author: i.author, sub: line2(i, i.author), bytes: i.size }))
+    .concat(ST.both.filter((b) => b.stale && b.item).map((b) => ({
+      key: b.itemId, id: b.itemId, title: b.title, item: b.item, author: b.author,
+      sub: ["Changed since it was copied · update", line2(b.item, b.author)]
+        .filter(Boolean).join(" · "),
+      bytes: b.item.size || b.bytes }))),
   device: () => ST.both.map((b) => ({ key: b.name, name: b.name, id: b.itemId, title: b.title,
     item: b.item, author: b.author,
     sub: [line2(b.item, b.author),
@@ -251,8 +259,10 @@ function renderJob() {
     sub = cur.title;
   } else if (!live) {
     const mins = Math.max(1, Math.round((j.finishedAt - startedAt) / 60000));
+    const noted = items.filter((i) => i.note);
     sub = j.error || (failed.length ? failed.map((i) => `${i.title}: ${i.error || "failed"}`).join("\n")
-                                    : `${mins} min`);
+                                    : [`${mins} min`, ...noted.map((i) => `${i.title}: ${i.note}`)]
+                                      .join("\n"));
   }
   $("#jobSub").textContent = sub;
 }
@@ -399,6 +409,15 @@ function updateAction() {
     : running ? `Add ${rows.length} to the queue` : ACTION[TAB].label(rows.length);
   $("#actSub").textContent = sub;
   btn.classList.toggle("danger", TAB === "device" && rows.length > 0);
+  // Beside Remove on the Both tab: the same books, copied again.
+  const again = $("#again");
+  const pullable = rows.filter((r) => r.id);
+  again.classList.toggle("hidden", TAB !== "device" || SETUP || PANEL_OPEN || !rows.length);
+  again.disabled = !pullable.length;
+  again.title = pullable.length
+    ? `Check ${pullable.length} ${pullable.length === 1 ? "book" : "books"} against Audiobookshelf ` +
+      `and write only what differs to ${playerLabel()}`
+    : "";
 }
 
 /* ------------------------------------------------------------ lifecycle */
@@ -466,6 +485,7 @@ function setup({ title, why = "", steps = [], get = null, opts = false, retry = 
   $("#setup").classList.remove("hidden");
   $("#shelfView").classList.add("hidden");
   $("#act").classList.add("hidden");
+  $("#again").classList.add("hidden");
   SETUP = true;
 }
 
@@ -530,6 +550,7 @@ function openPlayer(open) {
   $("#playerPanel").classList.toggle("hidden", !open);
   $("#shelfView").classList.toggle("hidden", open);
   $("#act").classList.toggle("hidden", open);
+  if (open) $("#again").classList.add("hidden");
   $("#use").classList.toggle("hidden", !open);
   // Cancel goes back to a shelf - there is none to go back to without a player.
   $("#cancelPlayer").classList.toggle("hidden", !open || NO_PLAYER);
@@ -874,14 +895,60 @@ $("#jobCancel").addEventListener("click", async () => {
   }
 });
 
+/* Whether a copy writes Audiobookshelf's tags into the files: true, false,
+ * or null when the question was let go. Asked only when the setting says so. */
+let ASKING = null;
+async function askTags() {
+  const t = (await send({ type: "tagsAsk" })) || {};
+  if (!t.ask) return t.write;
+  const box = $("#tagsAsk");
+  $("#tagsPlayer").textContent = playerLabel();
+  $("#tagsKeep").checked = false;
+  box.classList.remove("hidden");
+  $("#tagsYes").focus();
+  return new Promise((resolve) => {
+    ASKING = (v) => {
+      ASKING = null;
+      box.classList.add("hidden");
+      if (v !== null && $("#tagsKeep").checked) {
+        send({ type: "tagsRemember", value: v ? "always" : "never" }).catch(() => {});
+      }
+      resolve(v);
+    };
+  });
+}
+$("#tagsYes").addEventListener("click", () => ASKING && ASKING(true));
+$("#tagsNo").addEventListener("click", () => ASKING && ASKING(false));
+
 $("#act").addEventListener("click", async () => {
   const rows = visible().filter((r) => SEL.has(r.key));
   if (!rows.length) return;
   const a = ACTION[TAB];
   try {
     SHOW_LAST = false;
-    onJob(await send({ type: "jobAdd", op: a.op, player: playerLabel(),
+    const writeTags = a.op === "pull" ? await askTags() : undefined;
+    if (writeTags === null) return;
+    onJob(await send({ type: "jobAdd", op: a.op, player: playerLabel(), writeTags,
                        items: rows.map((r) => ({ key: r.key, ref: a.ref(r), title: r.title,
+                                                 bytes: r.bytes })) }));
+    SEL.clear();
+    render();
+  } catch (e) {
+    status(String(e.message || e), "err");
+  }
+});
+
+/* Copy again, from the Both tab: each book is checked against the server
+ * file by file, and only the parts that differ are written. */
+$("#again").addEventListener("click", async () => {
+  const rows = visible().filter((r) => SEL.has(r.key) && r.id);
+  if (!rows.length) return;
+  try {
+    SHOW_LAST = false;
+    const writeTags = await askTags();
+    if (writeTags === null) return;
+    onJob(await send({ type: "jobAdd", op: "pull", force: true, player: playerLabel(), writeTags,
+                       items: rows.map((r) => ({ key: r.id, ref: r.id, title: r.title,
                                                  bytes: r.bytes })) }));
     SEL.clear();
     render();
@@ -893,6 +960,15 @@ $("#act").addEventListener("click", async () => {
 /* Every action has a key, and the key is printed on it. */
 document.addEventListener("keydown", (e) => {
   if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+  // The tags question is the only thing the keys answer while it is up.
+  if (ASKING) {
+    const k = e.key.toLowerCase();
+    if (k === "escape" || k === "y" || k === "n") {
+      e.preventDefault();
+      ASKING(k === "escape" ? null : k === "y");
+    }
+    return;
+  }
   const t = e.target;
   if (e.key === "Enter") {
     // A focused button or link does its own thing on Enter.
@@ -928,6 +1004,10 @@ document.addEventListener("keydown", (e) => {
   } else if (k === "r" && !PANEL_OPEN) {
     e.preventDefault();
     $("#refresh").click();
+  } else if (k === "c" && !PANEL_OPEN && !$("#again").classList.contains("hidden")
+             && !$("#again").disabled) {
+    e.preventDefault();
+    $("#again").click();
   }
 });
 

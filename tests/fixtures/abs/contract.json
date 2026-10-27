@@ -47,7 +47,8 @@
         "results[].media.metadata.authorName, or authors[].name",
         "results[].media.metadata.narratorName, or narrators[]",
         "results[].media.metadata.seriesName, or series[].name and sequence",
-        "results[].media.metadata.publishedYear"
+        "results[].media.metadata.publishedYear",
+        "results[].updatedAt, which moves when the book's details or files change"
       ]
     },
     {
@@ -78,6 +79,25 @@
     },
     {
       "method": "GET",
+      "path": "/api/items/{id}?expanded=1",
+      "used_for": "copying file by file, only what changed, and the tags Embed Metadata would write",
+      "fields": [
+        "media.audioFiles[].ino, index, exclude",
+        "media.audioFiles[].metadata.filename, relPath, size, mtimeMs",
+        "media.metadata.title, subtitle, authors[].name, narrators[], series[].name and sequence",
+        "media.metadata.genres[], publishedYear, description, publisher",
+        "the tags mirror getFFMetadataObject in server/utils/ffmpegHelpers.js"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/items/{id}/file/{ino}/download",
+      "used_for": "fetching one file of a book, when only it changed",
+      "fields": ["accepts the API key as an Authorization: Bearer header",
+                 "returns the file as stored"]
+    },
+    {
+      "method": "GET",
       "path": "/api/items/{id}/download",
       "used_for": "fetching a book to copy to the player",
       "fields": [
@@ -87,6 +107,18 @@
         "Content-Type contains \"zip\" for the multi-file case"
       ],
       "note": "Audiobookshelf also takes the key as ?token=, but a key in a URL ends up in logs and proxies, so it is never sent that way (store/PRIVACY.md)."
+    },
+    {
+      "method": "POST",
+      "path": "/api/tools/item/{id}/embed-metadata",
+      "used_for": "having Audiobookshelf embed a book's details into its files before a copy (its Embed Metadata tool); admin only, 403 otherwise, 400 when that book is already queued",
+      "fields": ["starts a task and answers 200 at once", "rewrites the files in place with ffmpeg, keeping each inode; size and mtime in the database stay stale until a rescan"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/tasks?include=queue",
+      "used_for": "waiting for that embed to finish",
+      "fields": ["tasks[].action == 'embed-metadata'", "tasks[].isFinished", "tasks[].data.libraryItemId", "queuedTaskData.embedMetadata[].libraryItemId"]
     },
     {
       "method": "POST",

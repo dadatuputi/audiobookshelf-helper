@@ -5,7 +5,7 @@
  * permissions.request() has to come from a real user gesture, which is what
  * the Grant access button is. */
 // The player (devicePath, subdir) is chosen in the popup, not here.
-const FIELDS = ["absUrl", "apiKey", "folderTemplate"];
+const FIELDS = ["absUrl", "apiKey", "folderTemplate", "writeTags"];
 const CHECKS = ["renameM4b"];
 
 const $ = (id) => document.getElementById(id);
@@ -99,9 +99,12 @@ async function serverRow() {
 
 async function namingRow() {
   const s = await browser.storage.local.get({ folderTemplate: ABSH.DEFAULTS.folderTemplate,
-                                              renameM4b: true });
+                                              renameM4b: true,
+                                              writeTags: ABSH.DEFAULTS.writeTags });
+  const tags = { ask: "asks about embedding tags", always: "embeds tags", never: "leaves tags" };
   setRow("naming", "ok", `${s.folderTemplate} · ` +
-                         (s.renameM4b ? ".m4b → .m4a" : "keeps .m4b"));
+                         (s.renameM4b ? ".m4b → .m4a" : "keeps .m4b") +
+                         ` · ${tags[s.writeTags] || tags.ask}`);
 }
 
 function note(el, msg, cls) {
@@ -428,7 +431,7 @@ $("checkUpdate").addEventListener("click", () => refreshHelper(true));
 
 /* Saving says what it changed, in words, beside the button that did it. */
 const LABELS = { absUrl: "URL", apiKey: "API key", folderTemplate: "folder template",
-                 renameM4b: ".m4b renaming" };
+                 renameM4b: ".m4b renaming", writeTags: "tag writing" };
 
 function inWords(list) {
   return list.length < 2 ? list.join("")

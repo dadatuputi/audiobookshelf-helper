@@ -467,6 +467,39 @@ through the portal), and with no portal (expects "Not installed").
    at both ends of the supported range. The endpoints are in the API
    contract.
 
+### N17. Books carry the server's tags, and a re-copy moves only what changed — DONE
+Asked for (2026-10-26): write Audiobookshelf's tags into the copies, after a
+prompt; and transfer only what differs, down to the bytes. Then (2026-10-27):
+use Audiobookshelf's own mechanism, through the API, rather than writing tags
+on the player. **Done in the helper** (CLI, TUI, extension through the helper):
+- Before copying, a pull asks the server to embed the book's details
+  (`POST /api/tools/item/:id/embed-metadata`, its Embed Metadata tool) and
+  waits on `/api/tasks?include=queue` until the task is gone. This changes the
+  files in the library and needs the configured key to belong to an admin; a 401/403, an error or a
+  30-minute wait leaves the book copied as it is, with a note saying why.
+- `absh/embed.py` keeps the server's `getFFMetadataObject` key for key, only
+  to digest what an embed would write. A book is embedded again only when that
+  digest differs from the one recorded on the player.
+- Pulls go per file (`/api/items/:id?expanded=1`, `/file/:ino/download`).
+  The index records each file's inode, size and mtime on the server and the
+  tags digest; an unchanged file is not downloaded, a changed one is diffed in
+  1 MiB blocks and only the 4 KiB sectors that differ are written. An embed
+  keeps the inode and the database can keep the old size and mtime until a
+  rescan, so after an embed every file of the book is fetched and diffed.
+  `--force` does the comparison for every file. A server that cannot list
+  files falls back to the whole-book download.
+- A book whose `updatedAt` on the server is newer than when it was copied is
+  "changed on the server": `status` and the TUI mark it, `pull` updates it,
+  and the extension offers **Update on <player>** on its cover and page, and
+  lists it under To player.
+- The extension asks before a copy (once per copy, or "Don't ask again"), and
+  Settings has Ask / Always / Never.
+
+**Not done: Chrome's folder mode** copies the server's files as they are,
+whole, with no embed. It could call the same endpoint, but its downloads are
+whole books, so it would re-copy every embedded book in full; the setting says
+it needs the helper, and the question is not asked in folder mode.
+
 ## Todo
 
 ### T1. Consume ping's `release` and offer the update — DONE (`0138d94`)
