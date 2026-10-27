@@ -222,21 +222,24 @@
 
   function serverItem(id) {
     const i = STATUS && (STATUS.serverOnly || []).find((x) => x.id === id);
+    const b = !i && onDevice(id);
+    if (b) return { id, title: b.title, ...(b.item || {}) };
     return i || (KNOWN.get(id) ? { id, ...KNOWN.get(id) } : { id });
   }
 
-  function copy(id) {
+  function copy(id, force = false) {
     const i = serverItem(id);
-    return queuePull([{ key: id, ref: id, title: i.title || "", bytes: i.size || 0 }]);
+    return queuePull([{ key: id, ref: id, title: i.title || "", bytes: i.size || 0 }], force);
   }
 
   /* Queue a copy, first asking about tags when the setting says to ask.
      Let go of the question and nothing is queued. */
-  async function queuePull(items) {
+  async function queuePull(items, force = false) {
     try {
       const writeTags = await askTags();
       if (writeTags === null) return;
-      setJob(await send({ type: "jobAdd", op: "pull", player: PLAYER, items, writeTags }));
+      setJob(await send({ type: "jobAdd", op: "pull", player: PLAYER, items, writeTags,
+                          ...(force ? { force: true } : {}) }));
     } catch (e) {
       note(String(e.message || e), true);
     }
@@ -439,7 +442,10 @@
     } else if (st && st.it.state !== "failed") {
       el.append(line(st.it.state === "copying" ? `Copying to ${PLAYER}…` : `Waiting to copy to ${PLAYER}`));
     } else if (here) {
-      if (here.stale) actions.append(bigButton(`Update on ${PLAYER}`, "", () => copy(id)));
+      // Changed on the server: Update. Otherwise Copy again, for when the
+      // copy is not trusted - checked file by file, only what differs written.
+      actions.append(here.stale ? bigButton(`Update on ${PLAYER}`, "", () => copy(id))
+        : bigButton("Copy again", "absh-ghost", () => copy(id, true)));
       actions.append(bigButton(`Remove from ${PLAYER}`, "absh-ghost absh-remove", () => {
         CONFIRM = { id, timer: setTimeout(() => unconfirm(), CONFIRM_SECONDS * 1000) };
         itemPage();

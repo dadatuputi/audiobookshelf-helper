@@ -537,6 +537,28 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
+  test("Copy again on the Both tab puts a damaged copy right, in place", async () => {
+    const file = join(env.dev, "AUDIOBOOKS", "Brian Jacques - Redwall.m4a");
+    const good = readFileSync(file);
+    // Same size, wrong bytes: nothing short of checking would notice.
+    writeFileSync(file, Buffer.alloc(good.length, 1));
+
+    const page = await env.ctx.newPage();
+    await page.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
+    await page.locator('.tab[data-tab="device"]').click();
+    await expect(page.locator("#again")).toBeHidden();
+    await page.locator("#all").check();
+    await expect(page.locator("#again")).toBeVisible();
+    await expect(page.locator("#again")).toBeEnabled();
+    await expect(page.locator("#act")).toContainText(`Remove 1 from ${basename(env.dev)}`);
+    await page.keyboard.press("c");
+    await expect.poll(() => readFileSync(file).equals(good), { timeout: 30_000 }).toBe(true);
+    expect(deviceFiles(env.dev)).toEqual(["Brian Jacques - Redwall.m4a"]);
+    await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
+    await page.close();
+  });
+
   test("a book only on the device is offered for upload, and uploads", async () => {
     // Something the server has never heard of, with its own tags.
     writeFileSync(join(env.dev, "AUDIOBOOKS", "scruffy_rip.m4a"),

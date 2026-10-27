@@ -409,6 +409,15 @@ function updateAction() {
     : running ? `Add ${rows.length} to the queue` : ACTION[TAB].label(rows.length);
   $("#actSub").textContent = sub;
   btn.classList.toggle("danger", TAB === "device" && rows.length > 0);
+  // Beside Remove on the Both tab: the same books, copied again.
+  const again = $("#again");
+  const pullable = rows.filter((r) => r.id);
+  again.classList.toggle("hidden", TAB !== "device" || SETUP || PANEL_OPEN || !rows.length);
+  again.disabled = !pullable.length;
+  again.title = pullable.length
+    ? `Check ${pullable.length} ${pullable.length === 1 ? "book" : "books"} against Audiobookshelf ` +
+      `and write only what differs to ${playerLabel()}`
+    : "";
 }
 
 /* ------------------------------------------------------------ lifecycle */
@@ -476,6 +485,7 @@ function setup({ title, why = "", steps = [], get = null, opts = false, retry = 
   $("#setup").classList.remove("hidden");
   $("#shelfView").classList.add("hidden");
   $("#act").classList.add("hidden");
+  $("#again").classList.add("hidden");
   SETUP = true;
 }
 
@@ -540,6 +550,7 @@ function openPlayer(open) {
   $("#playerPanel").classList.toggle("hidden", !open);
   $("#shelfView").classList.toggle("hidden", open);
   $("#act").classList.toggle("hidden", open);
+  if (open) $("#again").classList.add("hidden");
   $("#use").classList.toggle("hidden", !open);
   // Cancel goes back to a shelf - there is none to go back to without a player.
   $("#cancelPlayer").classList.toggle("hidden", !open || NO_PLAYER);
@@ -927,6 +938,25 @@ $("#act").addEventListener("click", async () => {
   }
 });
 
+/* Copy again, from the Both tab: each book is checked against the server
+ * file by file, and only the parts that differ are written. */
+$("#again").addEventListener("click", async () => {
+  const rows = visible().filter((r) => SEL.has(r.key) && r.id);
+  if (!rows.length) return;
+  try {
+    SHOW_LAST = false;
+    const writeTags = await askTags();
+    if (writeTags === null) return;
+    onJob(await send({ type: "jobAdd", op: "pull", force: true, player: playerLabel(), writeTags,
+                       items: rows.map((r) => ({ key: r.id, ref: r.id, title: r.title,
+                                                 bytes: r.bytes })) }));
+    SEL.clear();
+    render();
+  } catch (e) {
+    status(String(e.message || e), "err");
+  }
+});
+
 /* Every action has a key, and the key is printed on it. */
 document.addEventListener("keydown", (e) => {
   if (e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -974,6 +1004,10 @@ document.addEventListener("keydown", (e) => {
   } else if (k === "r" && !PANEL_OPEN) {
     e.preventDefault();
     $("#refresh").click();
+  } else if (k === "c" && !PANEL_OPEN && !$("#again").classList.contains("hidden")
+             && !$("#again").disabled) {
+    e.preventDefault();
+    $("#again").click();
   }
 });
 

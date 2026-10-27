@@ -1038,17 +1038,23 @@
       emit({ event: "progress", id: item.id, title, file: label, done, total });
 
     const have = await alreadyOnDevice(dev, await dirAt(dev, sub), item);
-    if (have) {
+    if (have && !opts.force) {
       rep.skipped += 1;
       step(1, 1, have);
       return have;
     }
 
-    try {
-      name = freeName(name, item, await takenNames(dev, await dirAt(dev, sub)));
-    } catch (e) {
-      rep.fail(title, explain(e));
-      return null;
+    if (have) {
+      // Copy again: into the place it already has, so it is not made twice.
+      const rec = (await loadIndex(dev)).entries[have] || {};
+      name = rec.kind === "file" ? stem(have) : have;
+    } else {
+      try {
+        name = freeName(name, item, await takenNames(dev, await dirAt(dev, sub)));
+      } catch (e) {
+        rep.fail(title, explain(e));
+        return null;
+      }
     }
     let got;
     try {
@@ -1058,13 +1064,14 @@
       const srcname = m ? m[1] : title + ".bin";
       const root = await dirAt(dev, sub, true);
       if (r.contentType.toLowerCase().includes("zip") || srcname.toLowerCase().endsWith(".zip")) {
-        got = await unzipBook(r.blob, root, name, rename, rep, title, step);
+        got = await unzipBook(r.blob, root, name, rename, rep, title, step, !!opts.force);
       } else {
         const srcExt = suffix(srcname).toLowerCase();
         const dstName = `${name}${outExt(srcname, rename)}`;
         step(1, 1, dstName);
         const there = await child(root, dstName);
-        if (there && there.kind === "file" && (await there.getFile()).size === r.blob.size) {
+        if (there && there.kind === "file" && (await there.getFile()).size === r.blob.size
+            && (!opts.force || (await sameBytes(await there.getFile(), r.blob)))) {
           rep.skipped += 1;
         } else if (there) {
           await writeBlob(there, r.blob);
@@ -1093,7 +1100,21 @@
     return got.entry;
   }
 
-  async function unzipBook(blob, root, name, rename, rep, title, step) {
+  /* Whether a file on the player already holds exactly these bytes. Read in
+     pieces, so a long book is not held twice in memory. */
+  async function sameBytes(file, blob) {
+    if (file.size !== blob.size) return false;
+    const STEP = 1 << 20;
+    for (let at = 0; at < blob.size; at += STEP) {
+      const [x, y] = await Promise.all([file.slice(at, at + STEP).arrayBuffer(),
+                                        blob.slice(at, at + STEP).arrayBuffer()]);
+      const u = new Uint8Array(x), v = new Uint8Array(y);
+      for (let i = 0; i < u.length; i++) if (u[i] !== v[i]) return false;
+    }
+    return true;
+  }
+
+  async function unzipBook(blob, root, name, rename, rep, title, step, force = false) {
     const target = await root.getDirectoryHandle(name, { create: true });
     const all = await zipEntries(blob);
     // zipfile.getinfo: the last member of a given name is the one opened.
@@ -1115,7 +1136,17 @@
       const ext = outExt(member, rename);
       const dst = `${String(i + 1).padStart(3, "0")} - ${fit(clean(stem(member)), MAX_NAME - 6 - ext.length)}${ext}`;
       step(i + 1, members.length, dst);
-      if (await child(target, dst)) {
+      const there = await child(target, dst);
+      if (there && force) {
+        // Copy again: a part is rewritten only if its bytes differ.
+        const part = await new Response(await zipMemberStream(blob, byName.get(member))).blob();
+        if (there.kind === "file" && (await sameBytes(await there.getFile(), part))) {
+          rep.skipped += 1;
+        } else {
+          await writeBlob(there, part);
+          rep.copied += 1;
+        }
+      } else if (there) {
         rep.skipped += 1;
       } else {
         await createWhole(target, dst, async (fh) => {

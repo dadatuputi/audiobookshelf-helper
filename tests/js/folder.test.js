@@ -154,6 +154,54 @@ describe("where the browser differs on purpose", () => {
     expect(rep.copied).toBe(1);
   });
 
+  /* Copy again (force): the book goes back into the place it has, and a
+     file is written only when its bytes differ - even at the same size. */
+  const single = (text) => ({
+    async download() {
+      return { contentType: "audio/mpeg", disposition: 'attachment; filename="Book.mp3"',
+               blob: new Blob([Buffer.from(text)]) };
+    },
+  });
+  const textOf = async (dev, ...path) => {
+    let d = dev;
+    for (const p of path.slice(0, -1)) d = await d.getDirectoryHandle(p);
+    return (await (await d.getFileHandle(path.at(-1))).getFile()).text();
+  };
+  const opts = { subdir: "AUDIOBOOKS" };
+
+  it("copy again rewrites a file whose bytes changed at the same size, in place", async () => {
+    const dev = new MemDir();
+    await F.pull(single("aaaa"), dev, [book], opts);
+    const plain = await F.pull(single("bbbb"), dev, [book], opts);
+    expect([plain.copied, plain.skipped]).toEqual([0, 1]);
+    const again = await F.pull(single("bbbb"), dev, [book], { ...opts, force: true });
+    expect([again.copied, again.skipped, again.errors]).toEqual([1, 0, []]);
+    expect(await textOf(dev, "AUDIOBOOKS", "Au - Book.mp3")).toBe("bbbb");
+    expect([...(await dev.getDirectoryHandle("AUDIOBOOKS")).kids.keys()].sort())
+      .toEqual(["Au - Book.mp3"]);
+  });
+
+  it("copy again of a file that is the same writes nothing", async () => {
+    const dev = new MemDir();
+    await F.pull(single("aaaa"), dev, [book], opts);
+    const again = await F.pull(single("aaaa"), dev, [book], { ...opts, force: true });
+    expect([again.copied, again.skipped]).toEqual([0, 1]);
+  });
+
+  it("copy again rewrites only the parts of a folder book that differ", async () => {
+    const dev = new MemDir();
+    const crcHello = 0x3610a686;
+    await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), crcHello)), dev, [book], opts);
+    const same = await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), crcHello)), dev, [book],
+                              { ...opts, force: true });
+    expect([same.copied, same.skipped]).toEqual([0, 1]);
+    // "jello": same length, different bytes.
+    const changed = await F.pull(client(zipOf("a.mp3", Buffer.from("jello"), 0x4cd0f5e6)), dev,
+                                 [book], { ...opts, force: true });
+    expect([changed.copied, changed.errors]).toEqual([1, []]);
+    expect(await textOf(dev, "AUDIOBOOKS", "Au - Book", "001 - a.mp3")).toBe("jello");
+  });
+
   it("refuses a backslash in a name to remove on every OS, not just Windows", async () => {
     const dev = new MemDir();
     await (await dev.getDirectoryHandle("AUDIOBOOKS", { create: true }))

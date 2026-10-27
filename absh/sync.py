@@ -159,7 +159,8 @@ def pull_book(client, item, opts, report, emit=_noop):
     except ValueError as e:
         report.fail(title, str(e))
         return None
-    got = _download(client, item, root, name, rename, report, step, opts["devicePath"])
+    got = _download(client, item, root, name, rename, report, step, opts["devicePath"],
+                    force=bool(opts.get("force")))
     if got is None:
         return None
     written, entry_name, kind, src_ext = got
@@ -171,7 +172,7 @@ def pull_book(client, item, opts, report, emit=_noop):
     return entry_name
 
 
-def _download(client, item, root, name, rename, report, step, device_path):
+def _download(client, item, root, name, rename, report, step, device_path, force=False):
     """Fetch over the API. One file, or a zip for a multi-file book.
 
     Raises DeviceGone if the player is not there to write to, rather than
@@ -212,7 +213,13 @@ def _download(client, item, root, name, rename, report, step, device_path):
                     step(i, len(members), dst.name)
                     # Written whole or not at all, so one that exists is
                     # complete: a book cut off at file 20 carries on at 21.
-                    if dst.exists():
+                    if dst.exists() and force:
+                        # Forced: only the sectors that differ are written.
+                        with z.open(member) as src:
+                            n = _diff_write(dst, src)
+                        report["written"] += n
+                        report["copied" if n else "skipped"] += 1
+                    elif dst.exists():
                         report["skipped"] += 1
                     else:
                         with z.open(member) as src:
@@ -226,7 +233,14 @@ def _download(client, item, root, name, rename, report, step, device_path):
         dst = root / f"{name}{ext}"
         dst.parent.mkdir(parents=True, exist_ok=True)
         step(1, 1, dst.name)
-        if dst.exists() and dst.stat().st_size == tmp.stat().st_size:
+        if dst.exists() and force:
+            # Forced: compared with what is there, and only what differs is
+            # written - a same-size file with the wrong bytes is put right.
+            with open(tmp, "rb") as src:
+                n = _diff_write(dst, src)
+            report["written"] += n
+            report["copied" if n else "skipped"] += 1
+        elif dst.exists() and dst.stat().st_size == tmp.stat().st_size:
             report["skipped"] += 1
         else:
             # A move across drives is a copy, and a copy cut off midway would

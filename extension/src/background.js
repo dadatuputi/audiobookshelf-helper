@@ -382,7 +382,7 @@ async function backend() {
  * makes for the helper below. */
 const FOLDER_ARGS = {
   status: (m) => ({ libraryId: m.libraryId, readTags: m.readTags !== false }),
-  pull: (m) => ({ ids: m.ids, libraryId: m.libraryId }),
+  pull: (m) => ({ ids: m.ids, libraryId: m.libraryId, force: !!m.force }),
   push: (m) => ({ names: m.names, libraryId: m.libraryId, folderId: m.folderId }),
   remove: (m) => ({ names: m.names }),
   libraries: () => ({}),
@@ -447,7 +447,8 @@ async function route(msg, onProgress) {
       if (JOBS.paused && !RESUMING) setTimeout(tryResume, 0);
       return { ok: true, data: LAST_STATUS };
     case "lastStatus": return { ok: true, data: LAST_STATUS };
-    case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player, msg.writeTags) };
+    case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player, msg.writeTags,
+                                                    !!msg.force) };
     case "tagsAsk":   return { ok: true, data: await tagsAsk() };
     case "tagsRemember":
       await browser.storage.local.set({ writeTags: msg.value === "always" ? "always" : "never" });
@@ -459,6 +460,7 @@ async function route(msg, onProgress) {
       badge();
       return { ok: true, data: snapshot() };
     case "pull":      return { ok: true, data: await call("pull", { ids: msg.ids, libraryId: msg.libraryId,
+                                                                    ...(msg.force ? { force: true } : {}),
                                                                     ...tagsArg(msg.writeTags) }, onProgress) };
     case "push":      return { ok: true, data: await call("push", { names: msg.names, libraryId: msg.libraryId, folderId: msg.folderId }, onProgress) };
     case "remove":    return { ok: true, data: await call("remove", { names: msg.names }, onProgress) };
@@ -577,7 +579,7 @@ function tagsArg(v) {
   return typeof v === "boolean" ? { writeTags: v } : {};
 }
 
-function addJob(op, items, player, writeTags) {
+function addJob(op, items, player, writeTags, force = false) {
   // A run is everything queued from idle until idle again - ten covers
   // clicked one after another are one run of ten, whatever the jobs. Counted
   // as a run, so a finished book is "2 of 10", not gone from "1 of 9".
@@ -587,6 +589,8 @@ function addJob(op, items, player, writeTags) {
   const job = {
     id: ++JOBS.seq, op, player: player || "",
     ...(op === "pull" && typeof writeTags === "boolean" ? { writeTags } : {}),
+    // Copy again: books already on the player, checked file by file.
+    ...(op === "pull" && force ? { force: true } : {}),
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
                               bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0 })),
     startedAt: 0, finishedAt: 0, result: null, error: "",
@@ -626,7 +630,8 @@ async function runJobs() {
     };
     const todo = job.items.filter((i) => i.state !== "done");
     const refs = todo.map((i) => i.ref);
-    const msg = job.op === "pull" ? { type: "pull", ids: refs, ...tagsArg(job.writeTags) }
+    const msg = job.op === "pull" ? { type: "pull", ids: refs, ...(job.force ? { force: true } : {}),
+                                          ...tagsArg(job.writeTags) }
       : { type: job.op, names: refs };
     let left = new Set();
     try {

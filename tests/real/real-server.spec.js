@@ -337,6 +337,55 @@ test.describe("against a real Audiobookshelf", () => {
     await page.close();
   });
 
+  test("Copy again, from the book's page and from the popup, puts a damaged copy right", async () => {
+    const shots = process.env.ABSH_SHOTS;
+    if (shots) mkdirSync(shots, { recursive: true });
+    const title = state.titles[0];
+    const page = await libraryPage();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const card = cardFor(page, title);
+    await card.locator("button.absh-badge.absh-copy").click();
+    const on = card.locator("div.absh-badge.absh-on");
+    await expect(on).toContainText("✓ On ", { timeout: 60_000 });
+    const file = join(state.device, "AUDIOBOOKS",
+                      deviceFiles(state.device).find((f) => f.endsWith(".m4a")));
+    const good = readFileSync(file);
+    // Same size, wrong bytes in the middle: only checking finds it.
+    const damage = () => {
+      const bad = Buffer.from(good);
+      bad.fill(0, bad.length >> 2, bad.length >> 1);
+      writeFileSync(file, bad);
+    };
+    const restored = () => until(() => (readFileSync(file).equals(good) ? true : null));
+
+    damage();
+    const id = await on.getAttribute("data-absh-id");
+    await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
+    const again = page.locator("#absh-item button", { hasText: "Copy again" });
+    await expect(again).toBeVisible({ timeout: 30_000 });
+    if (shots) await page.screenshot({ path: join(shots, "book-copy-again.png") });
+    await again.click();
+    expect(await restored(), "the book's page did not put it right").toBe(true);
+    await page.close();
+
+    damage();
+    const pop = await ctx.newPage();
+    await pop.setViewportSize({ width: 400, height: 600 });
+    await pop.goto(`chrome-extension://${EXT_ID}/popup.html`);
+    await pop.locator('.tab[data-tab="device"]').click();
+    await expect(pop.locator("#list li")).toHaveCount(1, { timeout: 30_000 });
+    await pop.locator("#all").check();
+    await expect(pop.locator("#again")).toBeEnabled();
+    if (shots) await pop.screenshot({ path: join(shots, "popup-copy-again.png") });
+    await pop.click("#again");
+    expect(await restored(), "the popup did not put it right").toBe(true);
+    expect(deviceFiles(state.device).filter((f) => f.endsWith(".m4a")).length).toBe(1);
+    await expect(pop.locator("#jobBox")).toBeVisible({ timeout: 30_000 });
+    if (shots) await pop.screenshot({ path: join(shots, "popup-copy-again-done.png") });
+    await pop.close();
+    emptyDevice(state);
+  });
+
   test("a series, an author, a playlist and a collection each copy what they list in one click",
     async () => {
     const page = await libraryPage();

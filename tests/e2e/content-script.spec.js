@@ -183,6 +183,37 @@ test.describe("content script behaviour", () => {
     await item.locator("button", { hasText: "Update on" }).click();
     await expect.poll(() => page.evaluate(() => SENT.find((m) => m.type === "jobAdd")))
       .toMatchObject({ op: "pull", writeTags: true, items: [{ ref: "li_1" }] });
+    expect((await page.evaluate(() => SENT.find((m) => m.type === "jobAdd"))).force).toBeUndefined();
+  });
+
+  test("a book already on the player can be copied again from its page", async ({ page }) => {
+    await page.route("**/item/**", (r) => r.fulfill({ status: 200, contentType: "text/html",
+      body: `<!doctype html><html><body><div class="row"><button class="abs-btn bg-success">Play</button></div></body></html>` }));
+    await page.addInitScript(() => {
+      window.SENT = [];
+      const answer = (m) => {
+        if (m.type === "status") {
+          return { backend: "native", serverOnly: [], deviceOnly: [], free: {},
+                   both: [{ name: "A - B.m4a", itemId: "li_1", title: "B", stale: false,
+                            item: { id: "li_1", title: "B" } }] };
+        }
+        if (m.type === "tagsAsk") return { ask: false, write: true };
+        if (m.type === "jobAdd") return { current: null, queue: [], last: null };
+        return null;
+      };
+      window.browser = { runtime: {
+        sendMessage: (m) => { window.SENT.push(m); return Promise.resolve({ ok: true, data: answer(m) }); },
+        onMessage: { addListener() {} },
+      } };
+    });
+    await page.goto("https://abs.test/item/li_1");
+    await page.addScriptTag({ content: readFileSync(contentJs, "utf8") });
+    const item = page.locator("#absh-item");
+    await expect(item).toContainText("✓ On");
+    await expect(item.locator("button", { hasText: "Update on" })).toHaveCount(0);
+    await item.locator("button", { hasText: "Copy again" }).click();
+    await expect.poll(() => page.evaluate(() => SENT.find((m) => m.type === "jobAdd")))
+      .toMatchObject({ op: "pull", force: true, items: [{ ref: "li_1", title: "B" }] });
   });
 
   test("a collection too big for the player says so instead of starting", async ({ page }) => {

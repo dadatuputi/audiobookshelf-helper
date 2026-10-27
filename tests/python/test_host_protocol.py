@@ -159,6 +159,33 @@ class TestProgressOptIn(unittest.TestCase):
         self.assertEqual(cfg["subdir"], "AUDIOBOOKS")
 
 
+class TestCopyAgain(unittest.TestCase):
+    """The extension's Copy again sends force; a plain pull does not."""
+
+    def run_pull(self, msg):
+        from unittest import mock
+        seen = {}
+
+        class C:
+            def items(self, lib):
+                return [{"id": "a", "title": "A"}]
+
+        def pull(client, items, cfg, emit):
+            seen.update(cfg)
+            return {"books": 0}
+        with tempfile.TemporaryDirectory() as dev, \
+                mock.patch.object(H, "client_for", lambda cfg: C()), \
+                mock.patch.object(H.sync_mod, "pull", pull):
+            H.cmd_pull(dict(msg, devicePath=dev, libraryId="L"), lambda e: None)
+        return seen
+
+    def test_force_reaches_the_sync(self):
+        self.assertTrue(self.run_pull({"ids": ["a"], "force": True}).get("force"))
+
+    def test_a_plain_pull_is_not_forced(self):
+        self.assertFalse(self.run_pull({"ids": ["a"]}).get("force"))
+
+
 class TestWirePayload(unittest.TestCase):
     def test_status_does_not_leak_filesystem_paths(self):
         st = {"both": [{"name": "a", "kind": "file", "bytes": 1, "files": 1,
