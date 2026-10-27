@@ -18,7 +18,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { cardFor, deviceFiles, until, stripPlacement, underPlay,
-         oneClickGroups, unplugMidRun, emptyDevice } from "./shared.mjs";
+         oneClickGroups, unplugMidRun, emptyDevice, answerTags, tagsOf } from "./shared.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
@@ -277,10 +277,12 @@ test.describe("against a real Audiobookshelf", () => {
     const copy = card.locator("button.absh-badge.absh-copy");
     await expect(copy).toHaveText("Copy to player", { timeout: 30_000 });
     await copy.click();
+    // Asked first; yes, and always for the rest of the run.
+    await answerTags(page, expect, true);
 
     // The real assertion: a file on disk, put there through the native host.
     const files = await until(() => {
-      const f = deviceFiles(state.device);
+      const f = deviceFiles(state.device).filter((x) => !x.split("/").pop().startsWith("."));
       return f.length ? f : null;
     });
     expect(files, "nothing reached the device").not.toBeNull();
@@ -288,6 +290,11 @@ test.describe("against a real Audiobookshelf", () => {
     // .m4b becomes .m4a on the way. That rename is the whole point of the tool,
     // so assert it here rather than trusting the unit test alone.
     expect(files.some((f) => f.endsWith(".m4a")), `no .m4a in ${files}`).toBe(true);
+    // And it carries Audiobookshelf's tags, as its Embed Metadata writes them.
+    const tags = tagsOf(join(state.device, "AUDIOBOOKS", files.find((f) => f.endsWith(".m4a"))));
+    expect(tags["©nam"]).toBe(title);
+    expect(tags["©ART"]).toBeTruthy();
+    expect(tags["aART"]).toBe(tags["©ART"]);
 
     // And the page catches up on its own, without a reload.
     await expect(card.locator("div.absh-badge.absh-on"))

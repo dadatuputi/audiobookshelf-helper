@@ -8,7 +8,30 @@
  * disk. That is the claim worth making.
  */
 import { readdirSync, rmSync, mkdirSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+/** The first copy asks whether to write Audiobookshelf's tags into it.
+ *  Answered here, and remembered, so no later copy in the run asks. */
+export async function answerTags(page, expect, write) {
+  const ask = page.locator("#absh-ask");
+  await expect(ask).toContainText("Write Audiobookshelf's details", { timeout: 30_000 });
+  await ask.locator("input[type=checkbox]").check();
+  await ask.locator("button", { hasText: write ? "Write tags" : "Leave them" }).click();
+  await expect(ask).toHaveCount(0);
+}
+
+/** The text tags in an MP4 on the device, read by the helper's own reader
+ *  ({"©nam": "...", ...}). */
+export function tagsOf(path) {
+  const py = "import json,sys; sys.path.insert(0, sys.argv[1]); from absh import mp4meta; "
+    + "t = mp4meta.read_tags(open(sys.argv[2], 'rb')); "
+    + "print(json.dumps({k.decode('latin-1'): v for k, v in t.items()}))";
+  return JSON.parse(execFileSync("python3", ["-c", py, ROOT, path], { encoding: "utf8" }));
+}
 
 /** Every file the device holds, relative to the books folder.
  *
