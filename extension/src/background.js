@@ -126,6 +126,37 @@ async function cfg() {
   return browser.storage.local.get(ABSH.DEFAULTS);
 }
 
+/* A book's cover, small, as a data URL the popup can show beside its details;
+ * "" when the book has none. Fetched here, where the key is, and kept for the
+ * life of the worker so opening a row twice asks the server once. */
+const COVERS = new Map();
+const COVER_KEEP = 80;
+async function cover(id) {
+  if (!id) return "";
+  if (COVERS.has(id)) return COVERS.get(id);
+  const c = await cfg();
+  if (!c.absUrl || !c.apiKey || !(await hasHostPermission(c.absUrl))) return "";
+  let url = "";
+  try {
+    const r = await fetch(`${ABSH.baseUrl(c.absUrl)}/api/items/${encodeURIComponent(id)}/cover?width=160`,
+                          { headers: { Authorization: `Bearer ${c.apiKey}` } });
+    if (r.ok && /^image\//.test(r.headers.get("content-type") || "")) {
+      const blob = await r.blob();
+      url = await new Promise((done) => {
+        const fr = new FileReader();
+        fr.onload = () => done(String(fr.result || ""));
+        fr.onerror = () => done("");
+        fr.readAsDataURL(blob);
+      });
+    }
+  } catch {
+    return "";                              // not kept: asked again next time
+  }
+  if (COVERS.size >= COVER_KEEP) COVERS.delete(COVERS.keys().next().value);
+  COVERS.set(id, url);
+  return url;
+}
+
 async function hasHostPermission(absUrl) {
   try {
     return await browser.permissions.contains({ origins: [ABSH.originPattern(absUrl)] });
@@ -453,6 +484,7 @@ async function route(msg, onProgress) {
       if (JOBS.paused && !RESUMING) setTimeout(tryResume, 0);
       return { ok: true, data: LAST_STATUS };
     case "lastStatus": return { ok: true, data: LAST_STATUS };
+    case "cover":      return { ok: true, data: await cover(msg.id) };
     case "jobAdd":    return { ok: true, data: addJob(msg.op, msg.items || [], msg.player, msg.writeTags,
                                                     !!msg.force) };
     case "tagsAsk":   return { ok: true, data: await tagsAsk() };

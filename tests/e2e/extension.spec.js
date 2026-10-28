@@ -55,6 +55,9 @@ const BOOKS = [
   { id: "bk2", title: "Holes", author: "Louis Sachar", relPath: "Louis Sachar/Holes" }
 ];
 
+// An 8x12 PNG, one colour: enough to be a cover.
+const COVER_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAMCAIAAADQ/GvKAAAAEklEQVR4nGPYYqOBFTGMSqAjAL8/aQEDZUf/AAAAAElFTkSuQmCC", "base64");
+
 /** A stand-in Audiobookshelf. The helper now talks to this directly - the
  *  same client the CLI uses - so it needs the real endpoint surface. */
 const UPLOADS = [];
@@ -98,6 +101,13 @@ function startAbs() {
         return send({ app: "audiobookshelf", serverVersion: ABS_VERSION, isInit: true });
       }
       if (req.url.startsWith("/api/me")) return send({ username: "tester" });
+      // Redwall has a cover; Holes has none, as a book can.
+      const cover = /^\/api\/items\/([^/]+)\/cover/.exec(req.url);
+      if (cover) {
+        if (cover[1] !== "bk1") { rep.writeHead(404); return rep.end(); }
+        rep.writeHead(200, { "Content-Type": "image/png" });
+        return rep.end(COVER_PNG);
+      }
       if (/\/api\/items\/[^/]+\/download/.test(req.url)) {
         const id = /\/api\/items\/([^/]+)\/download/.exec(req.url)[1];
         const book = BOOKS.find((b) => b.id === id);
@@ -476,8 +486,21 @@ test.describe("full loop in a real browser", () => {
     await expect(row.locator("button.more")).toHaveAttribute("aria-expanded", "true");
     await expect(row.locator(".detail")).toContainText("Read by");
     await expect(row.locator(".detail")).toContainText("Brian Jacques, Full Cast");
+    // With the cover, fetched through the background with the key.
+    const art = row.locator(".detail img.art");
+    await expect(art).toBeVisible();
+    await expect.poll(() => art.evaluate((i) => i.naturalWidth)).toBe(8);
     // Opening the details is not choosing the book.
     await expect(row.locator("input[type=checkbox]")).not.toBeChecked();
+
+    // A book without a cover shows its details alone, not a broken image.
+    const holes = page.locator("#list li", { hasText: "Holes" });
+    await holes.locator("button.more").click();
+    await expect(holes.locator(".detail")).toContainText("Louis Sachar");
+    await expect(holes.locator(".detail img")).toHaveCount(0);
+    if (process.env.ABSH_SHOTS) {
+      await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-details-art.png") });
+    }
     await page.close();
   });
 
