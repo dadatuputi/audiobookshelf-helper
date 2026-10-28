@@ -209,10 +209,12 @@ def cmd_status(msg, emit):
     cfg = settings(msg)
     require_device(cfg)
     client = client_for(cfg)
-    items = client.items(msg.get("libraryId") or library_id(client, cfg))
+    lib = msg.get("libraryId") or library_id(client, cfg)
+    items = client.items(lib)
     st = device_mod.status(cfg["devicePath"], cfg["subdir"], items,
                            cfg["folderTemplate"], read_tags=msg.get("readTags", True))
-    return {"ok": True, **_serialisable(st)}
+    # Which library this is, so the popup's Library card can open it.
+    return {"ok": True, **_serialisable(st), "libraryId": lib}
 
 
 def cmd_pull(msg, emit):

@@ -721,6 +721,66 @@ test.describe("full loop in a real browser", () => {
     }
   });
 
+  test("the player card shows how full it is, and how full the ticked books make it", async () => {
+    // Redwall is on the player; Holes is not. The free space is the real
+    // disk's, read through the helper, so only the shape of the words is pinned.
+    const page = await popupPage(env.ctx);
+    try {
+      await expect(page.locator("#n-server")).toHaveText("1", { timeout: 20_000 });
+      await expect(page.locator("#meter")).toBeVisible();
+      await expect(page.locator("#free")).toHaveText(/free$/);
+      // The Library card opens the library the shelf lists, in a tab.
+      await expect(page.locator("#libOpen")).toHaveAttribute("href", `${env.absUrl}/library/lib1`);
+      await expect(page.locator("#libOpen")).toHaveAttribute("target", "_blank");
+
+      const holes = page.locator("#list li", { hasText: "Holes" }).locator("input[type=checkbox]");
+      await holes.check();
+      await expect(page.locator("#free")).toHaveText(/ free after$/);
+      await expect(page.locator("#meter .m-sel")).toHaveAttribute("style", /width/);
+      if (process.env.ABSH_SHOTS) {
+        await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-space-fit.png") });
+      }
+      await holes.uncheck();
+      await expect(page.locator("#free")).toHaveText(/free$/);
+      await expect(page.locator("#free")).not.toHaveText(/after/);
+
+      // Told Holes is a petabyte: the card and a warning say it will not fit.
+      REPORTED_SIZE.bk2 = 2 ** 50;
+      await page.click("#refresh");
+      await holes.check();
+      // On the figure that is wrong, and on the button it would press.
+      await expect(page.locator("#free")).toHaveText(/ over$/);
+      await expect(page.locator("#free")).toHaveClass(/over/);
+      await expect(page.locator("#meter")).toHaveClass(/over/);
+      await expect(page.locator("#actSub")).toHaveText(/ over$/);
+      // A warning, not a refusal: the copy stops cleanly when the drive fills.
+      await expect(page.locator("#act")).toBeEnabled();
+      if (process.env.ABSH_SHOTS) {
+        await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-space-over.png") });
+        await page.emulateMedia({ colorScheme: "dark" });
+        await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-space-over-dark.png") });
+        await page.emulateMedia({ colorScheme: "light" });
+      }
+
+      // Already on the player, a Force copy is written over what is there, so
+      // a book the same size takes nothing. Each button says its own figure;
+      // the card does not guess which one is meant.
+      delete REPORTED_SIZE.bk2;
+      await page.click("#refresh");
+      await page.locator('.tab[data-tab="device"]').click();
+      await page.locator("#list li", { hasText: "Redwall" }).locator("input[type=checkbox]").check();
+      await expect(page.locator("#againSub")).toHaveText("Takes 0 B");
+      await expect(page.locator("#actSub")).toHaveText(/^Frees /);
+      await expect(page.locator("#free")).not.toHaveText(/after|over/);
+      if (process.env.ABSH_SHOTS) {
+        await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-space-both.png") });
+      }
+    } finally {
+      delete REPORTED_SIZE.bk2;
+      await page.close();
+    }
+  });
+
   test("removing deletes from the device but never from the library", async () => {
     const page = await env.ctx.newPage();
     await page.goto(`chrome-extension://${EXT_ID}/popup.html`);

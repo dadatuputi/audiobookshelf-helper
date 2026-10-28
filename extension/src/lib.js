@@ -75,6 +75,29 @@
     return `${items.length} checked, ${changed} changed, ${bytes} written`;
   }
 
+  /** The room a copy takes on the player. A book that is not there takes its
+   *  size. One that is - an update, or a forced copy - is written over where
+   *  it lies (sync._diff_write), so it takes only what it grows by. */
+  function roomNeeded(serverBytes, onPlayerBytes) {
+    const s = Number(serverBytes) || 0;
+    if (onPlayerBytes == null) return s;
+    return Math.max(0, s - (Number(onPlayerBytes) || 0));
+  }
+
+  /** The player's drive as the popup draws it: what is used, what the queue
+   *  will still take, and what the books ticked now would take (negative:
+   *  give back). Null when nothing says how big the drive is. */
+  function storagePlan(free, queued, selected) {
+    const total = Number(free && free.total) || 0;
+    const avail = Number(free && free.free) || 0;
+    if (!total || !avail) return null;
+    queued = Math.max(0, Number(queued) || 0);
+    selected = Number(selected) || 0;
+    const after = avail - queued - selected;
+    return { total, free: avail, used: total - avail, queued, selected, after,
+             over: Math.max(0, -after) };
+  }
+
   /** "17.6GB", or "17.6 GB" with `spaced`, as a reader expects in a sentence. */
   function formatBytes(n, spaced = false) {
     n = Number(n) || 0;
@@ -250,7 +273,7 @@
   }
 
   const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, sandboxHelp, originPattern, libraryPattern, libraryPrefix,
-                formatBytes, badgeCount, checkSummary, parseVersion, compareVersions, updateCheckDue,
+                formatBytes, badgeCount, checkSummary, roomNeeded, storagePlan, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;
   if (typeof module !== "undefined" && module.exports) module.exports = lib;

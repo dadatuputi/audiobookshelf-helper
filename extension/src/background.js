@@ -641,7 +641,9 @@ function addJob(op, items, player, writeTags, force = false) {
     // Force copy: books already on the player, checked file by file.
     ...(op === "pull" && force ? { force: true } : {}),
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
-                              bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0 })),
+                              bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0,
+                              // The room it takes on the player, when that is not its size.
+                              ...(i.need != null ? { need: Number(i.need) || 0 } : {}) })),
     startedAt: 0, finishedAt: 0, result: null, error: "",
   };
   JOBS.queue.push(job);
