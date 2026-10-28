@@ -87,15 +87,26 @@ class Report(dict):
     """Accumulates what happened, in a shape both the CLI and the host render."""
 
     def __init__(self):
-        super().__init__(copied=0, skipped=0, updated=0, written=0, wrote={}, uploaded=0,
-                         removed=[], freed=0, errors=[], notes=[], books=0, interrupted=[])
+        super().__init__(copied=0, skipped=0, updated=0, written=0, wrote={}, failed={}, noted={},
+                         uploaded=0, removed=[], freed=0, errors=[], notes=[], books=0, interrupted=[])
+        # The book being copied: what is said about it is kept by its id too,
+        # since two editions can share a title and "<title>: why" cannot say
+        # which of them it means.
+        self.book = None
+
+    def _by_book(self, key, said):
+        if self.book is not None:
+            was = self[key].get(self.book)
+            self[key][self.book] = f"{was}; {said}" if was else said
 
     def fail(self, title, why):
         self["errors"].append(f"{title}: {why}")
+        self._by_book("failed", str(why))
 
     def note(self, title, what):
         """Worth saying, but the book is fine: not an error."""
         self["notes"].append(f"{title}: {what}")
+        self._by_book("noted", str(what))
 
 
 # ------------------------------------------------------------------- pull
@@ -145,7 +156,22 @@ def pull_book(client, item, opts, report, emit=_noop):
 
     full = _full_item(client, item)
     if full is not None:
-        return _pull_files(client, item, full, opts, report, step, root, name, rename)
+        try:
+            return _pull_files(client, item, full, opts, report, step, root, name, rename)
+        except StaleFiles as stale:
+            # A file Audiobookshelf lists for the book but cannot find: its
+            # list is out of date. Have it read the book's folder again, then
+            # copy what it lists now.
+            try:
+                client.scan_item(item["id"])
+            except AbsError as e:
+                report.fail(title, f"download failed - {stale.error}; Audiobookshelf's list of "
+                                   f"this book's files looks out of date, and it would not rescan "
+                                   f"it ({e}): open the book in Audiobookshelf and choose Re-Scan")
+                return None
+            full = _full_item(client, item) or full
+            return _pull_files(client, item, full, opts, report, step, root, name, rename,
+                               embedded=stale.embedded, rescanned=True)
 
     if not opts.get("force"):
         have = already_on_device(opts, item)
@@ -412,7 +438,18 @@ def _download_file(client, item_id, f, step_label, step, n, total):
         return Path(fh.name)
 
 
-def _pull_files(client, item, full, opts, report, step, root, name, rename):
+class StaleFiles(Exception):
+    """A file of the book was a 404: Audiobookshelf's list of its files no
+    longer matches the disk."""
+
+    def __init__(self, error, embedded):
+        super().__init__(str(error))
+        self.error = error
+        self.embedded = embedded
+
+
+def _pull_files(client, item, full, opts, report, step, root, name, rename,
+                embedded=False, rescanned=False):
     title = item.get("title") or name
     device_path = opts["devicePath"]
     force = bool(opts.get("force"))
@@ -438,14 +475,16 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
     digest = embed.digest(full)
     had = {r.get("tags") for r in old.values()} if old else {None}
     refetch = False
-    if config_mod.writes_tags(opts) and had != {digest}:
+    if embedded:
+        refetch = True              # embedded before the rescan, not again
+    elif config_mod.writes_tags(opts) and had != {digest}:
         try:
             _embed_on_server(client, item["id"], step)
         except (EmbedRefused, AbsError) as e:
             report.note(title, f"copied without tags - {e}")
             digest = None
         else:
-            refetch = True
+            refetch = embedded = True
             full = _full_item(client, item) or full
             files = embed.audio_files(full)
     elif had != {digest}:
@@ -515,7 +554,11 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
         report.fail(title, f"copy failed - {e}")
         return None
     except AbsError as e:
-        report.fail(title, f"download failed - {e}")
+        if e.status == 404 and not rescanned:
+            raise StaleFiles(e, embedded) from e
+        report.fail(title, f"download failed - {e}" + (
+            " (still, after Audiobookshelf rescanned the book: check its files in "
+            "Audiobookshelf)" if e.status == 404 else ""))
         return None
     finally:
         if tmp is not None:
@@ -549,6 +592,7 @@ def pull(client, items, opts, emit=_noop):
         emit({"event": "item", "id": item.get("id"), "title": item.get("title"),
               "index": n, "count": len(items), "op": "pull"})
         before = report["written"]
+        report.book = item.get("id")
         try:
             pull_book(client, item, opts, report, emit)
             # What this book put on the player, so a forced copy can say how
@@ -559,7 +603,9 @@ def pull(client, items, opts, emit=_noop):
             break
         except Exception as e:                      # one bad book, not the batch
             report.fail(item.get("title", "?"), str(e))
+        report.book = None
     return report
+
 
 
 # ------------------------------------------------------------------- push

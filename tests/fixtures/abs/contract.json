@@ -115,6 +115,12 @@
       "fields": ["starts a task and answers 200 at once", "rewrites the files in place with ffmpeg, keeping each inode; size and mtime in the database stay stale until a rescan"]
     },
     {
+      "method": "POST",
+      "path": "/api/items/{id}/scan",
+      "used_for": "when a file of a book is a 404 to download, having Audiobookshelf read the book's folder again so its list of files matches the disk, then fetching it once more; admin only, 403 otherwise",
+      "fields": ["answers when the scan is done, with result"]
+    },
+    {
       "method": "GET",
       "path": "/api/tasks?include=queue",
       "used_for": "waiting for that embed to finish",

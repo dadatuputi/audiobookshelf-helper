@@ -661,7 +661,15 @@ async function runJobs() {
       const notes = (job.result.notes || []).map(String);
       for (const it of todo) {
         if (left.has(it.ref)) { it.state = "waiting"; continue; }
-        const bad = errs.find((e) => e.startsWith(`${it.title}:`));
+        // By id where the result says, since two editions can share a title
+        // and "<title>: why" cannot tell them apart; by title from a helper
+        // too old to say.
+        const byTitle = (lines) => {
+          const hit = lines.find((e) => e.startsWith(`${it.title}:`));
+          return hit ? hit.slice(it.title.length + 1).trim() : "";
+        };
+        const { failed, noted } = job.result;
+        const bad = failed ? failed[it.ref] || "" : byTitle(errs);
         it.state = bad ? "failed" : "done";
         // Force copy: what each book put on the player, so the popup can say
         // how many it changed out of those it checked.
@@ -669,9 +677,9 @@ async function runJobs() {
           it.forced = true;
           it.wrote = Number((job.result.wrote || {})[it.ref]) || 0;
         }
-        if (bad) it.error = bad.slice(it.title.length + 1).trim();
-        const said = notes.find((e) => e.startsWith(`${it.title}:`));
-        if (said) it.note = said.slice(it.title.length + 1).trim();
+        if (bad) it.error = bad;
+        const said = noted ? noted[it.ref] || "" : byTitle(notes);
+        if (said) it.note = said;
       }
     } catch (e) {
       // Did the job fail, or did what it needed go away - the player, or the

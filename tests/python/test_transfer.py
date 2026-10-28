@@ -115,6 +115,7 @@ class Server:
         self.admin = admin
         self.fetched = []
         self.embeds = []
+        self.scans = []
         self.busy = 0                       # polls left before the task is done
 
     def item(self, item_id):
@@ -138,6 +139,9 @@ class Server:
             # Rewritten in place. The size and time it reports stay as they
             # were until a scan - the case the copy has to cope with.
             self.files[ino] = book_file(data[TAG_AREA:], f"{title}|{sorted(self.files).index(ino) + 1}")
+
+    def scan_item(self, item_id):
+        self.scans.append(item_id)
 
     def embedding(self, item_id):
         self.busy = max(0, self.busy - 1)
@@ -326,6 +330,76 @@ class TestPullByBytes(unittest.TestCase):
         self.pull(s, writeTags=False)
         self.assertEqual(s.fetched, ["111"])
         self.assertEqual(self.book().read_bytes(), book_file())
+
+    def test_a_failure_is_said_by_book_when_two_share_a_title(self):
+        """Two editions of a book can share a title, so "<title>: why" alone
+        would mark both failed when one did."""
+        class OneFails(Server):
+            def open_file(self, item_id, ino, timeout=None):
+                if item_id == "li_2":
+                    raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+                return super().open_file(item_id, ino, timeout)
+
+        other = dict(ITEM, id="li_2", narrator="Full Cast")
+        rep = sync.pull(OneFails({"111": book_file()}), [ITEM, other], dict(self.opts, writeTags=False))
+        self.assertEqual(list(rep["failed"]), ["li_2"])
+        self.assertIn("404", rep["failed"]["li_2"])
+        self.assertFalse(rep["failed"]["li_2"].startswith("Mossflower"))
+        self.assertEqual(len(rep["errors"]), 1)
+
+    def test_a_file_the_server_cannot_find_is_fetched_again_after_a_rescan(self):
+        """Audiobookshelf can list a file by an inode it no longer has: a
+        404. Asked to read the book's folder again, it lists the right one."""
+        class Stale(Server):
+            scanned = False
+
+            def item(self, item_id):
+                full = super().item(item_id)
+                if not self.scanned:
+                    for af in full["media"]["audioFiles"]:
+                        af["ino"] = "999" + af["ino"]
+                return full
+
+            def scan_item(self, item_id):
+                super().scan_item(item_id)
+                self.scanned = True
+
+            def open_file(self, item_id, ino, timeout=None):
+                if ino not in self.files:
+                    raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+                return super().open_file(item_id, ino, timeout)
+
+        s = Stale({"111": book_file()})
+        rep = self.pull(s)
+        self.assertEqual(s.scans, ["li_1"])
+        self.assertEqual(s.embeds, ["li_1"], "embedded again after the rescan")
+        self.assertEqual(s.fetched, ["111"])
+        self.assertEqual(self.rec()["files"][0]["ino"], "111")
+        self.assertEqual(self.rec()["files"][0]["tags"], embed.digest(s.item("li_1")))
+        self.assertEqual(rep["books"], 1)
+
+    def test_a_file_still_missing_after_a_rescan_fails_and_says_so(self):
+        class Gone(Server):
+            def open_file(self, item_id, ino, timeout=None):
+                raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+
+        s = Gone({"111": book_file()})
+        rep = sync.pull(s, [ITEM], dict(self.opts, writeTags=False))
+        self.assertEqual(s.scans, ["li_1"])
+        self.assertEqual(len(rep["errors"]), 1)
+        self.assertIn("after Audiobookshelf rescanned", rep["errors"][0])
+
+    def test_a_key_that_cannot_rescan_says_what_to_do(self):
+        class Gone(Server):
+            def open_file(self, item_id, ino, timeout=None):
+                raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+
+            def scan_item(self, item_id):
+                raise AbsError("Audiobookshelf /api/items/li_1/scan responded 403", status=403)
+
+        rep = sync.pull(Gone({"111": book_file()}), [ITEM], dict(self.opts, writeTags=False))
+        self.assertEqual(len(rep["errors"]), 1)
+        self.assertIn("Re-Scan", rep["errors"][0])
 
     def legacy_folder(self, inner):
         """A one-file book as older versions copied it: Audiobookshelf's

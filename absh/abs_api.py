@@ -207,6 +207,13 @@ class Client:
                            data=b"", method="POST"):
             pass
 
+    def scan_item(self, item_id):
+        """Have Audiobookshelf read a book's folder again, so its list of the
+        book's files matches the disk. Admins only."""
+        with self._request(f"/api/items/{urllib.parse.quote(str(item_id))}/scan",
+                           data=b"", method="POST"):
+            pass
+
     def embedding(self, item_id):
         """Whether an embed for this book is still queued or running."""
         d = self._json("/api/tasks?include=queue")

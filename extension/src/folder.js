@@ -989,8 +989,8 @@
    * not stop because one book is odd. */
 
   function report() {
-    const r = { copied: 0, skipped: 0, written: 0, wrote: {}, uploaded: 0, removed: [], freed: 0,
-                errors: [], books: 0, interrupted: [] };
+    const r = { copied: 0, skipped: 0, written: 0, wrote: {}, failed: {}, uploaded: 0, removed: [],
+                freed: 0, errors: [], books: 0, interrupted: [] };
     Object.defineProperty(r, "fail", { value: (title, why) => r.errors.push(`${title}: ${why}`) });
     return r;
   }
@@ -1202,6 +1202,7 @@
       }
       emit({ event: "item", id: item.id, title: item.title, index: n + 1, count: items.length, op: "pull" });
       const before = rep.written;
+      const errs = rep.errors.length;
       try {
         await pullBook(c, dev, item, opts, rep, emit);
         // What this book put on the player, so a forced copy can say how
@@ -1214,6 +1215,11 @@
         }
         rep.fail(item.title || "?", explain(e));
       }
+      // By id as well: two editions can share a title, and "<title>: why"
+      // cannot say which of them it means.
+      const title = item.title || "?";
+      const said = rep.errors.slice(errs).map((ln) => (ln.startsWith(`${title}: `) ? ln.slice(title.length + 2) : ln));
+      if (said.length) rep.failed[item.id] = said.join("; ");
     }
     return rep;
   }

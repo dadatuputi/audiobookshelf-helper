@@ -136,6 +136,8 @@ describe("where the browser differs on purpose", () => {
     const rep = await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), 12345)), dev, [book],
                              { subdir: "AUDIOBOOKS" });
     expect(rep.errors).toEqual(["Book: download failed - Bad CRC-32 for file 'a.mp3'"]);
+    // By id too: two editions can share a title.
+    expect(rep.failed).toEqual({ b: "download failed - Bad CRC-32 for file 'a.mp3'" });
     const folder = await (await dev.getDirectoryHandle("AUDIOBOOKS")).getDirectoryHandle("Au - Book");
     // Not even an empty one: a part that exists is skipped next time, so an
     // empty file left here would keep the book a track short for good.
