@@ -144,6 +144,16 @@ describe("compareVersions", () => {
   });
 });
 
+describe("badgeCount", () => {
+  it("fits the toolbar badge: four characters at most", () => {
+    expect(ABSH.badgeCount(25)).toBe("25");
+    expect(ABSH.badgeCount(0)).toBe("0");
+    expect(ABSH.badgeCount(999)).toBe("999");
+    expect(ABSH.badgeCount(1000)).toBe("999+");
+    expect(ABSH.badgeCount(-1)).toBe("0");
+  });
+});
+
 describe("updateCheckDue", () => {
   // Written out rather than read from ABSH, which loads in beforeAll - after
   // this body runs - and because the numbers are the decision under test.
