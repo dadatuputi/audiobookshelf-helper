@@ -88,6 +88,35 @@ class TestEmbed(unittest.TestCase):
         self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "2"])
 
 
+    def test_an_out_of_date_audio_entry_is_downloaded_by_its_library_file(self):
+        """Seen on a real server: the audio entry kept an inode and a path the
+        file no longer has, while the library files were right; asking by
+        its inode is a 404, and a rescan changes nothing."""
+        def lf(ino, name, kind="audio"):
+            return {"ino": ino, "fileType": kind,
+                    "metadata": {"filename": name, "relPath": name, "path": f"/b/{name}"}}
+
+        def af(ino, name, path=None):
+            return {"ino": ino, "metadata": {"filename": name, "relPath": name,
+                                              "path": path or f"/b/{name}"}}
+
+        # Path gone stale, name the same.
+        full = {"media": {"audioFiles": [af("385", "a.m4b", "/old/a.m4b")]},
+                "libraryFiles": [lf("9", "cover.jpg", "image"), lf("951", "a.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["951"])
+        # Name and path both stale: the one audio file left is the one.
+        full = {"media": {"audioFiles": [af("385", "a (old).m4b")]},
+                "libraryFiles": [lf("9", "cover.jpg", "image"), lf("951", "a.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["951"])
+        # Two parts, one stale: the match by path stands, the other pairs up.
+        full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("385", "p2 (old).m4b")]},
+                "libraryFiles": [lf("1", "p1.m4b"), lf("22", "p2.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "22"])
+        # Nothing to pair with: its own inode, as before.
+        full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("2", "p2.m4b")]},
+                "libraryFiles": [lf("1", "p1.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "2"])
+
 class Resp:
     def __init__(self, body):
         self.body = body
@@ -115,7 +144,6 @@ class Server:
         self.admin = admin
         self.fetched = []
         self.embeds = []
-        self.scans = []
         self.busy = 0                       # polls left before the task is done
 
     def item(self, item_id):
@@ -139,9 +167,6 @@ class Server:
             # Rewritten in place. The size and time it reports stay as they
             # were until a scan - the case the copy has to cope with.
             self.files[ino] = book_file(data[TAG_AREA:], f"{title}|{sorted(self.files).index(ino) + 1}")
-
-    def scan_item(self, item_id):
-        self.scans.append(item_id)
 
     def embedding(self, item_id):
         self.busy = max(0, self.busy - 1)
@@ -346,60 +371,6 @@ class TestPullByBytes(unittest.TestCase):
         self.assertIn("404", rep["failed"]["li_2"])
         self.assertFalse(rep["failed"]["li_2"].startswith("Mossflower"))
         self.assertEqual(len(rep["errors"]), 1)
-
-    def test_a_file_the_server_cannot_find_is_fetched_again_after_a_rescan(self):
-        """Audiobookshelf can list a file by an inode it no longer has: a
-        404. Asked to read the book's folder again, it lists the right one."""
-        class Stale(Server):
-            scanned = False
-
-            def item(self, item_id):
-                full = super().item(item_id)
-                if not self.scanned:
-                    for af in full["media"]["audioFiles"]:
-                        af["ino"] = "999" + af["ino"]
-                return full
-
-            def scan_item(self, item_id):
-                super().scan_item(item_id)
-                self.scanned = True
-
-            def open_file(self, item_id, ino, timeout=None):
-                if ino not in self.files:
-                    raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
-                return super().open_file(item_id, ino, timeout)
-
-        s = Stale({"111": book_file()})
-        rep = self.pull(s)
-        self.assertEqual(s.scans, ["li_1"])
-        self.assertEqual(s.embeds, ["li_1"], "embedded again after the rescan")
-        self.assertEqual(s.fetched, ["111"])
-        self.assertEqual(self.rec()["files"][0]["ino"], "111")
-        self.assertEqual(self.rec()["files"][0]["tags"], embed.digest(s.item("li_1")))
-        self.assertEqual(rep["books"], 1)
-
-    def test_a_file_still_missing_after_a_rescan_fails_and_says_so(self):
-        class Gone(Server):
-            def open_file(self, item_id, ino, timeout=None):
-                raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
-
-        s = Gone({"111": book_file()})
-        rep = sync.pull(s, [ITEM], dict(self.opts, writeTags=False))
-        self.assertEqual(s.scans, ["li_1"])
-        self.assertEqual(len(rep["errors"]), 1)
-        self.assertIn("after Audiobookshelf rescanned", rep["errors"][0])
-
-    def test_a_key_that_cannot_rescan_says_what_to_do(self):
-        class Gone(Server):
-            def open_file(self, item_id, ino, timeout=None):
-                raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
-
-            def scan_item(self, item_id):
-                raise AbsError("Audiobookshelf /api/items/li_1/scan responded 403", status=403)
-
-        rep = sync.pull(Gone({"111": book_file()}), [ITEM], dict(self.opts, writeTags=False))
-        self.assertEqual(len(rep["errors"]), 1)
-        self.assertIn("Re-Scan", rep["errors"][0])
 
     def legacy_folder(self, inner):
         """A one-file book as older versions copied it: Audiobookshelf's

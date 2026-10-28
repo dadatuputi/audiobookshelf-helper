@@ -11,6 +11,9 @@ without asking the server to embed again.
 """
 import hashlib
 import json
+from pathlib import Path
+
+from .naming import AUDIO_EXT
 
 
 def _names(v, key="name"):
@@ -58,27 +61,50 @@ def digest(full):
     return hashlib.sha1(raw).hexdigest()[:16]
 
 
+def _download_inos(afs, lfs):
+    """The inode to download each audio file by.
+
+    Audiobookshelf finds a file to download among the item's library files,
+    by inode. The audio entry's own record can be out of date - its inode,
+    even its path - after the file was replaced; asking by that inode is a
+    404, and a rescan does not mend it, since the library files are right.
+    So each audio file is matched to a library file: by path, then by file
+    name, then, for what is left, in order when as many are left on each
+    side. Only one with no match at all is asked for by its own inode."""
+    audio = [lf for lf in lfs if lf.get("ino") is not None
+             and (lf.get("fileType") == "audio" if lf.get("fileType")
+                  else Path((lf.get("metadata") or {}).get("filename") or "").suffix.lower() in AUDIO_EXT)]
+    meta = lambda x: x.get("metadata") or {}
+    got = [None] * len(afs)
+    free = list(audio)
+    for key in ("path", "filename", "relPath"):
+        for i, af in enumerate(afs):
+            if got[i] is None and meta(af).get(key):
+                hit = next((lf for lf in free if meta(lf).get(key) == meta(af)[key]), None)
+                if hit is not None:
+                    got[i] = hit
+                    free.remove(hit)
+    left = [i for i, g in enumerate(got) if g is None]
+    if left and len(left) == len(free):
+        free.sort(key=lambda lf: meta(lf).get("relPath") or meta(lf).get("filename") or "")
+        for i, lf in zip(sorted(left, key=lambda i: meta(afs[i]).get("relPath") or ""), free):
+            got[i] = lf
+    return [str((g or af)["ino"]) for g, af in zip(got, afs)]
+
+
 def audio_files(full):
     """The book's audio files, in the order the download zip lists them,
     with what identifies each on the server."""
     media = full.get("media") or {}
-    # A file is downloaded by the inode in the item's list of files. The one
-    # its audio entry carries can be out of date - after the file has been
-    # replaced, say - and asking for that one is a 404.
-    by_path = {}
-    for lf in full.get("libraryFiles") or []:
-        m = lf.get("metadata") or {}
-        if lf.get("ino") is not None and m.get("path"):
-            by_path[m["path"]] = str(lf["ino"])
+    afs = [af for af in media.get("audioFiles") or []
+           if not af.get("exclude") and af.get("ino") is not None
+           and (af.get("metadata") or {}).get("filename")]
+    inos = _download_inos(afs, full.get("libraryFiles") or [])
     out = []
-    for af in media.get("audioFiles") or []:
-        if af.get("exclude"):
-            continue
-        m = af.get("metadata") or {}
-        if af.get("ino") is None or not m.get("filename"):
-            continue
+    for af, ino in zip(afs, inos):
+        m = af["metadata"]
         out.append({
-            "ino": by_path.get(m.get("path"), str(af["ino"])),
+            "ino": ino,
             "index": af.get("index"),
             "filename": m["filename"],
             "relPath": m.get("relPath") or m["filename"],
