@@ -498,6 +498,17 @@ test.describe("full loop in a real browser", () => {
     await holes.locator("button.more").click();
     await expect(holes.locator(".detail")).toContainText("Louis Sachar");
     await expect(holes.locator(".detail img")).toHaveCount(0);
+    // Its facts start where its title does, with no room kept for a cover:
+    // not only the first time, but after the list is drawn again from what
+    // it remembers, which once left an empty image holding the space.
+    const left = async (loc) => (await loc.boundingBox()).x;
+    expect(await left(holes.locator(".facts"))).toBe(await left(holes.locator(".t")));
+    await row.locator("button.more").click();
+    await expect(row.locator(".detail")).toHaveCount(0);
+    await expect(holes.locator(".detail img")).toHaveCount(0);
+    expect(await left(holes.locator(".facts"))).toBe(await left(holes.locator(".t")));
+    await row.locator("button.more").click();
+    await expect(art).toBeVisible();
     if (process.env.ABSH_SHOTS) {
       await page.locator("body").screenshot({ path: join(process.env.ABSH_SHOTS, "popup-details-art.png") });
     }
