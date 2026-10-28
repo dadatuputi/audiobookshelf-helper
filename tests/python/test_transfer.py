@@ -123,7 +123,19 @@ class TestEmbed(unittest.TestCase):
                 "libraryFiles": [dict(lf("7", "new name.m4b"), metadata=dict(
                     lf("7", "new name.m4b")["metadata"], size=20, mtimeMs=2))]}
         got = embed.audio_files(full)
-        self.assertEqual([(f["ino"], f["size"], f["mtimeMs"]) for f in got], [("7", 20, 2)])
+        self.assertEqual([(f["ino"], f["filename"], f["size"], f["mtimeMs"], f["listed"]) for f in got],
+                         [("7", "new name.m4b", 20, 2, True)])
+        # Re-ripped: the disk gave p1's old inode to the new p2, so by inode
+        # alone the parts would swap. The path, still right, is tried first.
+        full = {"media": {"audioFiles": [af("1", "p1.mp3"), af("2", "p2.mp3")]},
+                "libraryFiles": [lf("2", "p1.mp3"), lf("3", "p2.mp3")]}
+        self.assertEqual([(f["filename"], f["ino"]) for f in embed.audio_files(full)],
+                         [("p1.mp3", "2"), ("p2.mp3", "3")])
+        # Nothing to pair with: its own inode, and not listed.
+        full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("2", "p2.m4b")]},
+                "libraryFiles": [lf("1", "p1.m4b")]}
+        self.assertEqual([(f["ino"], f["listed"]) for f in embed.audio_files(full)],
+                         [("1", True), ("2", False)])
         # Two discs with the same file names and stale paths: the relative
         # path tells them apart, so the discs are not swapped.
         full = {"media": {"audioFiles": [af("1", "01.mp3", "/old/CD1/01.mp3") | {"metadata": {
@@ -390,6 +402,35 @@ class TestPullByBytes(unittest.TestCase):
         self.assertIn("404", rep["failed"]["li_2"])
         self.assertFalse(rep["failed"]["li_2"].startswith("Mossflower"))
         self.assertEqual(len(rep["errors"]), 1)
+
+    def test_a_404_on_a_listed_file_says_to_rescan(self):
+        """Every inode asked for comes from the server's own list of the
+        book's files; a 404 on one of those means the list is not the disk,
+        and only the server can mend that. One asked for by the audio
+        entry's own inode, with no library file to match, gets no such hint."""
+        class Listed(Server):
+            def item(self, item_id):
+                full = super().item(item_id)
+                full["libraryFiles"] = [{"ino": af["ino"], "fileType": "audio",
+                                         "metadata": dict(af["metadata"], path="/b/" + af["metadata"]["relPath"])}
+                                        for af in full["media"]["audioFiles"]]
+                return full
+
+            def open_file(self, item_id, ino, timeout=None):
+                raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+
+        rep = sync.pull(Listed({"111": book_file()}), [ITEM], dict(self.opts, writeTags=False))
+        self.assertIn("Re-Scan", rep["errors"][0])
+
+        class Unlisted(Listed):
+            def item(self, item_id):
+                full = super().item(item_id)
+                full["libraryFiles"] = []
+                return full
+
+        rep = sync.pull(Unlisted({"111": book_file()}), [ITEM], dict(self.opts, writeTags=False))
+        self.assertNotIn("Re-Scan", rep["errors"][0])
+        self.assertIn("404", rep["errors"][0])
 
     def legacy_folder(self, inner):
         """A one-file book as older versions copied it: Audiobookshelf's

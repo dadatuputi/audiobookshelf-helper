@@ -71,16 +71,17 @@
   function checkSummary(items) {
     const wrote = items.map((i) => Number(i.wrote) || 0);
     const changed = wrote.filter((n) => n > 0).length;
-    const bytes = formatBytes(wrote.reduce((a, b) => a + b, 0)).replace(/^([\d.]+)/, "$1 ");
+    const bytes = formatBytes(wrote.reduce((a, b) => a + b, 0), true);
     return `${items.length} checked, ${changed} changed, ${bytes} written`;
   }
 
-  function formatBytes(n) {
+  /** "17.6GB", or "17.6 GB" with `spaced`, as a reader expects in a sentence. */
+  function formatBytes(n, spaced = false) {
     n = Number(n) || 0;
     const u = ["B", "KB", "MB", "GB", "TB"];
     let i = 0;
     while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-    return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)}${u[i]}`;
+    return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)}${spaced ? " " : ""}${u[i]}`;
   }
 
   /** The pattern without its trailing star, for a plain prefix test on a URL. */

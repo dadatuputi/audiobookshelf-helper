@@ -154,6 +154,14 @@ describe("badgeCount", () => {
   });
 });
 
+describe("formatBytes", () => {
+  it("puts a space before the unit only when asked", () => {
+    expect(ABSH.formatBytes(1536)).toBe("1.5KB");
+    expect(ABSH.formatBytes(1536, true)).toBe("1.5 KB");
+    expect(ABSH.formatBytes(0, true)).toBe("0 B");
+  });
+});
+
 describe("checkSummary", () => {
   it("says how many books a forced copy checked, changed and wrote", () => {
     const items = [{ wrote: 0 }, { wrote: 1024 * 1024 }, { wrote: 0.2 * 1024 * 1024 }, {}];

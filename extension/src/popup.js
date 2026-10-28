@@ -60,7 +60,7 @@ function el(tag, cls, text) {
 }
 
 /** "17.6 GB" - formatBytes with the space a reader expects. */
-const size = (n) => ABSH.formatBytes(n).replace(/^([\d.]+)/, "$1 ");
+const size = (n) => ABSH.formatBytes(n, true);
 
 /** "17.6 of 29.7 GB free": the denominator, without saying the unit twice. */
 function freeOf(f) {

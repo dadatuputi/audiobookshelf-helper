@@ -564,12 +564,15 @@ function notify(job) {
   const bytes = done.reduce((n, i) => n + (Number(i.bytes) || 0), 0);
   const mins = Math.max(1, Math.round((job.finishedAt - job.startedAt) / 60000));
   const where = job.op === "push" ? "the library" : job.player || "the player";
+  // A forced copy is summed up as what it checked and changed, as in the popup.
+  const forced = done.length > 0 && job.items.every((i) => i.forced);
   const title = failed.length || job.error
     ? `${VERB[job.op]} ${done.length} of ${job.items.length}; ${failed.length || "the rest"} failed`
+    : forced ? ABSH.checkSummary(done)
     : `${VERB[job.op]} ${done.length} ${done.length === 1 ? "book" : "books"} ${job.op === "remove" ? "from" : "to"} ${where}`;
   const noted = job.items.find((i) => i.note);
   const message = job.error ? job.error
-    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.` +
+    : `${forced ? `${done.length === 1 ? "Book" : "Books"} on ${where} checked` : ABSH.formatBytes(bytes, true)} in ${mins} min.` +
       (noted ? ` ${noted.title}: ${noted.note}` : "");
   Promise.resolve(browser.notifications.create(`absh-job-${job.id}`, {
     type: "basic", iconUrl: browser.runtime.getURL("icons/icon-96.png"), title, message,
@@ -668,17 +671,18 @@ async function runJobs() {
           const hit = lines.find((e) => e.startsWith(`${it.title}:`));
           return hit ? hit.slice(it.title.length + 1).trim() : "";
         };
-        const { failed, noted } = job.result;
-        const bad = failed ? failed[it.ref] || "" : byTitle(errs);
+        const { failed, noted, wrote } = job.result;
+        const bad = (failed && failed[it.ref]) || byTitle(errs);
         it.state = bad ? "failed" : "done";
         // Force copy: what each book put on the player, so the popup can say
-        // how many it changed out of those it checked.
-        if (job.force) {
+        // how many it changed out of those it checked. A helper too old to
+        // say leaves the run summed up as a copy.
+        if (job.force && wrote) {
           it.forced = true;
-          it.wrote = Number((job.result.wrote || {})[it.ref]) || 0;
+          it.wrote = Number(wrote[it.ref]) || 0;
         }
         if (bad) it.error = bad;
-        const said = noted ? noted[it.ref] || "" : byTitle(notes);
+        const said = (noted && noted[it.ref]) || byTitle(notes);
         if (said) it.note = said;
       }
     } catch (e) {

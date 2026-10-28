@@ -480,6 +480,7 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
     src_ext = ""
     changed = False
     tmp = None
+    asking = None
     try:
         for n, (f, dst) in enumerate(zip(files, dsts), 1):
             src_ext = src_ext or Path(f["filename"]).suffix.lower()
@@ -499,6 +500,7 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
                 out_files.append(record)
                 continue
 
+            asking = f
             tmp = _download_file(client, item["id"], f, dst.name, step, n, len(files))
             # Gone while it downloaded: stop, rather than make the player's
             # folders again on this disk below.
@@ -527,8 +529,8 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
         return None
     except AbsError as e:
         why = f"download failed - {e}"
-        if e.status == 404:
-            # Every inode asked for came from the server's own list of the
+        if e.status == 404 and asking is not None and asking.get("listed"):
+            # The inode asked for came from the server's own list of the
             # book's files, so what it lists is not on its disk.
             why += ("; Audiobookshelf lists a file for this book that it cannot find - "
                     "open the book there and choose Re-Scan")

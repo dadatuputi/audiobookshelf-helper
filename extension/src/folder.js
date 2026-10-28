@@ -991,7 +991,14 @@
   function report() {
     const r = { copied: 0, skipped: 0, written: 0, wrote: {}, failed: {}, uploaded: 0, removed: [],
                 freed: 0, errors: [], books: 0, interrupted: [] };
-    Object.defineProperty(r, "fail", { value: (title, why) => r.errors.push(`${title}: ${why}`) });
+    // The book being copied, as absh/sync.py's Report.book: what goes wrong
+    // with it is kept by its id too, since two editions can share a title
+    // and "<title>: why" cannot say which of them it means.
+    Object.defineProperty(r, "book", { value: null, writable: true });
+    Object.defineProperty(r, "fail", { value: (title, why) => {
+      r.errors.push(`${title}: ${why}`);
+      if (r.book != null) r.failed[r.book] = r.failed[r.book] ? `${r.failed[r.book]}; ${why}` : String(why);
+    } });
     return r;
   }
 
@@ -1169,7 +1176,7 @@
           // pipeTo closes the file on success and aborts it on failure.
           await (await zipMemberStream(blob, byName.get(member))).pipeTo(await fh.createWritable());
         });
-        rep.written += (await (await child(target, dst)).getFile()).size;
+        rep.written += byName.get(member).fileSize;
         rep.copied += 1;
       }
       written.push([target, dst]);
@@ -1202,7 +1209,7 @@
       }
       emit({ event: "item", id: item.id, title: item.title, index: n + 1, count: items.length, op: "pull" });
       const before = rep.written;
-      const errs = rep.errors.length;
+      rep.book = item.id;
       try {
         await pullBook(c, dev, item, opts, rep, emit);
         // What this book put on the player, so a forced copy can say how
@@ -1215,11 +1222,7 @@
         }
         rep.fail(item.title || "?", explain(e));
       }
-      // By id as well: two editions can share a title, and "<title>: why"
-      // cannot say which of them it means.
-      const title = item.title || "?";
-      const said = rep.errors.slice(errs).map((ln) => (ln.startsWith(`${title}: `) ? ln.slice(title.length + 2) : ln));
-      if (said.length) rep.failed[item.id] = said.join("; ");
+      rep.book = null;
     }
     return rep;
   }

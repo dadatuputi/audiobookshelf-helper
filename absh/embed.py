@@ -69,18 +69,20 @@ def _library_file_for(afs, lfs):
     its inode, its name, even its path - after the file was replaced or
     renamed on disk; asking by that inode is a 404, and a rescan does not
     mend it, since the library files are already right. So each audio entry
-    is matched to a library file: by inode first (a file renamed on disk
-    keeps it), then by path, then by relative path (which tells CD1/01.mp3
-    from CD2/01.mp3), then by file name. What is left is paired in order,
-    but only when as many are left on each side."""
-    audio = [lf for lf in lfs if lf.get("ino") is not None
-             and (lf.get("fileType") == "audio" if lf.get("fileType")
-                  else Path((lf.get("metadata") or {}).get("filename") or "").suffix.lower() in AUDIO_EXT)]
+    is matched to a library file: by path first (a disk can give a replaced
+    file's inode to another file of the book), then by inode (a file renamed
+    on disk keeps it), then by relative path (which tells CD1/01.mp3 from
+    CD2/01.mp3), then by file name. What is left is paired in order among
+    the library files that are audio, but only when as many are left on
+    each side."""
     meta = lambda x: x.get("metadata") or {}
-    keys = [(lambda x: str(x.get("ino")) if x.get("ino") is not None else None)] + \
-        [(lambda x, k=k: meta(x).get(k) or None) for k in ("path", "relPath", "filename")]
+    is_audio = lambda lf: lf.get("fileType") == "audio" if lf.get("fileType") \
+        else Path(meta(lf).get("filename") or "").suffix.lower() in AUDIO_EXT
+    keys = [(lambda x: meta(x).get("path") or None),
+            (lambda x: str(x.get("ino")) if x.get("ino") is not None else None)] + \
+        [(lambda x, k=k: meta(x).get(k) or None) for k in ("relPath", "filename")]
     got = [None] * len(afs)
-    free = list(audio)
+    free = [lf for lf in lfs if lf.get("ino") is not None]
     for key in keys:
         for i, af in enumerate(afs):
             if got[i] is None and key(af) is not None:
@@ -89,6 +91,7 @@ def _library_file_for(afs, lfs):
                     got[i] = hit
                     free.remove(hit)
     left = [i for i, g in enumerate(got) if g is None]
+    free = [lf for lf in free if is_audio(lf)]
     if left and len(left) == len(free):
         by_name = lambda x: meta(x).get("relPath") or meta(x).get("filename") or ""
         for i, lf in zip(sorted(left, key=lambda i: by_name(afs[i])), sorted(free, key=by_name)):
@@ -106,17 +109,18 @@ def audio_files(full):
     lfs = _library_file_for(afs, full.get("libraryFiles") or [])
     out = []
     for af, lf in zip(afs, lfs):
-        m = af["metadata"]
-        # Size and time from the library file where there is one: that is
-        # the file the download serves, and the audio entry's can be stale.
-        src = (lf or {}).get("metadata") or m
+        # Name, size and time from the library file where there is one: that
+        # is the file the download serves, and the audio entry's can be stale.
+        m = (lf or {}).get("metadata") or {}
+        m = {**af["metadata"], **{k: v for k, v in m.items() if v}}
         out.append({
             "ino": str((lf or af)["ino"]),
+            "listed": lf is not None,       # among the files the server serves
             "index": af.get("index"),
             "filename": m["filename"],
             "relPath": m.get("relPath") or m["filename"],
-            "size": int(src.get("size") or m.get("size") or 0),
-            "mtimeMs": int(float(src.get("mtimeMs") or m.get("mtimeMs") or 0)),
+            "size": int(m.get("size") or 0),
+            "mtimeMs": int(float(m.get("mtimeMs") or 0)),
         })
     out.sort(key=lambda f: f["relPath"])
     return out
