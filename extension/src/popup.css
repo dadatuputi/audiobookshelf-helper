@@ -159,8 +159,9 @@ button.more {
   font-size: 16px; line-height: 1;
 }
 button.more:hover { color: var(--ink); background: var(--bg); }
+/* Indented to the title above: the row's 15px, its 18px checkbox, the 12px gap. */
 .detail {
-  padding: 2px 12px 12px 48px; display: flex; gap: 12px; align-items: flex-start;
+  padding: 8px 12px 12px 45px; display: flex; gap: 12px; align-items: flex-start;
   font-size: 12px; background: var(--accent-soft);
 }
 .detail .art {

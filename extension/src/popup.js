@@ -123,14 +123,15 @@ function line2(i, fallbackAuthor) {
  * one, or a server not answering, shows nothing rather than a broken image. */
 const ART = new Map();                  // item id -> data URL, "" for none
 function art(id, title) {
+  if (ART.get(id) === "") return null;  // known to have none: no room kept
   const img = el("img", "art");
   img.alt = "";
   img.title = title || "";
-  const show = (url) => { if (url) img.src = url; else img.remove(); };
   if (ART.has(id)) {
-    show(ART.get(id));
+    img.src = ART.get(id);
   } else {
-    send({ type: "cover", id }).then((url) => { ART.set(id, url || ""); show(url); })
+    // Holds the cover's place while asking, and gives it up if there is none.
+    send({ type: "cover", id }).then((url) => { ART.set(id, url || ""); if (url) img.src = url; else img.remove(); })
       .catch(() => img.remove());
   }
   return img;
@@ -399,7 +400,8 @@ function render() {
     li.append(head);
     if (open) {
       const box = el("div", "detail");
-      if (r.id) box.appendChild(art(r.id, r.title));
+      const a = r.id ? art(r.id, r.title) : null;
+      if (a) box.appendChild(a);
       const dl = el("dl", "facts");
       for (const [k, v] of details(r)) dl.append(el("dt", "", k), el("dd", "", v));
       box.appendChild(dl);
