@@ -160,8 +160,16 @@ button.more {
 }
 button.more:hover { color: var(--ink); background: var(--bg); }
 .detail {
-  margin: 0; padding: 2px 12px 12px 48px; display: grid; grid-template-columns: 74px 1fr;
-  gap: 4px 10px; font-size: 12px; background: var(--accent-soft);
+  padding: 2px 12px 12px 48px; display: flex; gap: 12px; align-items: flex-start;
+  font-size: 12px; background: var(--accent-soft);
+}
+.detail .art {
+  flex: none; width: 72px; max-height: 108px; object-fit: contain; border-radius: 4px;
+  background: var(--track);
+}
+.detail .facts {
+  margin: 0; flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: 74px 1fr;
+  gap: 4px 10px; align-content: start;
 }
 .detail dt { color: var(--muted); }
 .detail dd { margin: 0; overflow-wrap: anywhere; }

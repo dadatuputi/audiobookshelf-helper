@@ -99,6 +99,12 @@
     },
     {
       "method": "GET",
+      "path": "/api/items/{id}/cover?width=160",
+      "used_for": "the cover beside a book's details in the popup; 404 when the book has none",
+      "fields": ["accepts the API key as an Authorization: Bearer header", "an image, scaled to the width asked for"]
+    },
+    {
+      "method": "GET",
       "path": "/api/items/{id}/download",
       "used_for": "fetching a book to copy to the player",
       "fields": [

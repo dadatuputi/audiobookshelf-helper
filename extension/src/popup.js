@@ -118,6 +118,24 @@ function line2(i, fallbackAuthor) {
   return [who, hm(i && i.duration)].filter(Boolean).join(" · ");
 }
 
+/* The cover beside an opened row's details. Asked of the background, which
+ * keeps it, so the row shows it at once when opened again; a book without
+ * one, or a server not answering, shows nothing rather than a broken image. */
+const ART = new Map();                  // item id -> data URL, "" for none
+function art(id, title) {
+  const img = el("img", "art");
+  img.alt = "";
+  img.title = title || "";
+  const show = (url) => { if (url) img.src = url; else img.remove(); };
+  if (ART.has(id)) {
+    show(ART.get(id));
+  } else {
+    send({ type: "cover", id }).then((url) => { ART.set(id, url || ""); show(url); })
+      .catch(() => img.remove());
+  }
+  return img;
+}
+
 /** The details under an opened row: label and value, only what is known. */
 function details(r) {
   const i = r.item || {};
@@ -380,9 +398,12 @@ function render() {
     head.append(row, more);
     li.append(head);
     if (open) {
-      const dl = el("dl", "detail");
+      const box = el("div", "detail");
+      if (r.id) box.appendChild(art(r.id, r.title));
+      const dl = el("dl", "facts");
       for (const [k, v] of details(r)) dl.append(el("dt", "", k), el("dd", "", v));
-      li.append(dl);
+      box.appendChild(dl);
+      li.append(box);
     }
     ul.appendChild(li);
   }

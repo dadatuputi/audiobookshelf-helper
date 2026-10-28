@@ -321,7 +321,8 @@ between them: **To player**, **Both**, **To library**, each with its count. Tick
 and press the button, which names what it will do and where ("Copy 2 to
 AGPTEK A02", with the size against the free space). Each row's second line is
 narrator and length, which is what tells two versions of a book apart; the
-chevron opens the rest. While a filter is on, each tab counts "7 of 345".
+chevron opens the rest, with the cover. While a filter is on, each tab counts
+"7 of 345".
 A copy belongs to the extension, not the popup: close it and reopen it and the
 copy is still there, row by row, with the overall progress under the shelf.
 Books queued one after another - cover after cover - count as one run.
