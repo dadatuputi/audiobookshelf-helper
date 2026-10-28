@@ -61,35 +61,39 @@ def digest(full):
     return hashlib.sha1(raw).hexdigest()[:16]
 
 
-def _download_inos(afs, lfs):
-    """The inode to download each audio file by.
+def _library_file_for(afs, lfs):
+    """The library file each audio entry is downloaded as, or None.
 
-    Audiobookshelf finds a file to download among the item's library files,
-    by inode. The audio entry's own record can be out of date - its inode,
-    even its path - after the file was replaced; asking by that inode is a
-    404, and a rescan does not mend it, since the library files are right.
-    So each audio file is matched to a library file: by path, then by file
-    name, then, for what is left, in order when as many are left on each
-    side. Only one with no match at all is asked for by its own inode."""
+    Audiobookshelf serves a download by looking its inode up among the
+    item's library files. An audio entry's own record can be out of date -
+    its inode, its name, even its path - after the file was replaced or
+    renamed on disk; asking by that inode is a 404, and a rescan does not
+    mend it, since the library files are already right. So each audio entry
+    is matched to a library file: by inode first (a file renamed on disk
+    keeps it), then by path, then by relative path (which tells CD1/01.mp3
+    from CD2/01.mp3), then by file name. What is left is paired in order,
+    but only when as many are left on each side."""
     audio = [lf for lf in lfs if lf.get("ino") is not None
              and (lf.get("fileType") == "audio" if lf.get("fileType")
                   else Path((lf.get("metadata") or {}).get("filename") or "").suffix.lower() in AUDIO_EXT)]
     meta = lambda x: x.get("metadata") or {}
+    keys = [(lambda x: str(x.get("ino")) if x.get("ino") is not None else None)] + \
+        [(lambda x, k=k: meta(x).get(k) or None) for k in ("path", "relPath", "filename")]
     got = [None] * len(afs)
     free = list(audio)
-    for key in ("path", "filename", "relPath"):
+    for key in keys:
         for i, af in enumerate(afs):
-            if got[i] is None and meta(af).get(key):
-                hit = next((lf for lf in free if meta(lf).get(key) == meta(af)[key]), None)
+            if got[i] is None and key(af) is not None:
+                hit = next((lf for lf in free if key(lf) == key(af)), None)
                 if hit is not None:
                     got[i] = hit
                     free.remove(hit)
     left = [i for i, g in enumerate(got) if g is None]
     if left and len(left) == len(free):
-        free.sort(key=lambda lf: meta(lf).get("relPath") or meta(lf).get("filename") or "")
-        for i, lf in zip(sorted(left, key=lambda i: meta(afs[i]).get("relPath") or ""), free):
+        by_name = lambda x: meta(x).get("relPath") or meta(x).get("filename") or ""
+        for i, lf in zip(sorted(left, key=lambda i: by_name(afs[i])), sorted(free, key=by_name)):
             got[i] = lf
-    return [str((g or af)["ino"]) for g, af in zip(got, afs)]
+    return got
 
 
 def audio_files(full):
@@ -99,17 +103,20 @@ def audio_files(full):
     afs = [af for af in media.get("audioFiles") or []
            if not af.get("exclude") and af.get("ino") is not None
            and (af.get("metadata") or {}).get("filename")]
-    inos = _download_inos(afs, full.get("libraryFiles") or [])
+    lfs = _library_file_for(afs, full.get("libraryFiles") or [])
     out = []
-    for af, ino in zip(afs, inos):
+    for af, lf in zip(afs, lfs):
         m = af["metadata"]
+        # Size and time from the library file where there is one: that is
+        # the file the download serves, and the audio entry's can be stale.
+        src = (lf or {}).get("metadata") or m
         out.append({
-            "ino": ino,
+            "ino": str((lf or af)["ino"]),
             "index": af.get("index"),
             "filename": m["filename"],
             "relPath": m.get("relPath") or m["filename"],
-            "size": int(m.get("size") or 0),
-            "mtimeMs": int(float(m.get("mtimeMs") or 0)),
+            "size": int(src.get("size") or m.get("size") or 0),
+            "mtimeMs": int(float(src.get("mtimeMs") or m.get("mtimeMs") or 0)),
         })
     out.sort(key=lambda f: f["relPath"])
     return out

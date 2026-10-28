@@ -116,6 +116,25 @@ class TestEmbed(unittest.TestCase):
         full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("2", "p2.m4b")]},
                 "libraryFiles": [lf("1", "p1.m4b")]}
         self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "2"])
+        # Renamed on disk: the inode is the same, every name differs. The
+        # inode wins, and the size and time come from the library file.
+        full = {"media": {"audioFiles": [dict(af("7", "old name.m4b"), metadata=dict(
+                    af("7", "old name.m4b")["metadata"], size=10, mtimeMs=1))]},
+                "libraryFiles": [dict(lf("7", "new name.m4b"), metadata=dict(
+                    lf("7", "new name.m4b")["metadata"], size=20, mtimeMs=2))]}
+        got = embed.audio_files(full)
+        self.assertEqual([(f["ino"], f["size"], f["mtimeMs"]) for f in got], [("7", 20, 2)])
+        # Two discs with the same file names and stale paths: the relative
+        # path tells them apart, so the discs are not swapped.
+        full = {"media": {"audioFiles": [af("1", "01.mp3", "/old/CD1/01.mp3") | {"metadata": {
+                    "filename": "01.mp3", "relPath": "CD1/01.mp3", "path": "/old/CD1/01.mp3"}},
+                                         {"ino": "2", "metadata": {
+                    "filename": "01.mp3", "relPath": "CD2/01.mp3", "path": "/old/CD2/01.mp3"}}]},
+                "libraryFiles": [{"ino": "22", "fileType": "audio", "metadata": {
+                                     "filename": "01.mp3", "relPath": "CD2/01.mp3", "path": "/b/CD2/01.mp3"}},
+                                 {"ino": "11", "fileType": "audio", "metadata": {
+                                     "filename": "01.mp3", "relPath": "CD1/01.mp3", "path": "/b/CD1/01.mp3"}}]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["11", "22"])
 
 class Resp:
     def __init__(self, body):

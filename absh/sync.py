@@ -526,7 +526,13 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
         report.fail(title, f"copy failed - {e}")
         return None
     except AbsError as e:
-        report.fail(title, f"download failed - {e}")
+        why = f"download failed - {e}"
+        if e.status == 404:
+            # Every inode asked for came from the server's own list of the
+            # book's files, so what it lists is not on its disk.
+            why += ("; Audiobookshelf lists a file for this book that it cannot find - "
+                    "open the book there and choose Re-Scan")
+        report.fail(title, why)
         return None
     finally:
         if tmp is not None:
