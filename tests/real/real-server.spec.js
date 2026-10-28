@@ -337,7 +337,7 @@ test.describe("against a real Audiobookshelf", () => {
     await page.close();
   });
 
-  test("Copy again, from the book's page and from the popup, puts a damaged copy right", async () => {
+  test("Force copy, from the book's page and from the popup, puts a damaged copy right", async () => {
     const shots = process.env.ABSH_SHOTS;
     if (shots) mkdirSync(shots, { recursive: true });
     const title = state.titles[0];
@@ -361,7 +361,7 @@ test.describe("against a real Audiobookshelf", () => {
     damage();
     const id = await on.getAttribute("data-absh-id");
     await page.evaluate((i) => window.$nuxt.$router.push(`/item/${i}`), id);
-    const again = page.locator("#absh-item button", { hasText: "Copy again" });
+    const again = page.locator("#absh-item button", { hasText: "Force copy" });
     await expect(again).toBeVisible({ timeout: 30_000 });
     if (shots) await page.screenshot({ path: join(shots, "book-copy-again.png") });
     await again.click();

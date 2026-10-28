@@ -87,7 +87,7 @@ class Report(dict):
     """Accumulates what happened, in a shape both the CLI and the host render."""
 
     def __init__(self):
-        super().__init__(copied=0, skipped=0, updated=0, written=0, uploaded=0,
+        super().__init__(copied=0, skipped=0, updated=0, written=0, wrote={}, uploaded=0,
                          removed=[], freed=0, errors=[], notes=[], books=0, interrupted=[])
 
     def fail(self, title, why):
@@ -546,8 +546,12 @@ def pull(client, items, opts, emit=_noop):
             break
         emit({"event": "item", "id": item.get("id"), "title": item.get("title"),
               "index": n, "count": len(items), "op": "pull"})
+        before = report["written"]
         try:
             pull_book(client, item, opts, report, emit)
+            # What this book put on the player, so a forced copy can say how
+            # many books it changed and not only how many it checked.
+            report["wrote"][item.get("id")] = report["written"] - before
         except DeviceGone:
             report["interrupted"] = [i.get("id") for i in items[n - 1:]]
             break

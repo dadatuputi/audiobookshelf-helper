@@ -154,6 +154,14 @@ describe("badgeCount", () => {
   });
 });
 
+describe("checkSummary", () => {
+  it("says how many books a forced copy checked, changed and wrote", () => {
+    const items = [{ wrote: 0 }, { wrote: 1024 * 1024 }, { wrote: 0.2 * 1024 * 1024 }, {}];
+    expect(ABSH.checkSummary(items)).toBe("4 checked, 2 changed, 1.2 MB written");
+    expect(ABSH.checkSummary([{ wrote: 0 }])).toBe("1 checked, 0 changed, 0 B written");
+  });
+});
+
 describe("updateCheckDue", () => {
   // Written out rather than read from ABSH, which loads in beforeAll - after
   // this body runs - and because the numbers are the decision under test.

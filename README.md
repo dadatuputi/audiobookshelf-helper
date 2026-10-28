@@ -331,11 +331,12 @@ a book cut off partway picking up from its next file. Quitting the browser
 mid-run loses nothing either: the queue is kept and resumes next time. A
 paused run can be let go with **Cancel the rest**.
 
-**Copying books again.** On **Both**, tick the box at the top to select every
-book on the player, then **Copy again** (<kbd>C</kbd>). A book's own page has a
-**Copy again** button beside Remove. Each book is checked against
+**Force copy.** On **Both**, tick the box at the top to select every
+book on the player, then **Force copy** (<kbd>F</kbd>). A book's own page has a
+**Force copy** button beside Remove. Each book is checked against
 Audiobookshelf file by file and only the 4 KB pieces that differ are written,
-so a copy that is already right costs a download and no writes. With tags on,
+so a copy that is already right costs a download and no writes. When it is done
+the popup says what it found, such as "35 checked, 2 changed, 1.2 MB written". With tags on,
 a book whose details were never embedded, or have changed, is embedded first.
 In Chrome's folder mode a file that differs is written whole. A book keeps its
 place and its file names on the player, even ones you have renamed there. From
@@ -347,7 +348,7 @@ and a notification says so if the popup is closed.
 Click the **Player** card to change player: the one that looks most like yours
 is offered in purple, and nothing is saved until you press **Use**. Every action
 has a key, printed on it: <kbd>/</kbd> filter, <kbd>⏎</kbd> the main button,
-<kbd>R</kbd> re-read, <kbd>C</kbd> copy again, <kbd>D</kbd> detect, <kbd>Esc</kbd> cancel. Light or dark
+<kbd>R</kbd> re-read, <kbd>F</kbd> force copy, <kbd>D</kbd> detect, <kbd>Esc</kbd> cancel. Light or dark
 follows your system. A line under the status says when a helper
 update is waiting — see [Updating the helper](#updating-the-helper).
 

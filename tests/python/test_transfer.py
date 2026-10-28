@@ -259,6 +259,7 @@ class TestPullByBytes(unittest.TestCase):
         self.assertEqual(s.fetched, ["111", "111"])
         self.assertEqual(s.embeds, ["li_1"])
         self.assertEqual(rep["written"], 0)
+        self.assertEqual(rep["wrote"], {"li_1": 0})
 
     def test_a_forced_copy_repairs_a_damaged_file_in_place(self):
         s = Server({"111": book_file()})
@@ -270,6 +271,7 @@ class TestPullByBytes(unittest.TestCase):
         rep = self.pull(s, force=True)
         self.assertEqual(self.book().read_bytes(), good)
         self.assertEqual(rep["written"], sync.SECTOR)
+        self.assertEqual(rep["wrote"], {"li_1": sync.SECTOR})
 
     def test_a_book_in_parts_moves_only_the_part_that_changed(self):
         s = Server({"1": book_file(), "2": book_file(AUDIO[::-1]), "3": book_file()})

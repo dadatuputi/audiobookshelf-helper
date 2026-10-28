@@ -603,7 +603,7 @@ function addJob(op, items, player, writeTags, force = false) {
   const job = {
     id: ++JOBS.seq, op, player: player || "",
     ...(op === "pull" && typeof writeTags === "boolean" ? { writeTags } : {}),
-    // Copy again: books already on the player, checked file by file.
+    // Force copy: books already on the player, checked file by file.
     ...(op === "pull" && force ? { force: true } : {}),
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
                               bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0 })),
@@ -663,6 +663,12 @@ async function runJobs() {
         if (left.has(it.ref)) { it.state = "waiting"; continue; }
         const bad = errs.find((e) => e.startsWith(`${it.title}:`));
         it.state = bad ? "failed" : "done";
+        // Force copy: what each book put on the player, so the popup can say
+        // how many it changed out of those it checked.
+        if (job.force) {
+          it.forced = true;
+          it.wrote = Number((job.result.wrote || {})[it.ref]) || 0;
+        }
         if (bad) it.error = bad.slice(it.title.length + 1).trim();
         const said = notes.find((e) => e.startsWith(`${it.title}:`));
         if (said) it.note = said.slice(it.title.length + 1).trim();

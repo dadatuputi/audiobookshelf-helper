@@ -160,7 +160,7 @@ class TestProgressOptIn(unittest.TestCase):
 
 
 class TestCopyAgain(unittest.TestCase):
-    """The extension's Copy again sends force; a plain pull does not."""
+    """The extension's Force copy sends force; a plain pull does not."""
 
     def run_pull(self, msg):
         from unittest import mock

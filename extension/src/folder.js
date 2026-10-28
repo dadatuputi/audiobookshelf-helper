@@ -989,8 +989,8 @@
    * not stop because one book is odd. */
 
   function report() {
-    const r = { copied: 0, skipped: 0, uploaded: 0, removed: [], freed: 0, errors: [], books: 0,
-                interrupted: [] };
+    const r = { copied: 0, skipped: 0, written: 0, wrote: {}, uploaded: 0, removed: [], freed: 0,
+                errors: [], books: 0, interrupted: [] };
     Object.defineProperty(r, "fail", { value: (title, why) => r.errors.push(`${title}: ${why}`) });
     return r;
   }
@@ -1046,7 +1046,7 @@
     }
 
     if (have) {
-      // Copy again: into the place it already has, so it is not made twice.
+      // Force copy: into the place it already has, so it is not made twice.
       const rec = (await loadIndex(dev)).entries[have] || {};
       name = rec.kind === "file" ? stem(have) : have;
       // The names its files have now, which may not be the ones this would
@@ -1081,9 +1081,11 @@
           rep.skipped += 1;
         } else if (there) {
           await writeBlob(there, r.blob);
+          rep.written += r.blob.size;
           rep.copied += 1;
         } else {
           await createWhole(root, dstName, (fh) => writeBlob(fh, r.blob));
+          rep.written += r.blob.size;
           rep.copied += 1;
         }
         got = { written: [[root, dstName]], entry: dstName, kind: "file", srcExt };
@@ -1151,12 +1153,13 @@
       step(i + 1, members.length, dst);
       const there = await child(target, dst);
       if (there && force) {
-        // Copy again: a part is rewritten only if its bytes differ.
+        // Force copy: a part is rewritten only if its bytes differ.
         const part = await new Response(await zipMemberStream(blob, byName.get(member))).blob();
         if (there.kind === "file" && (await sameBytes(await there.getFile(), part))) {
           rep.skipped += 1;
         } else {
           await writeBlob(there, part);
+          rep.written += part.size;
           rep.copied += 1;
         }
       } else if (there) {
@@ -1166,6 +1169,7 @@
           // pipeTo closes the file on success and aborts it on failure.
           await (await zipMemberStream(blob, byName.get(member))).pipeTo(await fh.createWritable());
         });
+        rep.written += (await (await child(target, dst)).getFile()).size;
         rep.copied += 1;
       }
       written.push([target, dst]);
@@ -1197,8 +1201,12 @@
         break;
       }
       emit({ event: "item", id: item.id, title: item.title, index: n + 1, count: items.length, op: "pull" });
+      const before = rep.written;
       try {
         await pullBook(c, dev, item, opts, rep, emit);
+        // What this book put on the player, so a forced copy can say how
+        // many books it changed and not only how many it checked.
+        rep.wrote[item.id] = rep.written - before;
       } catch (e) {
         if (e instanceof DeviceGone) {
           rep.interrupted = items.slice(n).map((i) => i.id);

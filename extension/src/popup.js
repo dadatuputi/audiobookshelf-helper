@@ -230,6 +230,10 @@ function renderJob() {
   box.classList.toggle("paused", !!paused);
   $("#jobCancel").classList.toggle("hidden", !paused);
   const left = items.length - done.length - failed.length;
+  // A forced copy reads every book and writes only what differs, so it ends
+  // with what it checked and changed, not a download size read as copied.
+  const forced = !live && items.length > 0 && items.every((i) => i.forced);
+  const did = forced ? "Checked" : DID[j.op];
   const head = paused
     ? (paused.why === "helper" ? "Paused · the helper stopped"
                                : `Paused · ${paused.player || where} disconnected`)
@@ -237,12 +241,15 @@ function renderJob() {
     ? `${DOING[j.op]} ${Math.min(done.length + 1, items.length)} of ${items.length} ` +
       `${j.op === "remove" ? "from" : "to"} ${where}`
     : j.cancelled
-      ? `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}; ${j.cancelled} cancelled`
+      ? `${did} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}; ${j.cancelled} cancelled`
     : failed.length || j.error
-      ? `${DID[j.op]} ${done.length} of ${items.length}; ${failed.length || items.length - done.length} failed`
+      ? `${did} ${done.length} of ${items.length}; ${failed.length || items.length - done.length} failed`
+    : forced
+      ? ABSH.checkSummary(done)
       : `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}`;
   $("#jobHead").textContent = head;
-  $("#jobSize").textContent = total ? (live ? `${size(moved)} of ${size(total)}` : size(total)) : "";
+  $("#jobSize").textContent = !total || (forced && !failed.length && !j.error) ? ""
+    : live ? `${size(moved)} of ${size(total)}` : size(total);
   const bar = $("#jobBar");
   bar.classList.toggle("hidden", !live);
   bar.firstElementChild.style.width = total ? `${Math.round(100 * moved / total)}%` : "0%";
@@ -938,7 +945,7 @@ $("#act").addEventListener("click", async () => {
   }
 });
 
-/* Copy again, from the Both tab: each book is checked against the server
+/* Force copy, from the Both tab: each book is checked against the server
  * file by file, and only the parts that differ are written. */
 $("#again").addEventListener("click", async () => {
   const rows = visible().filter((r) => SEL.has(r.key) && r.id);
@@ -1004,7 +1011,7 @@ document.addEventListener("keydown", (e) => {
   } else if (k === "r" && !PANEL_OPEN) {
     e.preventDefault();
     $("#refresh").click();
-  } else if (k === "c" && !PANEL_OPEN && !$("#again").classList.contains("hidden")
+  } else if (k === "f" && !PANEL_OPEN && !$("#again").classList.contains("hidden")
              && !$("#again").disabled) {
     e.preventDefault();
     $("#again").click();

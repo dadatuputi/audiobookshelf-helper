@@ -561,7 +561,7 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
-  test("Copy again on the Both tab puts a damaged copy right, in place", async () => {
+  test("Force copy on the Both tab puts a damaged copy right, in place", async () => {
     const file = join(env.dev, "AUDIOBOOKS", "Brian Jacques - Redwall.m4a");
     const good = readFileSync(file);
     // Same size, wrong bytes: nothing short of checking would notice.
@@ -576,9 +576,12 @@ test.describe("full loop in a real browser", () => {
     await expect(page.locator("#again")).toBeVisible();
     await expect(page.locator("#again")).toBeEnabled();
     await expect(page.locator("#act")).toContainText(`Remove 1 from ${basename(env.dev)}`);
-    await page.keyboard.press("c");
+    await page.keyboard.press("f");
     await expect.poll(() => readFileSync(file).equals(good), { timeout: 30_000 }).toBe(true);
     expect(deviceFiles(env.dev)).toEqual(["Brian Jacques - Redwall.m4a"]);
+    // It says what it checked and what it changed, not "Copied 1".
+    await expect(page.locator("#jobHead")).toHaveText(/^1 checked, 1 changed, [\d.]+ \w+ written$/,
+                                                      { timeout: 20_000 });
     await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
     await page.close();
   });

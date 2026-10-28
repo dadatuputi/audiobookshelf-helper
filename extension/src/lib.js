@@ -65,6 +65,16 @@
     return n > 999 ? "999+" : String(n);
   }
 
+  /** How a forced copy ended: every book was read and checked, and only the
+   *  ones that differed were written to. Books are items with `wrote`, the
+   *  bytes put on the player; a book without it counts as unchanged. */
+  function checkSummary(items) {
+    const wrote = items.map((i) => Number(i.wrote) || 0);
+    const changed = wrote.filter((n) => n > 0).length;
+    const bytes = formatBytes(wrote.reduce((a, b) => a + b, 0)).replace(/^([\d.]+)/, "$1 ");
+    return `${items.length} checked, ${changed} changed, ${bytes} written`;
+  }
+
   function formatBytes(n) {
     n = Number(n) || 0;
     const u = ["B", "KB", "MB", "GB", "TB"];
@@ -239,7 +249,7 @@
   }
 
   const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, sandboxHelp, originPattern, libraryPattern, libraryPrefix,
-                formatBytes, badgeCount, parseVersion, compareVersions, updateCheckDue,
+                formatBytes, badgeCount, checkSummary, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;
   if (typeof module !== "undefined" && module.exports) module.exports = lib;
