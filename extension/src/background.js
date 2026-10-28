@@ -524,18 +524,25 @@ function changed() {
   }, 250);
 }
 
-/* The toolbar icon: books done of books asked for, while copying; a check
- * when it finished, until the popup has been opened; "!" when it failed. */
+// What the toolbar button says when the pointer is on it and nothing runs.
+const TITLE = (browser.runtime.getManifest().action || {}).default_title || "Audiobookshelf Helper";
+
+/* The toolbar icon: books still to go, while copying, with "done of all"
+ * when the pointer is on it; a check when it finished, until the popup has
+ * been opened; "!" when it failed. */
 function badge() {
   const a = browser.action;
   if (!a || !a.setBadgeText) return;
   const j = JOBS.current;
   let text = "";
+  let title = TITLE;
   let color = "#3443C9";
   if (j || JOBS.paused) {
     const run = (JOBS.batch && JOBS.batch.finished) || [];
     const all = [...run, ...[j, ...JOBS.queue].filter(Boolean).flatMap((x) => x.items)];
-    text = `${all.filter((i) => i.state === "done").length}/${all.length}`;
+    const done = all.filter((i) => i.state === "done").length;
+    text = ABSH.badgeCount(all.length - done);
+    title = `${TITLE}: ${JOBS.paused ? "paused at" : "copying"} ${done} of ${all.length}`;
     if (JOBS.paused) color = "#6B7280";          // waiting, not working
   } else if (JOBS.last && !JOBS.seen) {
     const failed = JOBS.last.error || JOBS.last.items.some((i) => i.state === "failed");
@@ -544,6 +551,7 @@ function badge() {
   }
   Promise.resolve(a.setBadgeText({ text })).catch(() => {});
   if (text) Promise.resolve(a.setBadgeBackgroundColor({ color })).catch(() => {});
+  if (a.setTitle) Promise.resolve(a.setTitle({ title })).catch(() => {});
 }
 
 const VERB = { pull: "Copied", push: "Uploaded", remove: "Removed" };

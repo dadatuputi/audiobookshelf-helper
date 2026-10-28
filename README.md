@@ -341,7 +341,8 @@ In Chrome's folder mode a file that differs is written whole. A book keeps its
 place and its file names on the player, even ones you have renamed there. From
 the command line it is `absh pull --all --force`.
 
-While copying, the toolbar icon carries a count, then a check when it is done,
+While copying, the toolbar icon shows how many books are left (point at it for
+"copying 10 of 35"), then a check when it is done,
 and a notification says so if the popup is closed.
 Click the **Player** card to change player: the one that looks most like yours
 is offered in purple, and nothing is saved until you press **Use**. Every action

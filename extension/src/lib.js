@@ -58,6 +58,13 @@
     return `${u.protocol}//${u.host}${base}/library/*`;
   }
 
+  /** A count for the toolbar badge, which shows about four characters:
+   *  "10/35" was cut to "10/3". Anything past 999 is "999+". */
+  function badgeCount(n) {
+    n = Math.max(0, Math.floor(Number(n) || 0));
+    return n > 999 ? "999+" : String(n);
+  }
+
   function formatBytes(n) {
     n = Number(n) || 0;
     const u = ["B", "KB", "MB", "GB", "TB"];
@@ -232,7 +239,7 @@
   }
 
   const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, sandboxHelp, originPattern, libraryPattern, libraryPrefix,
-                formatBytes, parseVersion, compareVersions, updateCheckDue,
+                formatBytes, badgeCount, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;
   if (typeof module !== "undefined" && module.exports) module.exports = lib;
