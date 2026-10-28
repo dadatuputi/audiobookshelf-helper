@@ -88,6 +88,66 @@ class TestEmbed(unittest.TestCase):
         self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "2"])
 
 
+    def test_an_out_of_date_audio_entry_is_downloaded_by_its_library_file(self):
+        """Seen on a real server: the audio entry kept an inode and a path the
+        file no longer has, while the library files were right; asking by
+        its inode is a 404, and a rescan changes nothing."""
+        def lf(ino, name, kind="audio"):
+            return {"ino": ino, "fileType": kind,
+                    "metadata": {"filename": name, "relPath": name, "path": f"/b/{name}"}}
+
+        def af(ino, name, path=None):
+            return {"ino": ino, "metadata": {"filename": name, "relPath": name,
+                                              "path": path or f"/b/{name}"}}
+
+        # Path gone stale, name the same.
+        full = {"media": {"audioFiles": [af("385", "a.m4b", "/old/a.m4b")]},
+                "libraryFiles": [lf("9", "cover.jpg", "image"), lf("951", "a.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["951"])
+        # Name and path both stale: the one audio file left is the one.
+        full = {"media": {"audioFiles": [af("385", "a (old).m4b")]},
+                "libraryFiles": [lf("9", "cover.jpg", "image"), lf("951", "a.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["951"])
+        # Two parts, one stale: the match by path stands, the other pairs up.
+        full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("385", "p2 (old).m4b")]},
+                "libraryFiles": [lf("1", "p1.m4b"), lf("22", "p2.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "22"])
+        # Nothing to pair with: its own inode, as before.
+        full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("2", "p2.m4b")]},
+                "libraryFiles": [lf("1", "p1.m4b")]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["1", "2"])
+        # Renamed on disk: the inode is the same, every name differs. The
+        # inode wins, and the size and time come from the library file.
+        full = {"media": {"audioFiles": [dict(af("7", "old name.m4b"), metadata=dict(
+                    af("7", "old name.m4b")["metadata"], size=10, mtimeMs=1))]},
+                "libraryFiles": [dict(lf("7", "new name.m4b"), metadata=dict(
+                    lf("7", "new name.m4b")["metadata"], size=20, mtimeMs=2))]}
+        got = embed.audio_files(full)
+        self.assertEqual([(f["ino"], f["filename"], f["size"], f["mtimeMs"], f["listed"]) for f in got],
+                         [("7", "new name.m4b", 20, 2, True)])
+        # Re-ripped: the disk gave p1's old inode to the new p2, so by inode
+        # alone the parts would swap. The path, still right, is tried first.
+        full = {"media": {"audioFiles": [af("1", "p1.mp3"), af("2", "p2.mp3")]},
+                "libraryFiles": [lf("2", "p1.mp3"), lf("3", "p2.mp3")]}
+        self.assertEqual([(f["filename"], f["ino"]) for f in embed.audio_files(full)],
+                         [("p1.mp3", "2"), ("p2.mp3", "3")])
+        # Nothing to pair with: its own inode, and not listed.
+        full = {"media": {"audioFiles": [af("1", "p1.m4b"), af("2", "p2.m4b")]},
+                "libraryFiles": [lf("1", "p1.m4b")]}
+        self.assertEqual([(f["ino"], f["listed"]) for f in embed.audio_files(full)],
+                         [("1", True), ("2", False)])
+        # Two discs with the same file names and stale paths: the relative
+        # path tells them apart, so the discs are not swapped.
+        full = {"media": {"audioFiles": [af("1", "01.mp3", "/old/CD1/01.mp3") | {"metadata": {
+                    "filename": "01.mp3", "relPath": "CD1/01.mp3", "path": "/old/CD1/01.mp3"}},
+                                         {"ino": "2", "metadata": {
+                    "filename": "01.mp3", "relPath": "CD2/01.mp3", "path": "/old/CD2/01.mp3"}}]},
+                "libraryFiles": [{"ino": "22", "fileType": "audio", "metadata": {
+                                     "filename": "01.mp3", "relPath": "CD2/01.mp3", "path": "/b/CD2/01.mp3"}},
+                                 {"ino": "11", "fileType": "audio", "metadata": {
+                                     "filename": "01.mp3", "relPath": "CD1/01.mp3", "path": "/b/CD1/01.mp3"}}]}
+        self.assertEqual([f["ino"] for f in embed.audio_files(full)], ["11", "22"])
+
 class Resp:
     def __init__(self, body):
         self.body = body
@@ -259,6 +319,7 @@ class TestPullByBytes(unittest.TestCase):
         self.assertEqual(s.fetched, ["111", "111"])
         self.assertEqual(s.embeds, ["li_1"])
         self.assertEqual(rep["written"], 0)
+        self.assertEqual(rep["wrote"], {"li_1": 0})
 
     def test_a_forced_copy_repairs_a_damaged_file_in_place(self):
         s = Server({"111": book_file()})
@@ -270,6 +331,7 @@ class TestPullByBytes(unittest.TestCase):
         rep = self.pull(s, force=True)
         self.assertEqual(self.book().read_bytes(), good)
         self.assertEqual(rep["written"], sync.SECTOR)
+        self.assertEqual(rep["wrote"], {"li_1": sync.SECTOR})
 
     def test_a_book_in_parts_moves_only_the_part_that_changed(self):
         s = Server({"1": book_file(), "2": book_file(AUDIO[::-1]), "3": book_file()})
@@ -324,6 +386,51 @@ class TestPullByBytes(unittest.TestCase):
         self.pull(s, writeTags=False)
         self.assertEqual(s.fetched, ["111"])
         self.assertEqual(self.book().read_bytes(), book_file())
+
+    def test_a_failure_is_said_by_book_when_two_share_a_title(self):
+        """Two editions of a book can share a title, so "<title>: why" alone
+        would mark both failed when one did."""
+        class OneFails(Server):
+            def open_file(self, item_id, ino, timeout=None):
+                if item_id == "li_2":
+                    raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+                return super().open_file(item_id, ino, timeout)
+
+        other = dict(ITEM, id="li_2", narrator="Full Cast")
+        rep = sync.pull(OneFails({"111": book_file()}), [ITEM, other], dict(self.opts, writeTags=False))
+        self.assertEqual(list(rep["failed"]), ["li_2"])
+        self.assertIn("404", rep["failed"]["li_2"])
+        self.assertFalse(rep["failed"]["li_2"].startswith("Mossflower"))
+        self.assertEqual(len(rep["errors"]), 1)
+
+    def test_a_404_on_a_listed_file_says_to_rescan(self):
+        """Every inode asked for comes from the server's own list of the
+        book's files; a 404 on one of those means the list is not the disk,
+        and only the server can mend that. One asked for by the audio
+        entry's own inode, with no library file to match, gets no such hint."""
+        class Listed(Server):
+            def item(self, item_id):
+                full = super().item(item_id)
+                full["libraryFiles"] = [{"ino": af["ino"], "fileType": "audio",
+                                         "metadata": dict(af["metadata"], path="/b/" + af["metadata"]["relPath"])}
+                                        for af in full["media"]["audioFiles"]]
+                return full
+
+            def open_file(self, item_id, ino, timeout=None):
+                raise AbsError("Audiobookshelf ... responded 404 - Not Found", status=404)
+
+        rep = sync.pull(Listed({"111": book_file()}), [ITEM], dict(self.opts, writeTags=False))
+        self.assertIn("Re-Scan", rep["errors"][0])
+
+        class Unlisted(Listed):
+            def item(self, item_id):
+                full = super().item(item_id)
+                full["libraryFiles"] = []
+                return full
+
+        rep = sync.pull(Unlisted({"111": book_file()}), [ITEM], dict(self.opts, writeTags=False))
+        self.assertNotIn("Re-Scan", rep["errors"][0])
+        self.assertIn("404", rep["errors"][0])
 
     def legacy_folder(self, inner):
         """A one-file book as older versions copied it: Audiobookshelf's

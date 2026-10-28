@@ -224,7 +224,7 @@ def cmd_pull(msg, emit):
     items = [i for i in client.items(lib) if not wanted or i["id"] in wanted]
     if not items:
         raise ValueError("no matching books to pull")
-    # "Copy again": check every file of a book already on the player, even
+    # "Force copy": check every file of a book already on the player, even
     # ones the server has not touched. Still writes only what differs.
     if msg.get("force"):
         cfg["force"] = True

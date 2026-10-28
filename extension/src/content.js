@@ -442,10 +442,10 @@
     } else if (st && st.it.state !== "failed") {
       el.append(line(st.it.state === "copying" ? `Copying to ${PLAYER}…` : `Waiting to copy to ${PLAYER}`));
     } else if (here) {
-      // Changed on the server: Update. Otherwise Copy again, for when the
+      // Changed on the server: Update. Otherwise Force copy, for when the
       // copy is not trusted - checked file by file, only what differs written.
       actions.append(here.stale ? bigButton(`Update on ${PLAYER}`, "", () => copy(id))
-        : bigButton("Copy again", "absh-ghost", () => copy(id, true)));
+        : bigButton("Force copy", "absh-ghost", () => copy(id, true)));
       actions.append(bigButton(`Remove from ${PLAYER}`, "absh-ghost absh-remove", () => {
         CONFIRM = { id, timer: setTimeout(() => unconfirm(), CONFIRM_SECONDS * 1000) };
         itemPage();

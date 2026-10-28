@@ -87,15 +87,26 @@ class Report(dict):
     """Accumulates what happened, in a shape both the CLI and the host render."""
 
     def __init__(self):
-        super().__init__(copied=0, skipped=0, updated=0, written=0, uploaded=0,
-                         removed=[], freed=0, errors=[], notes=[], books=0, interrupted=[])
+        super().__init__(copied=0, skipped=0, updated=0, written=0, wrote={}, failed={}, noted={},
+                         uploaded=0, removed=[], freed=0, errors=[], notes=[], books=0, interrupted=[])
+        # The book being copied: what is said about it is kept by its id too,
+        # since two editions can share a title and "<title>: why" cannot say
+        # which of them it means.
+        self.book = None
+
+    def _by_book(self, key, said):
+        if self.book is not None:
+            was = self[key].get(self.book)
+            self[key][self.book] = f"{was}; {said}" if was else said
 
     def fail(self, title, why):
         self["errors"].append(f"{title}: {why}")
+        self._by_book("failed", str(why))
 
     def note(self, title, what):
         """Worth saying, but the book is fine: not an error."""
         self["notes"].append(f"{title}: {what}")
+        self._by_book("noted", str(what))
 
 
 # ------------------------------------------------------------------- pull
@@ -224,6 +235,7 @@ def _download(client, item, root, name, rename, report, step, device_path, force
                     else:
                         with z.open(member) as src:
                             _write_whole(dst, lambda out: shutil.copyfileobj(src, out))
+                        report["written"] += dst.stat().st_size
                         report["copied"] += 1
                     written.append(dst)
             return written, name, "dir", src_ext
@@ -247,6 +259,7 @@ def _download(client, item, root, name, rename, report, step, device_path, force
             # leave half a book under the real name.
             with open(tmp, "rb") as src:
                 _write_whole(dst, lambda out: shutil.copyfileobj(src, out))
+            report["written"] += dst.stat().st_size
             report["copied"] += 1
         return [dst], dst.name, "file", src_ext
 
@@ -467,6 +480,7 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
     src_ext = ""
     changed = False
     tmp = None
+    asking = None
     try:
         for n, (f, dst) in enumerate(zip(files, dsts), 1):
             src_ext = src_ext or Path(f["filename"]).suffix.lower()
@@ -486,6 +500,7 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
                 out_files.append(record)
                 continue
 
+            asking = f
             tmp = _download_file(client, item["id"], f, dst.name, step, n, len(files))
             # Gone while it downloaded: stop, rather than make the player's
             # folders again on this disk below.
@@ -513,7 +528,13 @@ def _pull_files(client, item, full, opts, report, step, root, name, rename):
         report.fail(title, f"copy failed - {e}")
         return None
     except AbsError as e:
-        report.fail(title, f"download failed - {e}")
+        why = f"download failed - {e}"
+        if e.status == 404 and asking is not None and asking.get("listed"):
+            # The inode asked for came from the server's own list of the
+            # book's files, so what it lists is not on its disk.
+            why += ("; Audiobookshelf lists a file for this book that it cannot find - "
+                    "open the book there and choose Re-Scan")
+        report.fail(title, why)
         return None
     finally:
         if tmp is not None:
@@ -546,13 +567,19 @@ def pull(client, items, opts, emit=_noop):
             break
         emit({"event": "item", "id": item.get("id"), "title": item.get("title"),
               "index": n, "count": len(items), "op": "pull"})
+        before = report["written"]
+        report.book = item.get("id")
         try:
             pull_book(client, item, opts, report, emit)
+            # What this book put on the player, so a forced copy can say how
+            # many books it changed and not only how many it checked.
+            report["wrote"][item.get("id")] = report["written"] - before
         except DeviceGone:
             report["interrupted"] = [i.get("id") for i in items[n - 1:]]
             break
         except Exception as e:                      # one bad book, not the batch
             report.fail(item.get("title", "?"), str(e))
+        report.book = None
     return report
 
 

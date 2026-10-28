@@ -989,9 +989,16 @@
    * not stop because one book is odd. */
 
   function report() {
-    const r = { copied: 0, skipped: 0, uploaded: 0, removed: [], freed: 0, errors: [], books: 0,
-                interrupted: [] };
-    Object.defineProperty(r, "fail", { value: (title, why) => r.errors.push(`${title}: ${why}`) });
+    const r = { copied: 0, skipped: 0, written: 0, wrote: {}, failed: {}, uploaded: 0, removed: [],
+                freed: 0, errors: [], books: 0, interrupted: [] };
+    // The book being copied, as absh/sync.py's Report.book: what goes wrong
+    // with it is kept by its id too, since two editions can share a title
+    // and "<title>: why" cannot say which of them it means.
+    Object.defineProperty(r, "book", { value: null, writable: true });
+    Object.defineProperty(r, "fail", { value: (title, why) => {
+      r.errors.push(`${title}: ${why}`);
+      if (r.book != null) r.failed[r.book] = r.failed[r.book] ? `${r.failed[r.book]}; ${why}` : String(why);
+    } });
     return r;
   }
 
@@ -1046,7 +1053,7 @@
     }
 
     if (have) {
-      // Copy again: into the place it already has, so it is not made twice.
+      // Force copy: into the place it already has, so it is not made twice.
       const rec = (await loadIndex(dev)).entries[have] || {};
       name = rec.kind === "file" ? stem(have) : have;
       // The names its files have now, which may not be the ones this would
@@ -1081,9 +1088,11 @@
           rep.skipped += 1;
         } else if (there) {
           await writeBlob(there, r.blob);
+          rep.written += r.blob.size;
           rep.copied += 1;
         } else {
           await createWhole(root, dstName, (fh) => writeBlob(fh, r.blob));
+          rep.written += r.blob.size;
           rep.copied += 1;
         }
         got = { written: [[root, dstName]], entry: dstName, kind: "file", srcExt };
@@ -1151,12 +1160,13 @@
       step(i + 1, members.length, dst);
       const there = await child(target, dst);
       if (there && force) {
-        // Copy again: a part is rewritten only if its bytes differ.
+        // Force copy: a part is rewritten only if its bytes differ.
         const part = await new Response(await zipMemberStream(blob, byName.get(member))).blob();
         if (there.kind === "file" && (await sameBytes(await there.getFile(), part))) {
           rep.skipped += 1;
         } else {
           await writeBlob(there, part);
+          rep.written += part.size;
           rep.copied += 1;
         }
       } else if (there) {
@@ -1166,6 +1176,7 @@
           // pipeTo closes the file on success and aborts it on failure.
           await (await zipMemberStream(blob, byName.get(member))).pipeTo(await fh.createWritable());
         });
+        rep.written += byName.get(member).fileSize;
         rep.copied += 1;
       }
       written.push([target, dst]);
@@ -1197,8 +1208,13 @@
         break;
       }
       emit({ event: "item", id: item.id, title: item.title, index: n + 1, count: items.length, op: "pull" });
+      const before = rep.written;
+      rep.book = item.id;
       try {
         await pullBook(c, dev, item, opts, rep, emit);
+        // What this book put on the player, so a forced copy can say how
+        // many books it changed and not only how many it checked.
+        rep.wrote[item.id] = rep.written - before;
       } catch (e) {
         if (e instanceof DeviceGone) {
           rep.interrupted = items.slice(n).map((i) => i.id);
@@ -1206,6 +1222,7 @@
         }
         rep.fail(item.title || "?", explain(e));
       }
+      rep.book = null;
     }
     return rep;
   }

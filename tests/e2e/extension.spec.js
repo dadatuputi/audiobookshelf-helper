@@ -561,7 +561,7 @@ test.describe("full loop in a real browser", () => {
     await page.close();
   });
 
-  test("Copy again on the Both tab puts a damaged copy right, in place", async () => {
+  test("Force copy on the Both tab puts a damaged copy right, in place", async () => {
     const file = join(env.dev, "AUDIOBOOKS", "Brian Jacques - Redwall.m4a");
     const good = readFileSync(file);
     // Same size, wrong bytes: nothing short of checking would notice.
@@ -576,9 +576,12 @@ test.describe("full loop in a real browser", () => {
     await expect(page.locator("#again")).toBeVisible();
     await expect(page.locator("#again")).toBeEnabled();
     await expect(page.locator("#act")).toContainText(`Remove 1 from ${basename(env.dev)}`);
-    await page.keyboard.press("c");
+    await page.keyboard.press("f");
     await expect.poll(() => readFileSync(file).equals(good), { timeout: 30_000 }).toBe(true);
     expect(deviceFiles(env.dev)).toEqual(["Brian Jacques - Redwall.m4a"]);
+    // It says what it checked and what it changed, not "Copied 1".
+    await expect(page.locator("#jobHead")).toHaveText(/^1 checked, 1 changed, [\d.]+ \w+ written$/,
+                                                      { timeout: 20_000 });
     await expect(page.locator("#n-device")).toHaveText("1", { timeout: 20_000 });
     await page.close();
   });
@@ -769,9 +772,12 @@ test.describe("full loop in a real browser", () => {
       expect(existsSync(env.dev), "the player's folders were made again on this disk").toBe(false);
       await pop.close();
 
-      // Plug it back in. Asking after the shelf finds it, and the run carries on.
+      // Plug it back in. The background finds it on its own, and the run
+      // carries on and ends with no popup open: the next one still says how
+      // it ended, though a popup was opened while it was paused.
       DOWNLOAD_DELAY[second.id] = 0;
       mkdirSync(join(env.dev, "AUDIOBOOKS"), { recursive: true });
+      await expect.poll(() => deviceFiles(env.dev).length, { timeout: 30_000 }).toBe(1);
       const back = await env.ctx.newPage();
       await back.goto(`chrome-extension://${EXT_ID}/popup.html`);
       await expect(back.locator("#jobBox")).toContainText("Copied 2 to", { timeout: 40_000 });

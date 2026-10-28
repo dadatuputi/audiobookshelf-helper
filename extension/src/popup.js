@@ -60,7 +60,7 @@ function el(tag, cls, text) {
 }
 
 /** "17.6 GB" - formatBytes with the space a reader expects. */
-const size = (n) => ABSH.formatBytes(n).replace(/^([\d.]+)/, "$1 ");
+const size = (n) => ABSH.formatBytes(n, true);
 
 /** "17.6 of 29.7 GB free": the denominator, without saying the unit twice. */
 function freeOf(f) {
@@ -230,6 +230,10 @@ function renderJob() {
   box.classList.toggle("paused", !!paused);
   $("#jobCancel").classList.toggle("hidden", !paused);
   const left = items.length - done.length - failed.length;
+  // A forced copy reads every book and writes only what differs, so it ends
+  // with what it checked and changed, not a download size read as copied.
+  const forced = !live && items.length > 0 && items.every((i) => i.forced);
+  const did = forced ? "Checked" : DID[j.op];
   const head = paused
     ? (paused.why === "helper" ? "Paused · the helper stopped"
                                : `Paused · ${paused.player || where} disconnected`)
@@ -237,12 +241,15 @@ function renderJob() {
     ? `${DOING[j.op]} ${Math.min(done.length + 1, items.length)} of ${items.length} ` +
       `${j.op === "remove" ? "from" : "to"} ${where}`
     : j.cancelled
-      ? `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}; ${j.cancelled} cancelled`
+      ? `${did} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}; ${j.cancelled} cancelled`
     : failed.length || j.error
-      ? `${DID[j.op]} ${done.length} of ${items.length}; ${failed.length || items.length - done.length} failed`
+      ? `${did} ${done.length} of ${items.length}; ${failed.length || items.length - done.length} failed`
+    : forced
+      ? ABSH.checkSummary(done)
       : `${DID[j.op]} ${done.length} ${j.op === "remove" ? "from" : "to"} ${where}`;
   $("#jobHead").textContent = head;
-  $("#jobSize").textContent = total ? (live ? `${size(moved)} of ${size(total)}` : size(total)) : "";
+  $("#jobSize").textContent = !total || (forced && !failed.length && !j.error) ? ""
+    : live ? `${size(moved)} of ${size(total)}` : size(total);
   const bar = $("#jobBar");
   bar.classList.toggle("hidden", !live);
   bar.firstElementChild.style.width = total ? `${Math.round(100 * moved / total)}%` : "0%";
@@ -271,11 +278,15 @@ function onJob(job, first = false) {
   // A run waiting for its player is still under way: when it carries on and
   // ends inside one update, the popup sees paused, then done - and that end
   // is to be shown, as if it had watched it run.
-  const wasRunning = !!(JOB.current || (JOB.paused && JOB.queue && JOB.queue.length));
+  const running = (j) => !!(j.current || (j.paused && j.queue && j.queue.length));
+  const wasRunning = running(JOB);
   JOB = job;
-  if ((first && JOB.last && !JOB.seen) || (wasRunning && !JOB.current)) SHOW_LAST = true;
+  // A paused run is not over: a popup opened then must not mark it seen, or
+  // the one opened after it ends would not say how it ended.
+  const now = running(JOB);
+  if ((first && JOB.last && !JOB.seen && !now) || (wasRunning && !now)) SHOW_LAST = true;
   // Shown here, so seen: the check mark on the toolbar icon can go.
-  if (SHOW_LAST && !JOB.current && !JOB.seen) send({ type: "jobSeen" }).catch(() => {});
+  if (SHOW_LAST && !now && !JOB.seen) send({ type: "jobSeen" }).catch(() => {});
   render();
 }
 
@@ -938,7 +949,7 @@ $("#act").addEventListener("click", async () => {
   }
 });
 
-/* Copy again, from the Both tab: each book is checked against the server
+/* Force copy, from the Both tab: each book is checked against the server
  * file by file, and only the parts that differ are written. */
 $("#again").addEventListener("click", async () => {
   const rows = visible().filter((r) => SEL.has(r.key) && r.id);
@@ -1004,7 +1015,7 @@ document.addEventListener("keydown", (e) => {
   } else if (k === "r" && !PANEL_OPEN) {
     e.preventDefault();
     $("#refresh").click();
-  } else if (k === "c" && !PANEL_OPEN && !$("#again").classList.contains("hidden")
+  } else if (k === "f" && !PANEL_OPEN && !$("#again").classList.contains("hidden")
              && !$("#again").disabled) {
     e.preventDefault();
     $("#again").click();

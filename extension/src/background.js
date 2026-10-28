@@ -564,12 +564,15 @@ function notify(job) {
   const bytes = done.reduce((n, i) => n + (Number(i.bytes) || 0), 0);
   const mins = Math.max(1, Math.round((job.finishedAt - job.startedAt) / 60000));
   const where = job.op === "push" ? "the library" : job.player || "the player";
+  // A forced copy is summed up as what it checked and changed, as in the popup.
+  const forced = done.length > 0 && job.items.every((i) => i.forced);
   const title = failed.length || job.error
     ? `${VERB[job.op]} ${done.length} of ${job.items.length}; ${failed.length || "the rest"} failed`
+    : forced ? ABSH.checkSummary(done)
     : `${VERB[job.op]} ${done.length} ${done.length === 1 ? "book" : "books"} ${job.op === "remove" ? "from" : "to"} ${where}`;
   const noted = job.items.find((i) => i.note);
   const message = job.error ? job.error
-    : `${ABSH.formatBytes(bytes).replace(/^([\d.]+)/, "$1 ")} in ${mins} min.` +
+    : `${forced ? `${done.length === 1 ? "Book" : "Books"} on ${where} checked` : ABSH.formatBytes(bytes, true)} in ${mins} min.` +
       (noted ? ` ${noted.title}: ${noted.note}` : "");
   Promise.resolve(browser.notifications.create(`absh-job-${job.id}`, {
     type: "basic", iconUrl: browser.runtime.getURL("icons/icon-96.png"), title, message,
@@ -603,7 +606,7 @@ function addJob(op, items, player, writeTags, force = false) {
   const job = {
     id: ++JOBS.seq, op, player: player || "",
     ...(op === "pull" && typeof writeTags === "boolean" ? { writeTags } : {}),
-    // Copy again: books already on the player, checked file by file.
+    // Force copy: books already on the player, checked file by file.
     ...(op === "pull" && force ? { force: true } : {}),
     items: items.map((i) => ({ key: i.key, ref: i.ref, title: i.title || i.ref,
                               bytes: Number(i.bytes) || 0, state: "waiting", done: 0, total: 0 })),
@@ -661,11 +664,26 @@ async function runJobs() {
       const notes = (job.result.notes || []).map(String);
       for (const it of todo) {
         if (left.has(it.ref)) { it.state = "waiting"; continue; }
-        const bad = errs.find((e) => e.startsWith(`${it.title}:`));
+        // By id where the result says, since two editions can share a title
+        // and "<title>: why" cannot tell them apart; by title from a helper
+        // too old to say.
+        const byTitle = (lines) => {
+          const hit = lines.find((e) => e.startsWith(`${it.title}:`));
+          return hit ? hit.slice(it.title.length + 1).trim() : "";
+        };
+        const { failed, noted, wrote } = job.result;
+        const bad = (failed && failed[it.ref]) || byTitle(errs);
         it.state = bad ? "failed" : "done";
-        if (bad) it.error = bad.slice(it.title.length + 1).trim();
-        const said = notes.find((e) => e.startsWith(`${it.title}:`));
-        if (said) it.note = said.slice(it.title.length + 1).trim();
+        // Force copy: what each book put on the player, so the popup can say
+        // how many it changed out of those it checked. A helper too old to
+        // say leaves the run summed up as a copy.
+        if (job.force && wrote) {
+          it.forced = true;
+          it.wrote = Number(wrote[it.ref]) || 0;
+        }
+        if (bad) it.error = bad;
+        const said = (noted && noted[it.ref]) || byTitle(notes);
+        if (said) it.note = said;
       }
     } catch (e) {
       // Did the job fail, or did what it needed go away - the player, or the

@@ -136,6 +136,8 @@ describe("where the browser differs on purpose", () => {
     const rep = await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), 12345)), dev, [book],
                              { subdir: "AUDIOBOOKS" });
     expect(rep.errors).toEqual(["Book: download failed - Bad CRC-32 for file 'a.mp3'"]);
+    // By id too: two editions can share a title.
+    expect(rep.failed).toEqual({ b: "download failed - Bad CRC-32 for file 'a.mp3'" });
     const folder = await (await dev.getDirectoryHandle("AUDIOBOOKS")).getDirectoryHandle("Au - Book");
     // Not even an empty one: a part that exists is skipped next time, so an
     // empty file left here would keep the book a track short for good.
@@ -154,7 +156,7 @@ describe("where the browser differs on purpose", () => {
     expect(rep.copied).toBe(1);
   });
 
-  /* Copy again (force): the book goes back into the place it has, and a
+  /* Force copy: the book goes back into the place it has, and a
      file is written only when its bytes differ - even at the same size. */
   const single = (text) => ({
     async download() {
@@ -169,26 +171,28 @@ describe("where the browser differs on purpose", () => {
   };
   const opts = { subdir: "AUDIOBOOKS" };
 
-  it("copy again rewrites a file whose bytes changed at the same size, in place", async () => {
+  it("force copy rewrites a file whose bytes changed at the same size, in place", async () => {
     const dev = new MemDir();
     await F.pull(single("aaaa"), dev, [book], opts);
     const plain = await F.pull(single("bbbb"), dev, [book], opts);
     expect([plain.copied, plain.skipped]).toEqual([0, 1]);
     const again = await F.pull(single("bbbb"), dev, [book], { ...opts, force: true });
     expect([again.copied, again.skipped, again.errors]).toEqual([1, 0, []]);
+    expect(again.wrote).toEqual({ [book.id]: 4 });
     expect(await textOf(dev, "AUDIOBOOKS", "Au - Book.mp3")).toBe("bbbb");
     expect([...(await dev.getDirectoryHandle("AUDIOBOOKS")).kids.keys()].sort())
       .toEqual(["Au - Book.mp3"]);
   });
 
-  it("copy again of a file that is the same writes nothing", async () => {
+  it("force copy of a file that is the same writes nothing", async () => {
     const dev = new MemDir();
     await F.pull(single("aaaa"), dev, [book], opts);
     const again = await F.pull(single("aaaa"), dev, [book], { ...opts, force: true });
     expect([again.copied, again.skipped]).toEqual([0, 1]);
+    expect(again.wrote).toEqual({ [book.id]: 0 });
   });
 
-  it("copy again rewrites only the parts of a folder book that differ", async () => {
+  it("force copy rewrites only the parts of a folder book that differ", async () => {
     const dev = new MemDir();
     const crcHello = 0x3610a686;
     await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), crcHello)), dev, [book], opts);
@@ -202,7 +206,7 @@ describe("where the browser differs on purpose", () => {
     expect(await textOf(dev, "AUDIOBOOKS", "Au - Book", "001 - a.mp3")).toBe("jello");
   });
 
-  it("copy again writes over a part renamed on the player, not beside it", async () => {
+  it("force copy writes over a part renamed on the player, not beside it", async () => {
     const dev = new MemDir();
     await F.pull(client(zipOf("a.mp3", Buffer.from("hello"), 0x3610a686)), dev, [book], opts);
     // Renamed by hand, as a script that shortens names for the player would.

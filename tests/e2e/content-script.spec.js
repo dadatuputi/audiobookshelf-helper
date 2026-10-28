@@ -211,7 +211,7 @@ test.describe("content script behaviour", () => {
     const item = page.locator("#absh-item");
     await expect(item).toContainText("✓ On");
     await expect(item.locator("button", { hasText: "Update on" })).toHaveCount(0);
-    await item.locator("button", { hasText: "Copy again" }).click();
+    await item.locator("button", { hasText: "Force copy" }).click();
     await expect.poll(() => page.evaluate(() => SENT.find((m) => m.type === "jobAdd")))
       .toMatchObject({ op: "pull", force: true, items: [{ ref: "li_1", title: "B" }] });
   });

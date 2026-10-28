@@ -13,6 +13,10 @@
 
   const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const plain = (x) => JSON.parse(JSON.stringify(x));
+  // The counts both sides keep alike (tools/parity_vectors.py report_view).
+  // Bytes written differ by design: folder mode writes a changed file whole.
+  const REPORT = ["copied", "skipped", "uploaded", "removed", "freed", "errors", "books", "interrupted"];
+  const view = (rep) => plain(Object.fromEntries(REPORT.filter((k) => k in rep).map((k) => [k, rep[k]])));
 
   async function buildTree(dir, tree) {
     for (const rel of Object.keys(tree).sort()) {
@@ -84,7 +88,7 @@
                    folderTemplate: "{author} - {title}", ...c.opts };
     const events = [];
     const rep = await F.pull(fakeClient(c.downloads), dev, c.items, opts, (e) => events.push(e));
-    return { report: plain(rep), tree: await readTree(F, dev), index: await readIndex(F, dev),
+    return { report: view(rep), tree: await readTree(F, dev), index: await readIndex(F, dev),
              events: plain(events) };
   }
 
@@ -98,14 +102,14 @@
     const client = fakeClient({});
     const events = [];
     const rep = await F.push(client, chosen, opts, (e) => events.push(e));
-    return { report: plain(rep), uploads: client.uploads, events: plain(events) };
+    return { report: view(rep), uploads: client.uploads, events: plain(events) };
   }
 
   async function remove(F, dev, c) {
     await buildTree(dev, c.tree);
     const events = [];
     const rep = await F.remove(dev, c.names, { subdir: "AUDIOBOOKS" }, (e) => events.push(e));
-    return { report: plain(rep), tree: await readTree(F, dev), index: await readIndex(F, dev),
+    return { report: view(rep), tree: await readTree(F, dev), index: await readIndex(F, dev),
              events: plain(events) };
   }
 

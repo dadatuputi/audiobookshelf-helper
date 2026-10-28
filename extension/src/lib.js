@@ -65,12 +65,23 @@
     return n > 999 ? "999+" : String(n);
   }
 
-  function formatBytes(n) {
+  /** How a forced copy ended: every book was read and checked, and only the
+   *  ones that differed were written to. Books are items with `wrote`, the
+   *  bytes put on the player; a book without it counts as unchanged. */
+  function checkSummary(items) {
+    const wrote = items.map((i) => Number(i.wrote) || 0);
+    const changed = wrote.filter((n) => n > 0).length;
+    const bytes = formatBytes(wrote.reduce((a, b) => a + b, 0), true);
+    return `${items.length} checked, ${changed} changed, ${bytes} written`;
+  }
+
+  /** "17.6GB", or "17.6 GB" with `spaced`, as a reader expects in a sentence. */
+  function formatBytes(n, spaced = false) {
     n = Number(n) || 0;
     const u = ["B", "KB", "MB", "GB", "TB"];
     let i = 0;
     while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
-    return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)}${u[i]}`;
+    return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)}${spaced ? " " : ""}${u[i]}`;
   }
 
   /** The pattern without its trailing star, for a plain prefix test on a URL. */
@@ -239,7 +250,7 @@
   }
 
   const lib = { DEFAULTS, baseUrl, helperAbsent, helperStuck, helperAsset, helperDownload, slowPlayerHint, sandboxHelp, originPattern, libraryPattern, libraryPrefix,
-                formatBytes, badgeCount, parseVersion, compareVersions, updateCheckDue,
+                formatBytes, badgeCount, checkSummary, parseVersion, compareVersions, updateCheckDue,
                 updateState, UPDATE_CHECK_EVERY, UPDATE_RETRY_AFTER };
   root.ABSH = lib;
   if (typeof module !== "undefined" && module.exports) module.exports = lib;
