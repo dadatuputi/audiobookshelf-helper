@@ -278,11 +278,15 @@ function onJob(job, first = false) {
   // A run waiting for its player is still under way: when it carries on and
   // ends inside one update, the popup sees paused, then done - and that end
   // is to be shown, as if it had watched it run.
-  const wasRunning = !!(JOB.current || (JOB.paused && JOB.queue && JOB.queue.length));
+  const running = (j) => !!(j.current || (j.paused && j.queue && j.queue.length));
+  const wasRunning = running(JOB);
   JOB = job;
-  if ((first && JOB.last && !JOB.seen) || (wasRunning && !JOB.current)) SHOW_LAST = true;
+  // A paused run is not over: a popup opened then must not mark it seen, or
+  // the one opened after it ends would not say how it ended.
+  const now = running(JOB);
+  if ((first && JOB.last && !JOB.seen && !now) || (wasRunning && !now)) SHOW_LAST = true;
   // Shown here, so seen: the check mark on the toolbar icon can go.
-  if (SHOW_LAST && !JOB.current && !JOB.seen) send({ type: "jobSeen" }).catch(() => {});
+  if (SHOW_LAST && !now && !JOB.seen) send({ type: "jobSeen" }).catch(() => {});
   render();
 }
 

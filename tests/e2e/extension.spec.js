@@ -772,9 +772,12 @@ test.describe("full loop in a real browser", () => {
       expect(existsSync(env.dev), "the player's folders were made again on this disk").toBe(false);
       await pop.close();
 
-      // Plug it back in. Asking after the shelf finds it, and the run carries on.
+      // Plug it back in. The background finds it on its own, and the run
+      // carries on and ends with no popup open: the next one still says how
+      // it ended, though a popup was opened while it was paused.
       DOWNLOAD_DELAY[second.id] = 0;
       mkdirSync(join(env.dev, "AUDIOBOOKS"), { recursive: true });
+      await expect.poll(() => deviceFiles(env.dev).length, { timeout: 30_000 }).toBe(1);
       const back = await env.ctx.newPage();
       await back.goto(`chrome-extension://${EXT_ID}/popup.html`);
       await expect(back.locator("#jobBox")).toContainText("Copied 2 to", { timeout: 40_000 });

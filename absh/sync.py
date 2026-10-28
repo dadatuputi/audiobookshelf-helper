@@ -224,6 +224,7 @@ def _download(client, item, root, name, rename, report, step, device_path, force
                     else:
                         with z.open(member) as src:
                             _write_whole(dst, lambda out: shutil.copyfileobj(src, out))
+                        report["written"] += dst.stat().st_size
                         report["copied"] += 1
                     written.append(dst)
             return written, name, "dir", src_ext
@@ -247,6 +248,7 @@ def _download(client, item, root, name, rename, report, step, device_path, force
             # leave half a book under the real name.
             with open(tmp, "rb") as src:
                 _write_whole(dst, lambda out: shutil.copyfileobj(src, out))
+            report["written"] += dst.stat().st_size
             report["copied"] += 1
         return [dst], dst.name, "file", src_ext
 
