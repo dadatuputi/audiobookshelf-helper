@@ -14,6 +14,8 @@ let SEL = new Set();
 let NO_PLAYER = false;
 let PANEL_OPEN = false;
 let LIB = "";                          // the server's host, as the Library card names it
+let LIB_URL = "";                      // the server itself, which the Library card opens
+let ST_AT = 0;                         // when ST was read: the free space is as of then
 let FOLDER = "";                       // Chrome's folder, when that is what is in use
 let SETUP = false;                     // showing what to do first, not the shelf
 
@@ -162,12 +164,13 @@ const rowsFor = {
       key: b.itemId, id: b.itemId, title: b.title, item: b.item, author: b.author,
       sub: ["Changed since it was copied · update", line2(b.item, b.author)]
         .filter(Boolean).join(" · "),
-      bytes: b.item.size || b.bytes }))),
+      bytes: b.item.size || b.bytes, onPlayer: b.bytes || 0 }))),
   device: () => ST.both.map((b) => ({ key: b.name, name: b.name, id: b.itemId, title: b.title,
     item: b.item, author: b.author,
     sub: [line2(b.item, b.author),
           b.matchedBy && b.matchedBy !== "id" ? `matched by ${b.matchedBy}` : ""]
-      .filter(Boolean).join(" · "), bytes: b.bytes })),
+      .filter(Boolean).join(" · "), bytes: b.bytes,
+    serverBytes: (b.item && b.item.size) || b.bytes })),
   only: () => ST.deviceOnly.map((e) => ({ key: e.name, name: e.name, title: e.title || e.name,
     item: { author: e.author, numTracks: (e.files || []).length || 0 }, author: e.author,
     sub: e.author || "unknown author", bytes: e.bytes })),
@@ -339,7 +342,6 @@ function render() {
   }
   $("#libCount").textContent = counted
     ? `${ST.serverOnly.length + ST.both.length} books` : "";
-  if (!NO_PLAYER) $("#free").textContent = counted ? freeOf(ST.free) : "";
 
   const rows = visible();
   const ul = $("#list");
@@ -417,17 +419,81 @@ function render() {
   updateAction();
 }
 
+/* ------------------------------------------------------- room on the player */
+/** What a row's copy takes on the player: the whole book when it is not there,
+ *  only its growth when it is written over what is (an update, a force copy). */
+function need(r) {
+  return TAB === "device" ? ABSH.roomNeeded(r.serverBytes, r.bytes)
+    : ABSH.roomNeeded(r.bytes, r.onPlayer);
+}
+
+/** What copies already queued will still take. The free space was read when
+ *  ST was: a book this run finished after that is not in it yet either. */
+function queuedRoom() {
+  let n = 0;
+  for (const j of [JOB.current, ...JOB.queue]) {
+    if (!j || j.op !== "pull") continue;
+    const before = ST_AT < (j.startedAt || Infinity);
+    for (const it of j.items) {
+      if (it.state === "failed" || (it.state === "done" && !before)) continue;
+      n += it.need != null ? Number(it.need) || 0 : Number(it.bytes) || 0;
+    }
+  }
+  return n;
+}
+
+/** The player card's meter and free figure. To player: what the queue will
+ *  still take, then what is ticked, on top of what is used, and the figure
+ *  says what is left after - or how much over, in red. On the other tabs the
+ *  ticked books do not go to the player, so only the queue is counted; there
+ *  each button carries its own figure (Remove frees, Force copy takes). */
+function renderSpace(rows) {
+  const meter = $("#meter");
+  const free = $("#free");
+  const shown = KNOWN && !NO_PLAYER && !SETUP;
+  const queued = shown ? queuedRoom() : 0;
+  const selected = shown && TAB === "server" ? rows.reduce((n, r) => n + need(r), 0) : 0;
+  const plan = shown ? ABSH.storagePlan(ST.free, queued, selected) : null;
+  meter.classList.toggle("hidden", !plan);
+  free.classList.remove("over");
+  if (!shown) { free.textContent = ""; return null; }
+  if (!plan) {
+    free.textContent = freeOf(ST.free);
+    $("#playerToggle").title = BACKEND === "folder" ? "Change player" : (PLAYER.devicePath || "Choose player");
+    return null;
+  }
+
+  const pct = (n) => `${Math.max(0, Math.min(100, 100 * n / plan.total))}%`;
+  const [used, q, sel] = meter.children;
+  used.style.width = pct(plan.used);
+  q.style.width = pct(Math.min(plan.queued, plan.free));
+  sel.style.width = pct(Math.min(selected, Math.max(0, plan.free - plan.queued)));
+  meter.classList.toggle("over", plan.over > 0);
+
+  free.textContent = plan.over ? `${size(plan.over)} over`
+    : queued || selected ? `${size(plan.after)} free after`
+    : freeOf(ST.free);
+  free.classList.toggle("over", plan.over > 0);
+  $("#playerToggle").title = [PLAYER.devicePath || playerLabel(),
+    freeOf(ST.free) + (queued ? ` · ${size(queued)} queued` : "") +
+    (selected ? ` · ${size(selected)} ticked` : "")].join("\n");
+  return plan;
+}
+
 function updateAction() {
   const rows = visible().filter((r) => SEL.has(r.key));
   const btn = $("#act");
   const bytes = rows.reduce((n, r) => n + (Number(r.bytes) || 0), 0);
-  const free = ST.free && ST.free.free;
+  const plan = renderSpace(rows);
   let sub = "";
   if (rows.length) {
     if (TAB === "server") {
-      sub = !free ? size(bytes)
-        : bytes > free ? `${size(bytes)} - ${size(bytes - free)} more than is free`
-        : `${size(bytes)} of ${size(free)} free`;
+      const room = rows.reduce((n, r) => n + need(r), 0);
+      // An update is written over the copy there, so it takes less than it moves.
+      const takes = room === bytes ? size(bytes) : `${size(bytes)} · takes ${size(room)}`;
+      sub = !plan ? takes
+        : plan.over ? `${takes} · ${size(plan.over)} over`
+        : `${takes} of ${size(plan.free - plan.queued)} free`;
     } else if (TAB === "device") {
       sub = `Frees ${size(bytes)}`;
     } else {
@@ -448,6 +514,14 @@ function updateAction() {
   const pullable = rows.filter((r) => r.id);
   again.classList.toggle("hidden", TAB !== "device" || SETUP || PANEL_OPEN || !rows.length);
   again.disabled = !pullable.length;
+  // What a Force copy takes: only what the books grew by in the library, since
+  // each is written over the copy that is there.
+  const grow = pullable.reduce((n, r) => n + need(r), 0);
+  const room = plan ? plan.free - plan.queued : Infinity;
+  const short = grow - room;
+  $("#againSub").textContent = !pullable.length ? ""
+    : short > 0 ? `Takes ${size(grow)} · ${size(short)} over` : `Takes ${size(grow)}`;
+  $("#againSub").classList.toggle("over", short > 0);
   again.title = pullable.length
     ? `Check ${pullable.length} ${pullable.length === 1 ? "book" : "books"} against Audiobookshelf ` +
       `and write only what differs to ${playerLabel()}`
@@ -457,6 +531,8 @@ function updateAction() {
 /* ------------------------------------------------------------ lifecycle */
 function showStatus(st) {
   ST = st;
+  ST_AT = Date.now();
+  if (st.libraryId) libLink(st.libraryId);
   KNOWN = true;
   NO_PLAYER = false;
   for (const k of [...SEL]) if (!visible().some((r) => r.key === k)) SEL.delete(k);
@@ -565,7 +641,10 @@ function showPlayer(name, { missing = false, was = "" } = {}) {
   $("#playerToggle").classList.toggle("missing", missing);
   $("#playerToggle").title = BACKEND === "folder" ? "Change player" : (PLAYER.devicePath || "Choose player");
   $("#playerWas").textContent = was;
-  if (missing) $("#free").textContent = "";
+  if (missing) {
+    $("#free").textContent = "";
+    $("#meter").classList.add("hidden");
+  }
 }
 
 function showSavedPlayer() {
@@ -599,7 +678,8 @@ async function closePlayer() {
 }
 
 async function readPlayer() {
-  const s = await browser.storage.local.get({ devicePath: "", subdir: PLAYER.subdir, absUrl: "" });
+  const s = await browser.storage.local.get({ devicePath: "", subdir: PLAYER.subdir, absUrl: "",
+                                              libraryId: "" });
   PLAYER.devicePath = s.devicePath || "";
   PLAYER.subdir = s.subdir;
   $("#devicePath").value = PLAYER.devicePath;
@@ -610,6 +690,17 @@ async function readPlayer() {
     LIB = "";
   }
   $("#libName").textContent = LIB || "Not set";
+  LIB_URL = LIB ? ABSH.baseUrl(s.absUrl) : "";
+  libLink(s.libraryId);
+}
+
+/** The Library card opens the library in a tab: the one the shelf lists, once
+ *  the helper has said which, and the server's front page until then. */
+function libLink(id) {
+  const a = $("#libOpen");
+  if (!LIB_URL) { a.removeAttribute("href"); a.title = ""; return; }
+  a.title = `Open ${LIB} in a new tab`;
+  a.href = id ? `${LIB_URL}/library/${encodeURIComponent(id)}` : LIB_URL;
 }
 
 async function savePlayer(patch) {
@@ -964,7 +1055,8 @@ $("#act").addEventListener("click", async () => {
     if (writeTags === null) return;
     onJob(await send({ type: "jobAdd", op: a.op, player: playerLabel(), writeTags,
                        items: rows.map((r) => ({ key: r.key, ref: a.ref(r), title: r.title,
-                                                 bytes: r.bytes })) }));
+                                                 bytes: r.bytes,
+                                                 ...(a.op === "pull" ? { need: need(r) } : {}) })) }));
     SEL.clear();
     render();
   } catch (e) {
@@ -983,7 +1075,7 @@ $("#again").addEventListener("click", async () => {
     if (writeTags === null) return;
     onJob(await send({ type: "jobAdd", op: "pull", force: true, player: playerLabel(), writeTags,
                        items: rows.map((r) => ({ key: r.id, ref: r.id, title: r.title,
-                                                 bytes: r.bytes })) }));
+                                                 bytes: r.bytes, need: need(r) })) }));
     SEL.clear();
     render();
   } catch (e) {

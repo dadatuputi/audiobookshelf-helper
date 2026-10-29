@@ -325,3 +325,38 @@ describe("sandboxHelp", () => {
     }
   });
 });
+
+describe("roomNeeded", () => {
+  it("takes a book's whole size when it is not on the player", () => {
+    expect(ABSH.roomNeeded(500)).toBe(500);
+    expect(ABSH.roomNeeded(500, null)).toBe(500);
+  });
+  it("takes only the growth of one written over in place", () => {
+    expect(ABSH.roomNeeded(500, 450)).toBe(50);
+    expect(ABSH.roomNeeded(500, 500)).toBe(0);
+    // Shrinking gives room back, but is never counted as room to spare.
+    expect(ABSH.roomNeeded(400, 500)).toBe(0);
+  });
+});
+
+describe("storagePlan", () => {
+  const GB = 2 ** 30;
+  it("is nothing when the drive's size is unknown", () => {
+    expect(ABSH.storagePlan({}, 0, 0)).toBe(null);
+    expect(ABSH.storagePlan({ free: GB }, 0, 0)).toBe(null);
+  });
+  it("puts the queue and the ticked books on top of what is used", () => {
+    const p = ABSH.storagePlan({ free: 10 * GB, total: 32 * GB }, 2 * GB, 3 * GB);
+    expect(p.used).toBe(22 * GB);
+    expect(p.after).toBe(5 * GB);
+    expect(p.over).toBe(0);
+  });
+  it("says how much too much", () => {
+    const p = ABSH.storagePlan({ free: 10 * GB, total: 32 * GB }, 4 * GB, 7 * GB);
+    expect(p.over).toBe(GB);
+  });
+  it("gives room back for books ticked to remove", () => {
+    const p = ABSH.storagePlan({ free: 10 * GB, total: 32 * GB }, 0, -4 * GB);
+    expect(p.after).toBe(14 * GB);
+  });
+});

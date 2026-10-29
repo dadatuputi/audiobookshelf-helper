@@ -1474,13 +1474,14 @@
       case "status": {
         const dev = await openDevice();
         const c = await clientFor(cfg, fetchImpl);
-        const items = await c.items(await libraryId(c, cfg, msg));
+        const lib = await libraryId(c, cfg, msg);
+        const items = await c.items(lib);
         const entries = await scan(dev, cfg.subdir, cfg.folderTemplate, msg.readTags !== false);
         const d = diff(items, entries, cfg.folderTemplate);
         // Chrome does not say how much room a folder's drive has left.
         d.free = {};
         d.onDeviceBytes = entries.reduce((n, e) => n + e.bytes, 0);
-        return { ...serialisable(d), backend: "folder", folder: dev.name };
+        return { ...serialisable(d), backend: "folder", folder: dev.name, libraryId: lib };
       }
       case "pull": {
         const dev = await openDevice();
